@@ -87,12 +87,7 @@ export interface NoFill {
 }
 
 /** Discriminated union of all fill types. */
-export type FillIR =
-  | SolidFillIR
-  | GradientFillIR
-  | PatternFillIR
-  | PictureFillIR
-  | NoFill;
+export type FillIR = SolidFillIR | GradientFillIR | PatternFillIR | PictureFillIR | NoFill;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Line / Stroke
@@ -199,12 +194,7 @@ export interface SoftEdgeIR {
 }
 
 /** Discriminated union of all effect types. */
-export type EffectIR =
-  | OuterShadowIR
-  | InnerShadowIR
-  | GlowIR
-  | ReflectionIR
-  | SoftEdgeIR;
+export type EffectIR = OuterShadowIR | InnerShadowIR | GlowIR | ReflectionIR | SoftEdgeIR;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Geometry

@@ -371,18 +371,36 @@ describe('EffectIR discriminated union', () => {
       { type: 'outerShadow', blurRadius: 0, distance: 0, direction: 0, color: black },
       { type: 'innerShadow', blurRadius: 0, distance: 0, direction: 0, color: black },
       { type: 'glow', radius: 0, color: black },
-      { type: 'reflection', blurRadius: 0, startOpacity: 1, endOpacity: 0, distance: 0, direction: 0, fadeDirection: 0 },
+      {
+        type: 'reflection',
+        blurRadius: 0,
+        startOpacity: 1,
+        endOpacity: 0,
+        distance: 0,
+        direction: 0,
+        fadeDirection: 0,
+      },
       { type: 'softEdge', radius: 0 },
     ];
 
     const types: string[] = [];
     for (const e of effects) {
       switch (e.type) {
-        case 'outerShadow': types.push('outer'); break;
-        case 'innerShadow': types.push('inner'); break;
-        case 'glow': types.push('glow'); break;
-        case 'reflection': types.push('reflection'); break;
-        case 'softEdge': types.push('soft'); break;
+        case 'outerShadow':
+          types.push('outer');
+          break;
+        case 'innerShadow':
+          types.push('inner');
+          break;
+        case 'glow':
+          types.push('glow');
+          break;
+        case 'reflection':
+          types.push('reflection');
+          break;
+        case 'softEdge':
+          types.push('soft');
+          break;
       }
     }
     expect(types).toEqual(['outer', 'inner', 'glow', 'reflection', 'soft']);
@@ -443,8 +461,12 @@ describe('GeometryIR', () => {
     const results: string[] = [];
     for (const geo of geometries) {
       switch (geo.kind) {
-        case 'preset': results.push(geo.name); break;
-        case 'custom': results.push(`custom:${geo.guides.length}`); break;
+        case 'preset':
+          results.push(geo.name);
+          break;
+        case 'custom':
+          results.push(`custom:${geo.guides.length}`);
+          break;
       }
     }
     expect(results).toEqual(['rect', 'custom:0']);
@@ -466,7 +488,13 @@ describe('ShapePropertiesIR', () => {
       fill: { type: 'solid', color: red },
       line: { color: black, width: 12700, dashStyle: 'solid' },
       effects: [
-        { type: 'outerShadow', blurRadius: 50800, distance: 38100, direction: 315, color: { ...black, a: 0.4 } },
+        {
+          type: 'outerShadow',
+          blurRadius: 50800,
+          distance: 38100,
+          direction: 315,
+          color: { ...black, a: 0.4 },
+        },
       ],
       geometry: { kind: 'preset', name: 'rect' },
     };
@@ -676,9 +704,7 @@ describe('TableIR', () => {
   it('constructs a 2x2 table', () => {
     const cell: TableCellIR = {
       textBody: {
-        paragraphs: [
-          { runs: [{ kind: 'run', text: 'Cell', properties: {} }], properties: {} },
-        ],
+        paragraphs: [{ runs: [{ kind: 'run', text: 'Cell', properties: {} }], properties: {} }],
         bodyProperties: {},
       },
       fill: { type: 'solid', color: white },
@@ -692,9 +718,7 @@ describe('TableIR', () => {
     const mergedCell: TableCellIR = {
       gridSpan: 2,
       textBody: {
-        paragraphs: [
-          { runs: [{ kind: 'run', text: 'Merged', properties: {} }], properties: {} },
-        ],
+        paragraphs: [{ runs: [{ kind: 'run', text: 'Merged', properties: {} }], properties: {} }],
         bodyProperties: {},
       },
     };
@@ -763,13 +787,27 @@ describe('SlideElementIR discriminated union', () => {
     const kinds: string[] = [];
     for (const el of elements) {
       switch (el.kind) {
-        case 'shape': kinds.push(`shape:${el.name}`); break;
-        case 'picture': kinds.push(`picture:${el.imagePartUri}`); break;
-        case 'group': kinds.push(`group:${el.children.length}`); break;
-        case 'connector': kinds.push('connector'); break;
-        case 'table': kinds.push(`table:${el.rows.length}`); break;
-        case 'chart': kinds.push(`chart:${el.chartType}`); break;
-        case 'unsupported': kinds.push(`unsupported:${el.elementType}`); break;
+        case 'shape':
+          kinds.push(`shape:${el.name}`);
+          break;
+        case 'picture':
+          kinds.push(`picture:${el.imagePartUri}`);
+          break;
+        case 'group':
+          kinds.push(`group:${el.children.length}`);
+          break;
+        case 'connector':
+          kinds.push('connector');
+          break;
+        case 'table':
+          kinds.push(`table:${el.rows.length}`);
+          break;
+        case 'chart':
+          kinds.push(`chart:${el.chartType}`);
+          break;
+        case 'unsupported':
+          kinds.push(`unsupported:${el.elementType}`);
+          break;
       }
     }
     expect(kinds).toEqual([
@@ -865,7 +903,19 @@ describe('ThemeIR', () => {
     const formatScheme: FormatSchemeIR = {
       fillStyles: [noFill, solidFill, gradFill],
       lineStyles: [thinLine, medLine, thickLine],
-      effectStyles: [[], [], [{ type: 'outerShadow', blurRadius: 50800, distance: 38100, direction: 315, color: { r: 0, g: 0, b: 0, a: 0.4 } }]],
+      effectStyles: [
+        [],
+        [],
+        [
+          {
+            type: 'outerShadow',
+            blurRadius: 50800,
+            distance: 38100,
+            direction: 315,
+            color: { r: 0, g: 0, b: 0, a: 0.4 },
+          },
+        ],
+      ],
       bgFillStyles: [noFill, solidFill, gradFill],
     };
 
@@ -888,9 +938,18 @@ describe('ThemeIR', () => {
     const theme: ThemeIR = {
       name: 'Test',
       colorScheme: {
-        dk1: black, lt1: white, dk2: black, lt2: white,
-        accent1: red, accent2: blue, accent3: red, accent4: blue,
-        accent5: red, accent6: blue, hlink: blue, folHlink: red,
+        dk1: black,
+        lt1: white,
+        dk2: black,
+        lt2: white,
+        accent1: red,
+        accent2: blue,
+        accent3: red,
+        accent4: blue,
+        accent5: red,
+        accent6: blue,
+        hlink: blue,
+        folHlink: red,
       },
       fontScheme: { majorLatin: 'Arial', minorLatin: 'Calibri' },
       formatScheme: {
@@ -959,7 +1018,14 @@ describe('JSON round-trip (comprehensive)', () => {
           tailEnd: { type: 'stealth', width: 'sm', length: 'med' },
         },
         effects: [
-          { type: 'outerShadow', blurRadius: 76200, distance: 50800, direction: 270, color: { r: 0, g: 0, b: 0, a: 0.3 }, alignment: 'bl' },
+          {
+            type: 'outerShadow',
+            blurRadius: 76200,
+            distance: 50800,
+            direction: 270,
+            color: { r: 0, g: 0, b: 0, a: 0.3 },
+            alignment: 'bl',
+          },
           { type: 'glow', radius: 101600, color: { r: 255, g: 255, b: 0, a: 0.5 } },
         ],
         geometry: {
