@@ -1,0 +1,62 @@
+{
+  "name": "@opendockit/core",
+  "version": "0.0.1",
+  "description": "Shared OOXML infrastructure: OPC, DrawingML, themes, colors, fonts, geometry",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./opc": {
+      "types": "./dist/opc/index.d.ts",
+      "import": "./dist/opc/index.js"
+    },
+    "./drawingml": {
+      "types": "./dist/drawingml/index.d.ts",
+      "import": "./dist/drawingml/index.js"
+    },
+    "./theme": {
+      "types": "./dist/theme/index.d.ts",
+      "import": "./dist/theme/index.js"
+    },
+    "./ir": {
+      "types": "./dist/ir/index.d.ts",
+      "import": "./dist/ir/index.js"
+    },
+    "./units": {
+      "types": "./dist/units/index.d.ts",
+      "import": "./dist/units/index.js"
+    },
+    "./capability": {
+      "types": "./dist/capability/index.d.ts",
+      "import": "./dist/capability/index.js"
+    },
+    "./font": {
+      "types": "./dist/font/index.d.ts",
+      "import": "./dist/font/index.js"
+    },
+    "./media": {
+      "types": "./dist/media/index.d.ts",
+      "import": "./dist/media/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.0",
+    "jszip": "^3.10.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0",
+    "typescript": "^5.7.0"
+  }
+}

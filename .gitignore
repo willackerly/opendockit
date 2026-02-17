@@ -1,0 +1,18 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.turbo/
+tmp/
+.DS_Store
+*.local
+coverage/
+
+# WASM build artifacts
+*.wasm
+!packages/wasm-modules/**/*.wasm
+
+# Test output
+test-output/
+diff/
+actual/
+reference/

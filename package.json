@@ -1,0 +1,24 @@
+{
+  "name": "opendockit",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Progressive-fidelity, client-side OOXML document renderer",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "test": "pnpm -r test",
+    "test:watch": "pnpm -r --parallel test:watch",
+    "lint": "prettier --check . && pnpm -r typecheck",
+    "format": "prettier --write .",
+    "typecheck": "pnpm -r typecheck",
+    "clean": "pnpm -r clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "prettier": "^3.2.0",
+    "typescript": "^5.7.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  }
+}
