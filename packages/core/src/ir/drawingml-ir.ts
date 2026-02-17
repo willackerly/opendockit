@@ -367,6 +367,10 @@ export interface BodyPropertiesIR {
   columnSpacing?: number;
   /** Auto-fit behavior. */
   autoFit?: 'none' | 'shrink' | 'spAutoFit';
+  /** Font scale factor (percentage, e.g. 80 means 80%). Only for 'shrink'. */
+  fontScale?: number;
+  /** Line spacing reduction (percentage). Only for 'shrink'. */
+  lnSpcReduction?: number;
   /** Text rotation in degrees (independent of shape rotation). */
   rotation?: number;
 }
@@ -596,6 +600,8 @@ export interface TableIR {
   kind: 'table';
   properties: ShapePropertiesIR;
   rows: TableRowIR[];
+  /** Column widths in EMU from `a:tblGrid/a:gridCol`. */
+  columnWidths?: number[];
   /** OOXML table style GUID. */
   tableStyle?: string;
 }

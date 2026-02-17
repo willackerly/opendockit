@@ -391,19 +391,35 @@ describe('renderSlideElement', () => {
     expect(methods).toContain('restore');
   });
 
-  it('renders table as placeholder box', () => {
+  it('renders table using the table renderer (not placeholder)', () => {
     const rctx = createMockRenderContext();
     const table: TableIR = {
       kind: 'table',
       properties: makeProperties({ transform: makeTransform() }),
-      rows: [],
+      rows: [
+        {
+          height: 914400,
+          cells: [
+            {
+              fill: { type: 'solid', color: { r: 255, g: 0, b: 0, a: 1 } },
+            },
+          ],
+        },
+      ],
+      columnWidths: [1828800],
     };
 
     renderSlideElement(table, rctx);
 
-    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
-    expect(fillTextCalls).toHaveLength(1);
-    expect(fillTextCalls[0].args[0]).toBe('Table');
+    // Should NOT have the placeholder "Table" text label
+    const placeholderTextCalls = rctx.ctx._calls.filter(
+      (c) => c.method === 'fillText' && c.args[0] === 'Table'
+    );
+    expect(placeholderTextCalls).toHaveLength(0);
+
+    // Should have fill calls from the real table renderer
+    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    expect(fillCalls).toHaveLength(1);
   });
 
   it('renders chart as placeholder box', () => {
@@ -460,13 +476,14 @@ describe('renderSlideElement', () => {
 
   it('placeholder boxes use correct styling', () => {
     const rctx = createMockRenderContext();
-    const table: TableIR = {
-      kind: 'table',
+    const chart: ChartIR = {
+      kind: 'chart',
+      chartType: 'bar',
       properties: makeProperties({ transform: makeTransform() }),
-      rows: [],
+      chartPartUri: '/ppt/charts/chart1.xml',
     };
 
-    renderSlideElement(table, rctx);
+    renderSlideElement(chart, rctx);
 
     const methods = rctx.ctx._calls.map((c) => c.method);
     // Should have save, fillRect (background), strokeRect (border), fillText (label), restore.

@@ -168,10 +168,43 @@ function parseGroup(grpSpElement: XmlElement, theme: ThemeIR): SlideElementIR {
 // ---------------------------------------------------------------------------
 
 function parseConnector(cxnSpElement: XmlElement): SlideElementIR {
-  return {
+  const connector: import('@opendockit/core').ConnectorIR = {
     kind: 'connector',
     properties: parseShapePropertiesBasic(cxnSpElement),
   };
+
+  // Extract connection endpoint references from non-visual connector properties.
+  // Structure: p:cxnSp / p:nvCxnSpPr / p:cNvCxnSpPr / { a:stCxn, a:endCxn }
+  const nvCxnSpPr = cxnSpElement.child('p:nvCxnSpPr');
+  const cNvCxnSpPr = nvCxnSpPr?.child('p:cNvCxnSpPr');
+
+  if (cNvCxnSpPr) {
+    const stCxn = cNvCxnSpPr.child('a:stCxn');
+    if (stCxn) {
+      const stId = stCxn.attr('id');
+      const stIdx = parseIntAttr(stCxn, 'idx');
+      if (stId !== undefined && stIdx !== undefined) {
+        connector.startConnection = {
+          shapeId: stId,
+          connectionSiteIndex: stIdx,
+        };
+      }
+    }
+
+    const endCxn = cNvCxnSpPr.child('a:endCxn');
+    if (endCxn) {
+      const endId = endCxn.attr('id');
+      const endIdx = parseIntAttr(endCxn, 'idx');
+      if (endId !== undefined && endIdx !== undefined) {
+        connector.endConnection = {
+          shapeId: endId,
+          connectionSiteIndex: endIdx,
+        };
+      }
+    }
+  }
+
+  return connector;
 }
 
 // ---------------------------------------------------------------------------

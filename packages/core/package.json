@@ -45,6 +45,10 @@
     "./media": {
       "types": "./dist/media/index.d.ts",
       "import": "./dist/media/index.js"
+    },
+    "./wasm": {
+      "types": "./dist/wasm/index.d.ts",
+      "import": "./dist/wasm/index.js"
     }
   },
   "scripts": {

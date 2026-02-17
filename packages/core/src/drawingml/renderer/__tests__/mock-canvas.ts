@@ -62,6 +62,10 @@ export function createMockContext(): MockContext {
     closePath: () => calls.push({ method: 'closePath', args: [] }),
     moveTo: (x: number, y: number) => calls.push({ method: 'moveTo', args: [x, y] }),
     lineTo: (x: number, y: number) => calls.push({ method: 'lineTo', args: [x, y] }),
+    bezierCurveTo: (cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number) =>
+      calls.push({ method: 'bezierCurveTo', args: [cp1x, cp1y, cp2x, cp2y, x, y] }),
+    quadraticCurveTo: (cpx: number, cpy: number, x: number, y: number) =>
+      calls.push({ method: 'quadraticCurveTo', args: [cpx, cpy, x, y] }),
     ellipse: (
       x: number,
       y: number,

@@ -602,4 +602,72 @@ describe('renderTextBody', () => {
     const uniqueY = new Set(yValues);
     expect(uniqueY.size).toBe(1);
   });
+
+  // -------------------------------------------------------------------------
+  // Auto-fit: normAutofit font scaling
+  // -------------------------------------------------------------------------
+
+  it('applies font scale when autoFit is shrink', () => {
+    const rctx = createMockRenderContext();
+    // Normal size: 18pt. With 50% fontScale: 9pt.
+    const bodyNormal = makeTextBody([makeParagraph([makeRun('Normal')])]);
+    const bodyScaled = makeTextBody([makeParagraph([makeRun('Scaled')])], {
+      autoFit: 'shrink',
+      fontScale: 50,
+    });
+
+    renderTextBody(bodyNormal, rctx, BOUNDS);
+    const normalFont = rctx.ctx.font;
+    expect(normalFont).toContain('18pt');
+
+    rctx.ctx._calls.length = 0;
+
+    renderTextBody(bodyScaled, rctx, BOUNDS);
+    const scaledFont = rctx.ctx.font;
+    expect(scaledFont).toContain('9pt');
+  });
+
+  it('does not apply font scale when autoFit is not shrink', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([makeParagraph([makeRun('NoScale')])], {
+      autoFit: 'spAutoFit',
+      fontScale: 50, // should be ignored since autoFit is not 'shrink'
+    });
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    // Font should still be the full 18pt.
+    expect(rctx.ctx.font).toContain('18pt');
+  });
+
+  it('applies line spacing reduction when autoFit is shrink', () => {
+    const rctx = createMockRenderContext();
+    // Two paragraphs: measure the gap between them.
+    // Default line spacing is 120%. With 20% reduction it becomes 100%.
+    const bodyNormal = makeTextBody([
+      makeParagraph([makeRun('First')]),
+      makeParagraph([makeRun('Second')]),
+    ]);
+    const bodyReduced = makeTextBody(
+      [makeParagraph([makeRun('First')]), makeParagraph([makeRun('Second')])],
+      { autoFit: 'shrink', lnSpcReduction: 20 }
+    );
+
+    renderTextBody(bodyNormal, rctx, BOUNDS);
+    const normalCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const normalFirstY = normalCalls.find((c) => c.args[0] === 'First')!.args[2] as number;
+    const normalSecondY = normalCalls.find((c) => c.args[0] === 'Second')!.args[2] as number;
+    const normalGap = normalSecondY - normalFirstY;
+
+    rctx.ctx._calls.length = 0;
+
+    renderTextBody(bodyReduced, rctx, BOUNDS);
+    const reducedCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const reducedFirstY = reducedCalls.find((c) => c.args[0] === 'First')!.args[2] as number;
+    const reducedSecondY = reducedCalls.find((c) => c.args[0] === 'Second')!.args[2] as number;
+    const reducedGap = reducedSecondY - reducedFirstY;
+
+    // With line spacing reduction, lines should be closer together.
+    expect(reducedGap).toBeLessThan(normalGap);
+  });
 });

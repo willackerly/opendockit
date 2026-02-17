@@ -100,8 +100,10 @@
 - [ ] Progressive render pipeline (immediate → grey box → spinner → re-render)
 - [ ] Table renderer
 - [ ] Remaining 160+ preset geometries
-- [ ] Auto-fit text
-- [ ] Connectors, hyperlinks, notes view
+- [x] Auto-fit text (normAutofit with fontScale/lnSpcReduction; spAutoFit renders at normal size)
+- [x] Connector rendering (straight, bent, curved geometries with line styling and arrowheads)
+- [ ] Connector routing via connection sites (shape-to-shape endpoint resolution)
+- [ ] Hyperlinks, notes view
 
 ## Phase 4: Charts + Export (Planned)
 

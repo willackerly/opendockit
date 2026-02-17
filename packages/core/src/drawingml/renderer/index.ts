@@ -28,5 +28,11 @@ export { renderPicture } from './picture-renderer.js';
 // Shape renderer (composition layer)
 export { renderShape, renderSlideElement } from './shape-renderer.js';
 
+// Connector renderer
+export { renderConnector } from './connector-renderer.js';
+
 // Group renderer
 export { renderGroup } from './group-renderer.js';
+
+// Table renderer
+export { renderTable } from './table-renderer.js';

@@ -22,6 +22,10 @@ export {
   parseShapePropertiesFromParent,
   parseGroup,
   parseShapeTreeChildren,
+  parseTable,
+  parseTableRow,
+  parseTableCell,
+  parseTableCellBorders,
 } from './parser/index.js';
 export type { GroupTransformResult } from './parser/index.js';
 
@@ -37,7 +41,9 @@ export {
   renderPicture,
   renderShape,
   renderSlideElement,
+  renderConnector,
   renderGroup,
+  renderTable,
 } from './renderer/index.js';
 
 // Geometry

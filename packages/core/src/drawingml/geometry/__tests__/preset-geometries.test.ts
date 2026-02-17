@@ -31,10 +31,10 @@ describe('getPresetGeometry', () => {
 });
 
 describe('getPresetGeometryNames', () => {
-  it('returns an array of known names', () => {
+  it('returns all 187 OOXML preset shapes', () => {
     const names = getPresetGeometryNames();
     expect(Array.isArray(names)).toBe(true);
-    expect(names.length).toBeGreaterThan(0);
+    expect(names.length).toBe(187);
   });
 
   it('includes essential shapes', () => {
@@ -49,6 +49,60 @@ describe('getPresetGeometryNames', () => {
     expect(names).toContain('leftArrow');
     expect(names).toContain('upArrow');
     expect(names).toContain('downArrow');
+  });
+
+  it('includes newly added shape categories', () => {
+    const names = getPresetGeometryNames();
+    // Stars & banners
+    expect(names).toContain('star7');
+    expect(names).toContain('star8');
+    expect(names).toContain('star10');
+    expect(names).toContain('star12');
+    expect(names).toContain('star16');
+    expect(names).toContain('star24');
+    expect(names).toContain('star32');
+    // Callouts
+    expect(names).toContain('accentBorderCallout1');
+    expect(names).toContain('accentCallout1');
+    expect(names).toContain('borderCallout1');
+    expect(names).toContain('cloudCallout');
+    expect(names).toContain('wedgeEllipseCallout');
+    expect(names).toContain('wedgeRectCallout');
+    expect(names).toContain('wedgeRoundRectCallout');
+    // Flowchart
+    expect(names).toContain('flowChartCollate');
+    expect(names).toContain('flowChartDocument');
+    expect(names).toContain('flowChartMagneticDisk');
+    expect(names).toContain('flowChartSort');
+    // Action buttons
+    expect(names).toContain('actionButtonBlank');
+    expect(names).toContain('actionButtonHome');
+    expect(names).toContain('actionButtonHelp');
+    // Math
+    expect(names).toContain('mathDivide');
+    expect(names).toContain('mathEqual');
+    expect(names).toContain('mathMinus');
+    expect(names).toContain('mathMultiply');
+    expect(names).toContain('mathNotEqual');
+    expect(names).toContain('mathPlus');
+    // Basic shapes
+    expect(names).toContain('moon');
+    expect(names).toContain('smileyFace');
+    expect(names).toContain('sun');
+    expect(names).toContain('blockArc');
+    expect(names).toContain('foldedCorner');
+    expect(names).toContain('lightningBolt');
+    // Arrows
+    expect(names).toContain('bentArrow');
+    expect(names).toContain('bentUpArrow');
+    expect(names).toContain('curvedDownArrow');
+    expect(names).toContain('notchedRightArrow');
+    expect(names).toContain('stripedRightArrow');
+    expect(names).toContain('uturnArrow');
+    // Connectors
+    expect(names).toContain('bentConnector2');
+    expect(names).toContain('bentConnector3');
+    expect(names).toContain('curvedConnector3');
   });
 });
 
@@ -278,6 +332,93 @@ describe('Evaluate rightArrow geometry', () => {
     expect(result.get('y1')).toBe(25);
     // y2 = 50 + 25 = 75
     expect(result.get('y2')).toBe(75);
+  });
+});
+
+describe('Evaluate newly added shapes', () => {
+  it('moon evaluates at 200x200 with default adj', () => {
+    const def = getPresetGeometry('moon')!;
+    expect(def).toBeDefined();
+    expect(def.name).toBe('moon');
+    const c = createGuideContext(200, 200, { adj: 50000 });
+    const result = evaluateGuides(def.gdLst, c);
+
+    // ss = 200, a = pin(0, 50000, 87500) = 50000
+    expect(result.get('a')).toBe(50000);
+    // g0 = ss * a / 100000 = 200 * 50000 / 100000 = 100
+    expect(result.get('g0')).toBe(100);
+    // g0w = g0 * w / ss = 100 * 200 / 200 = 100
+    expect(result.get('g0w')).toBe(100);
+    // g1 = ss - g0 = 200 - 100 = 100
+    expect(result.get('g1')).toBe(100);
+  });
+
+  it('blockArc evaluates at 200x200', () => {
+    const def = getPresetGeometry('blockArc')!;
+    expect(def).toBeDefined();
+    expect(def.name).toBe('blockArc');
+    expect(def.avLst.length).toBe(3);
+    expect(def.pathLst.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('flowChartDocument has correct structure', () => {
+    const def = getPresetGeometry('flowChartDocument')!;
+    expect(def).toBeDefined();
+    expect(def.name).toBe('flowChartDocument');
+    // flowChartDocument uses cubicBezTo
+    const hasCubicBez = def.pathLst.some((p) => p.commands.some((c) => c.type === 'cubicBezTo'));
+    expect(hasCubicBez).toBe(true);
+  });
+
+  it('actionButtonHome has multiple paths', () => {
+    const def = getPresetGeometry('actionButtonHome')!;
+    expect(def).toBeDefined();
+    // Action buttons typically have multiple paths (base + icon)
+    expect(def.pathLst.length).toBeGreaterThan(1);
+  });
+
+  it('mathPlus evaluates at 100x100', () => {
+    const def = getPresetGeometry('mathPlus')!;
+    expect(def).toBeDefined();
+    expect(def.avLst.length).toBeGreaterThan(0);
+    const c = createGuideContext(100, 100, { adj1: 23520 });
+    const result = evaluateGuides(def.gdLst, c);
+    // Verify at least one guide resolved
+    expect(result.has(def.gdLst[0].name)).toBe(true);
+  });
+
+  it('smileyFace has quadBezTo command', () => {
+    const def = getPresetGeometry('smileyFace')!;
+    expect(def).toBeDefined();
+    const hasQuadBez = def.pathLst.some((p) => p.commands.some((c) => c.type === 'quadBezTo'));
+    expect(hasQuadBez).toBe(true);
+  });
+
+  it('sun evaluates at 200x200', () => {
+    const def = getPresetGeometry('sun')!;
+    expect(def).toBeDefined();
+    expect(def.avLst.length).toBe(1);
+    const c = createGuideContext(200, 200, { adj: 25000 });
+    const result = evaluateGuides(def.gdLst, c);
+    expect(result.get('a')).toBe(25000);
+  });
+
+  it('star12 evaluates at 100x100', () => {
+    const def = getPresetGeometry('star12')!;
+    expect(def).toBeDefined();
+    expect(def.avLst.length).toBeGreaterThan(0);
+    const c = createGuideContext(100, 100, { adj: 37500 });
+    const result = evaluateGuides(def.gdLst, c);
+    expect(result.get('a')).toBe(37500);
+  });
+
+  it('notchedRightArrow evaluates at 300x100', () => {
+    const def = getPresetGeometry('notchedRightArrow')!;
+    expect(def).toBeDefined();
+    const c = createGuideContext(300, 100, { adj1: 50000, adj2: 50000 });
+    const result = evaluateGuides(def.gdLst, c);
+    // Verify guide evaluation succeeded
+    expect(result.has(def.gdLst[0].name)).toBe(true);
   });
 });
 

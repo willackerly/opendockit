@@ -16,7 +16,6 @@
 import type {
   DrawingMLShapeIR,
   SlideElementIR,
-  ConnectorIR,
   TableIR,
   ChartIR,
   UnsupportedIR,
@@ -29,6 +28,8 @@ import { applyEffects } from './effect-renderer.js';
 import { renderTextBody } from './text-renderer.js';
 import { renderPicture } from './picture-renderer.js';
 import { renderGroup } from './group-renderer.js';
+import { renderTable as renderTableImpl } from './table-renderer.js';
+import { renderConnector } from './connector-renderer.js';
 
 // ---------------------------------------------------------------------------
 // Placeholder rendering
@@ -84,45 +85,11 @@ function extractTransformPx(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Connector rendering
-// ---------------------------------------------------------------------------
-
 /**
- * Render a connector as a simple line between its bounding box endpoints.
- *
- * Full connector routing (via connection sites on connected shapes) is
- * deferred. For now, we draw a straight line from top-left to
- * bottom-right of the connector's bounding box.
- */
-function renderConnector(connector: ConnectorIR, rctx: RenderContext): void {
-  const px = extractTransformPx(connector, rctx);
-  if (!px) return;
-
-  const { ctx } = rctx;
-  const { x, y, w, h } = px;
-
-  ctx.save();
-
-  // Build a simple line path between opposite corners.
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + w, y + h);
-
-  if (connector.properties.line) {
-    applyLine(connector.properties.line, rctx);
-  }
-
-  ctx.restore();
-}
-
-/**
- * Render a table element as a placeholder box.
+ * Render a table element using the full table renderer.
  */
 function renderTable(table: TableIR, rctx: RenderContext): void {
-  const px = extractTransformPx(table, rctx);
-  if (!px) return;
-  renderPlaceholderBox(rctx, px.x, px.y, px.w, px.h, 'Table');
+  renderTableImpl(table, rctx);
 }
 
 /**

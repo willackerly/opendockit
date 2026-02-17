@@ -77,12 +77,23 @@ function colorToRgba(c: ResolvedColor): string {
 /**
  * Resolve a font size from CharacterPropertiesIR to typographic points.
  * DrawingML stores font sizes in hundredths of a point (e.g. 1800 = 18pt).
+ *
+ * @param props - Character properties containing font size.
+ * @param fontScale - Optional font scale factor from normAutofit (percentage,
+ *                    e.g. 80 means 80%). Applied multiplicatively to the
+ *                    resolved font size.
  */
-function resolveFontSizePt(props: CharacterPropertiesIR): number {
+function resolveFontSizePt(props: CharacterPropertiesIR, fontScale?: number): number {
+  let sizePt: number;
   if (props.fontSize != null) {
-    return hundredthsPtToPt(props.fontSize);
+    sizePt = hundredthsPtToPt(props.fontSize);
+  } else {
+    sizePt = DEFAULT_FONT_SIZE_PT;
   }
-  return DEFAULT_FONT_SIZE_PT;
+  if (fontScale != null) {
+    sizePt = sizePt * (fontScale / 100);
+  }
+  return sizePt;
 }
 
 /**
@@ -92,14 +103,17 @@ function resolveFontSizePt(props: CharacterPropertiesIR): number {
  *   [font-style] [font-weight] font-size font-family
  *
  * We use `pt` units which Canvas2D handles natively.
+ *
+ * @param fontScale - Optional font scale factor from normAutofit (percentage).
  */
 function buildFontString(
   props: CharacterPropertiesIR,
-  resolveFont: (name: string) => string
+  resolveFont: (name: string) => string,
+  fontScale?: number
 ): string {
   const style = props.italic ? 'italic ' : '';
   const weight = props.bold ? 'bold ' : '';
-  const sizePt = resolveFontSizePt(props);
+  const sizePt = resolveFontSizePt(props, fontScale);
   const family = props.fontFamily || props.latin || 'sans-serif';
   const resolved = resolveFont(family);
   return `${style}${weight}${sizePt}pt "${resolved}"`;
@@ -139,13 +153,26 @@ function resolveSpacingPx(
  * SpacingIR with unit 'pt': absolute spacing returned as-is via special path.
  *
  * Returns percentage value (e.g. 120 for 1.2x).
+ *
+ * @param lnSpcReduction - Optional line spacing reduction from normAutofit
+ *                         (percentage points to subtract, e.g. 20 reduces
+ *                         120% to 100%).
  */
-function resolveLineSpacingPct(spacing: SpacingIR | undefined): number {
-  if (!spacing) return DEFAULT_LINE_SPACING_PCT;
-  if (spacing.unit === 'pct') return spacing.value;
-  // For absolute pt spacing, we return it as a negative sentinel
-  // so the caller knows to use it directly.
-  return -spacing.value;
+function resolveLineSpacingPct(spacing: SpacingIR | undefined, lnSpcReduction?: number): number {
+  let result: number;
+  if (!spacing) {
+    result = DEFAULT_LINE_SPACING_PCT;
+  } else if (spacing.unit === 'pct') {
+    result = spacing.value;
+  } else {
+    // For absolute pt spacing, we return it as a negative sentinel
+    // so the caller knows to use it directly.
+    return -spacing.value;
+  }
+  if (lnSpcReduction != null) {
+    result = Math.max(100, result - lnSpcReduction);
+  }
+  return result;
 }
 
 /**
@@ -163,14 +190,18 @@ function measureFragment(
 /**
  * Get the default font size for a paragraph by inspecting its runs.
  * Falls back to DEFAULT_FONT_SIZE_PT if no runs have a font size.
+ *
+ * @param fontScale - Optional font scale factor from normAutofit (percentage).
  */
-function getParagraphFontSizePt(paragraph: ParagraphIR): number {
+function getParagraphFontSizePt(paragraph: ParagraphIR, fontScale?: number): number {
   for (const run of paragraph.runs) {
     if (run.properties.fontSize != null) {
-      return hundredthsPtToPt(run.properties.fontSize);
+      const basePt = hundredthsPtToPt(run.properties.fontSize);
+      return fontScale != null ? basePt * (fontScale / 100) : basePt;
     }
   }
-  return DEFAULT_FONT_SIZE_PT;
+  const basePt = DEFAULT_FONT_SIZE_PT;
+  return fontScale != null ? basePt * (fontScale / 100) : basePt;
 }
 
 // ---------------------------------------------------------------------------
@@ -182,12 +213,17 @@ function getParagraphFontSizePt(paragraph: ParagraphIR): number {
  *
  * Uses a word-boundary wrapping strategy: splits on spaces, measures each
  * word, and wraps when the current line would overflow.
+ *
+ * @param fontScale - Optional font scale from normAutofit (percentage).
+ * @param lnSpcReduction - Optional line spacing reduction from normAutofit (percentage).
  */
 function wrapParagraph(
   paragraph: ParagraphIR,
   rctx: RenderContext,
   availableWidth: number,
-  bulletWidth: number
+  bulletWidth: number,
+  fontScale?: number,
+  lnSpcReduction?: number
 ): WrappedLine[] {
   const { ctx, dpiScale, resolveFont } = rctx;
   const lines: WrappedLine[] = [];
@@ -222,8 +258,11 @@ function wrapParagraph(
       // Force a line break. If we have no fragments, push an empty line
       // with the height of the line break's font.
       if (currentFragments.length === 0) {
-        const fontSizePt = resolveFontSizePt(run.properties);
-        const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing);
+        const fontSizePt = resolveFontSizePt(run.properties, fontScale);
+        const lineSpacingPct = resolveLineSpacingPct(
+          paragraph.properties.lineSpacing,
+          lnSpcReduction
+        );
         const heightPx =
           lineSpacingPct >= 0
             ? ptToCanvasPx(fontSizePt * (lineSpacingPct / 100), dpiScale)
@@ -242,11 +281,11 @@ function wrapParagraph(
     }
 
     // run.kind === 'run'
-    const fontString = buildFontString(run.properties, resolveFont);
-    const fontSizePt = resolveFontSizePt(run.properties);
+    const fontString = buildFontString(run.properties, resolveFont, fontScale);
+    const fontSizePt = resolveFontSizePt(run.properties, fontScale);
     const fillStyle = run.properties.color ? colorToRgba(run.properties.color) : 'rgba(0, 0, 0, 1)';
 
-    const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing);
+    const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing, lnSpcReduction);
     const fragmentHeightPx =
       lineSpacingPct >= 0
         ? ptToCanvasPx(fontSizePt * (lineSpacingPct / 100), dpiScale)
@@ -288,8 +327,8 @@ function wrapParagraph(
   // If there are no lines at all (empty paragraph), create a single
   // empty line with the default font height.
   if (lines.length === 0) {
-    const fontSizePt = getParagraphFontSizePt(paragraph);
-    const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing);
+    const fontSizePt = getParagraphFontSizePt(paragraph, fontScale);
+    const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing, lnSpcReduction);
     const heightPx =
       lineSpacingPct >= 0
         ? ptToCanvasPx(fontSizePt * (lineSpacingPct / 100), dpiScale)
@@ -312,10 +351,13 @@ function wrapParagraph(
 /**
  * Measure the bullet for a paragraph and return its width in canvas pixels.
  * Returns 0 if the paragraph has no bullet.
+ *
+ * @param fontScale - Optional font scale from normAutofit (percentage).
  */
 function measureBullet(
   paragraph: ParagraphIR,
-  rctx: RenderContext
+  rctx: RenderContext,
+  fontScale?: number
 ): { text: string; fontString: string; fillStyle: string; widthPx: number } | null {
   const bullet = paragraph.bulletProperties;
   if (!bullet || bullet.type === 'none') return null;
@@ -330,7 +372,7 @@ function measureBullet(
     return null;
   }
 
-  const paragraphFontSizePt = getParagraphFontSizePt(paragraph);
+  const paragraphFontSizePt = getParagraphFontSizePt(paragraph, fontScale);
   const sizePercent = bullet.sizePercent ?? 100;
   const bulletFontSizePt = paragraphFontSizePt * (sizePercent / 100);
 
@@ -419,6 +461,10 @@ export function renderTextBody(
 
   const shouldWrap = body.wrap !== 'none';
 
+  // Auto-fit: extract font scale and line spacing reduction for normAutofit.
+  const fontScale = body.autoFit === 'shrink' ? body.fontScale : undefined;
+  const lnSpcReduction = body.autoFit === 'shrink' ? body.lnSpcReduction : undefined;
+
   // Phase 1: Layout all paragraphs and compute total height.
   interface ParagraphLayout {
     lines: WrappedLine[];
@@ -435,7 +481,7 @@ export function renderTextBody(
 
   for (let pi = 0; pi < textBody.paragraphs.length; pi++) {
     const paragraph = textBody.paragraphs[pi];
-    const fontSizePt = getParagraphFontSizePt(paragraph);
+    const fontSizePt = getParagraphFontSizePt(paragraph, fontScale);
 
     const spaceBeforePx = resolveSpacingPx(paragraph.properties.spaceBefore, fontSizePt, dpiScale);
     const spaceAfterPx = resolveSpacingPx(paragraph.properties.spaceAfter, fontSizePt, dpiScale);
@@ -447,11 +493,18 @@ export function renderTextBody(
       ? emuToScaledPx(paragraph.properties.indent, rctx)
       : 0;
 
-    const bullet = measureBullet(paragraph, rctx);
+    const bullet = measureBullet(paragraph, rctx, fontScale);
     const bulletWidth = bullet ? bullet.widthPx : 0;
 
     const availableWidth = shouldWrap ? textAreaWidth - marginLeftPx : Infinity;
-    const lines = wrapParagraph(paragraph, rctx, availableWidth, bulletWidth);
+    const lines = wrapParagraph(
+      paragraph,
+      rctx,
+      availableWidth,
+      bulletWidth,
+      fontScale,
+      lnSpcReduction
+    );
 
     const alignment = paragraph.properties.alignment ?? 'left';
 

@@ -206,6 +206,67 @@ describe('parseTextBody', () => {
       expect(body.bodyProperties.autoFit).toBe('shrink');
     });
 
+    it('parses normAutofit with fontScale', () => {
+      const el = parseXml(
+        `<a:txBody ${NS}>
+          <a:bodyPr><a:normAutofit fontScale="80000"/></a:bodyPr>
+          <a:p><a:r><a:t>text</a:t></a:r></a:p>
+        </a:txBody>`
+      );
+      const body = parseTextBody(el, TEST_THEME);
+
+      expect(body.bodyProperties.autoFit).toBe('shrink');
+      expect(body.bodyProperties.fontScale).toBe(80);
+    });
+
+    it('parses normAutofit with lnSpcReduction', () => {
+      const el = parseXml(
+        `<a:txBody ${NS}>
+          <a:bodyPr><a:normAutofit fontScale="80000" lnSpcReduction="20000"/></a:bodyPr>
+          <a:p><a:r><a:t>text</a:t></a:r></a:p>
+        </a:txBody>`
+      );
+      const body = parseTextBody(el, TEST_THEME);
+
+      expect(body.bodyProperties.autoFit).toBe('shrink');
+      expect(body.bodyProperties.fontScale).toBe(80);
+      expect(body.bodyProperties.lnSpcReduction).toBe(20);
+    });
+
+    it('parses normAutofit without fontScale or lnSpcReduction', () => {
+      const el = parseXml(
+        `<a:txBody ${NS}>
+          <a:bodyPr><a:normAutofit/></a:bodyPr>
+          <a:p><a:r><a:t>text</a:t></a:r></a:p>
+        </a:txBody>`
+      );
+      const body = parseTextBody(el, TEST_THEME);
+
+      expect(body.bodyProperties.autoFit).toBe('shrink');
+      expect(body.bodyProperties.fontScale).toBeUndefined();
+      expect(body.bodyProperties.lnSpcReduction).toBeUndefined();
+    });
+
+    it('does not set fontScale for spAutoFit or noAutofit', () => {
+      const spAutoEl = parseXml(
+        `<a:txBody ${NS}>
+          <a:bodyPr><a:spAutoFit/></a:bodyPr>
+          <a:p><a:r><a:t>text</a:t></a:r></a:p>
+        </a:txBody>`
+      );
+      const spAutoBody = parseTextBody(spAutoEl, TEST_THEME);
+      expect(spAutoBody.bodyProperties.fontScale).toBeUndefined();
+
+      const noAutoEl = parseXml(
+        `<a:txBody ${NS}>
+          <a:bodyPr><a:noAutofit/></a:bodyPr>
+          <a:p><a:r><a:t>text</a:t></a:r></a:p>
+        </a:txBody>`
+      );
+      const noAutoBody = parseTextBody(noAutoEl, TEST_THEME);
+      expect(noAutoBody.bodyProperties.fontScale).toBeUndefined();
+    });
+
     it('defaults autoFit to undefined when no autofit child', () => {
       const el = parseXml(
         `<a:txBody ${NS}>

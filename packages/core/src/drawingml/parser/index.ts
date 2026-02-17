@@ -14,3 +14,4 @@ export { parseTextBody, parseTextBodyFromParent } from './text-body.js';
 export { parsePicture } from './picture.js';
 export { parseShapeProperties, parseShapePropertiesFromParent } from './shape-properties.js';
 export { parseGroup, parseShapeTreeChildren } from './group.js';
+export { parseTable, parseTableRow, parseTableCell, parseTableCellBorders } from './table.js';

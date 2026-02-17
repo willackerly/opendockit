@@ -146,6 +146,17 @@ function parseBodyProperties(bodyPrElement: XmlElement): BodyPropertiesIR {
     props.autoFit = 'none';
   } else if (bodyPrElement.child('a:normAutofit')) {
     props.autoFit = 'shrink';
+    const normEl = bodyPrElement.child('a:normAutofit')!;
+    // fontScale is in thousandths of a percent (80000 = 80%)
+    const fontScaleRaw = parseIntAttr(normEl, 'fontScale');
+    if (fontScaleRaw !== undefined) {
+      props.fontScale = fontScaleRaw / 1000;
+    }
+    // lnSpcReduction is in thousandths of a percent (20000 = 20%)
+    const lnSpcReductionRaw = parseIntAttr(normEl, 'lnSpcReduction');
+    if (lnSpcReductionRaw !== undefined) {
+      props.lnSpcReduction = lnSpcReductionRaw / 1000;
+    }
   }
 
   return props;
