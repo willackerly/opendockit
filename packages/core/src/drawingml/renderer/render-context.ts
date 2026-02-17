@@ -6,9 +6,18 @@
  * threaded through every renderer call to avoid global state.
  */
 
-import type { ThemeIR } from '../../ir/index.js';
+import type { SlideElementIR, ThemeIR } from '../../ir/index.js';
 import type { MediaCache } from '../../media/index.js';
 import { emuToPx } from '../../units/index.js';
+
+/**
+ * A dynamically loaded renderer for a specific element kind.
+ *
+ * Used by the progressive fidelity pipeline: when a WASM module loads,
+ * it registers a render function here so that re-rendering a slide
+ * uses the new capability instead of drawing a grey-box placeholder.
+ */
+export type DynamicRenderer = (element: SlideElementIR, rctx: RenderContext) => void;
 
 /**
  * Shared rendering context passed to all renderers.
@@ -24,6 +33,15 @@ export interface RenderContext {
   mediaCache: MediaCache;
   /** Resolve a font name to an available font. */
   resolveFont: (fontName: string) => string;
+  /**
+   * Dynamically loaded renderers, keyed by element kind.
+   *
+   * When present, {@link renderSlideElement} checks this map before
+   * the built-in switch. This allows WASM modules (or other lazy
+   * capabilities) to upgrade rendering of specific element kinds
+   * without modifying the core dispatch.
+   */
+  dynamicRenderers?: Map<string, DynamicRenderer>;
 }
 
 /**

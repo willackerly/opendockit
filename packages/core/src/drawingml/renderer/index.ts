@@ -7,7 +7,7 @@
  */
 
 // Render context
-export type { RenderContext } from './render-context.js';
+export type { RenderContext, DynamicRenderer } from './render-context.js';
 export { emuToScaledPx } from './render-context.js';
 
 // Fill renderer

@@ -19,9 +19,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(__dirname, '..');
 
 // Resolve JSZip from the core package where it's already installed
-const require = createRequire(
-  resolve(rootDir, 'packages/core/node_modules/.package-lock.json')
-);
+const require = createRequire(resolve(rootDir, 'packages/core/node_modules/.package-lock.json'));
 const JSZip = require('jszip');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -259,12 +257,7 @@ function sp(opts) {
     rot,
   } = opts;
 
-  const xfrmAttrs = [
-    rot ? `rot="${rot}"` : '',
-    flipV ? 'flipV="1"' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const xfrmAttrs = [rot ? `rot="${rot}"` : '', flipV ? 'flipV="1"' : ''].filter(Boolean).join(' ');
   const xfrmOpen = xfrmAttrs ? `<a:xfrm ${xfrmAttrs}>` : '<a:xfrm>';
 
   let fillXml = '';
@@ -313,9 +306,7 @@ function simpleTextBody(text, opts = {}) {
   if (italic) rpAttrs.push('i="1"');
   rpAttrs.push('dirty="0"');
 
-  const solidFill = color
-    ? `<a:solidFill><a:srgbClr val="${color}"/></a:solidFill>`
-    : '';
+  const solidFill = color ? `<a:solidFill><a:srgbClr val="${color}"/></a:solidFill>` : '';
   const latin = '<a:latin typeface="Calibri"/>';
 
   const algn = align ? ` algn="${align}"` : '';
@@ -344,9 +335,7 @@ function multiParaTextBody(paragraphs, bodyPrAttrs = '') {
       if (p.italic) rpAttrs.push('i="1"');
       rpAttrs.push('dirty="0"');
 
-      const solidFill = p.color
-        ? `<a:solidFill><a:srgbClr val="${p.color}"/></a:solidFill>`
-        : '';
+      const solidFill = p.color ? `<a:solidFill><a:srgbClr val="${p.color}"/></a:solidFill>` : '';
       const latin = '<a:latin typeface="Calibri"/>';
 
       const pPrParts = [];
@@ -355,16 +344,13 @@ function multiParaTextBody(paragraphs, bodyPrAttrs = '') {
       // Bullet support
       let bulletXml = '';
       if (p.bullet) {
-        bulletXml =
-          '<a:buFont typeface="Arial"/><a:buChar char="\u2022"/>';
+        bulletXml = '<a:buFont typeface="Arial"/><a:buChar char="\u2022"/>';
         pPrParts.push(`marL="${inches(0.5)}" indent="${-inches(0.25)}"`);
       }
 
       const pPrAttrs = pPrParts.length ? ' ' + pPrParts.join(' ') : '';
       const pPrContent = bulletXml;
-      const pPr = pPrContent
-        ? `<a:pPr${pPrAttrs}>${pPrContent}</a:pPr>`
-        : `<a:pPr${pPrAttrs}/>`;
+      const pPr = pPrContent ? `<a:pPr${pPrAttrs}>${pPrContent}</a:pPr>` : `<a:pPr${pPrAttrs}/>`;
 
       return `<a:p>
       ${pPr}
@@ -664,15 +650,9 @@ async function main() {
 
   // Slide master and layout
   zip.file('ppt/slideMasters/slideMaster1.xml', slideMasterXml());
-  zip.file(
-    'ppt/slideMasters/_rels/slideMaster1.xml.rels',
-    slideMasterRelsXml()
-  );
+  zip.file('ppt/slideMasters/_rels/slideMaster1.xml.rels', slideMasterRelsXml());
   zip.file('ppt/slideLayouts/slideLayout1.xml', slideLayoutXml());
-  zip.file(
-    'ppt/slideLayouts/_rels/slideLayout1.xml.rels',
-    slideLayoutRelsXml()
-  );
+  zip.file('ppt/slideLayouts/_rels/slideLayout1.xml.rels', slideLayoutRelsXml());
 
   // Slides
   zip.file('ppt/slides/slide1.xml', slide1Xml());

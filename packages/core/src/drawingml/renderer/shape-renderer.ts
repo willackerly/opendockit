@@ -282,10 +282,18 @@ export function renderShape(shape: DrawingMLShapeIR, rctx: RenderContext): void 
  * Render any slide element by dispatching on its `kind` discriminant.
  *
  * This is the main entry point for rendering a heterogeneous list of
- * slide elements. It delegates to the appropriate specialized renderer
- * for each element type.
+ * slide elements. It checks for dynamically loaded renderers first
+ * (e.g., WASM modules that arrived after initial render), then falls
+ * back to the built-in TypeScript renderers.
  */
 export function renderSlideElement(element: SlideElementIR, rctx: RenderContext): void {
+  // Check for a dynamic renderer first (e.g., a WASM-loaded chart renderer).
+  const dynamic = rctx.dynamicRenderers?.get(element.kind);
+  if (dynamic) {
+    dynamic(element, rctx);
+    return;
+  }
+
   switch (element.kind) {
     case 'shape':
       renderShape(element, rctx);

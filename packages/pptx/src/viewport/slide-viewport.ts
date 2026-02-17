@@ -20,11 +20,13 @@
  * ```
  */
 
-import type { ThemeIR } from '@opendockit/core';
+import type { ThemeIR, SlideElementIR } from '@opendockit/core';
 import type { OpcPackage } from '@opendockit/core/opc';
 import { OpcPackageReader } from '@opendockit/core/opc';
-import { MediaCache } from '@opendockit/core/media';
-import type { RenderContext } from '@opendockit/core/drawingml/renderer';
+import { MediaCache, loadAndCacheImage } from '@opendockit/core/media';
+import type { RenderContext, DynamicRenderer } from '@opendockit/core/drawingml/renderer';
+import { CapabilityRegistry } from '@opendockit/core/capability';
+import { WasmModuleLoader } from '@opendockit/core/wasm';
 import { emuToPx } from '@opendockit/core';
 import type { PresentationIR, SlideIR } from '../model/index.js';
 import { parsePresentation } from '../parser/presentation.js';
@@ -47,6 +49,14 @@ export interface SlideKitOptions {
   fontSubstitutions?: Record<string, string>;
   /** Progress callback for loading and rendering phases. */
   onProgress?: (event: SlideKitProgressEvent) => void;
+  /**
+   * Called when slides should be re-rendered because a new capability
+   * became available (e.g., a WASM module finished loading).
+   *
+   * The caller should call `renderSlide()` again for each index to get
+   * upgraded rendering with the new capability.
+   */
+  onSlideInvalidated?: (slideIndices: number[]) => void;
 }
 
 /** Progress event emitted during load and render operations. */
@@ -90,6 +100,7 @@ export class SlideKit {
   private _dpiScale: number;
   private _fontSubstitutions: Record<string, string>;
   private _onProgress: ((event: SlideKitProgressEvent) => void) | undefined;
+  private _onSlideInvalidated: ((slideIndices: number[]) => void) | undefined;
 
   private _pkg: OpcPackage | undefined;
   private _presentation: PresentationIR | undefined;
@@ -98,11 +109,23 @@ export class SlideKit {
   private _currentSlide = 0;
   private _disposed = false;
 
+  /** Capability registry for progressive fidelity routing. */
+  private _registry = new CapabilityRegistry();
+  /** WASM module loader for deferred capabilities. */
+  private _wasmLoader = new WasmModuleLoader();
+  /** Dynamic renderers loaded at runtime (e.g., from WASM modules). */
+  private _dynamicRenderers = new Map<string, DynamicRenderer>();
+  /** Tracks which slides need re-rendering when a module loads. moduleId → slide indices. */
+  private _deferredSlides = new Map<string, Set<number>>();
+  /** Set of WASM module IDs currently being loaded (prevents duplicate fetches). */
+  private _loadingModules = new Set<string>();
+
   constructor(options: SlideKitOptions) {
     this._container = options.container;
     this._canvas = options.canvas;
     this._fontSubstitutions = options.fontSubstitutions ?? {};
     this._onProgress = options.onProgress;
+    this._onSlideInvalidated = options.onSlideInvalidated;
 
     // Determine DPI scale factor.
     if (options.dpiScale !== undefined) {
@@ -112,6 +135,9 @@ export class SlideKit {
     } else {
       this._dpiScale = 1;
     }
+
+    // Register built-in TypeScript renderers as immediate capabilities.
+    this._registerBuiltinRenderers();
   }
 
   // -------------------------------------------------------------------------
@@ -188,18 +214,22 @@ export class SlideKit {
     // Size the canvas for DPI scaling
     this._sizeCanvas(slideWidthPx, slideHeightPx);
 
-    // Build render context
+    // Build render context — include dynamic renderers for progressive fidelity.
     const rctx: RenderContext = {
       ctx,
       dpiScale: this._dpiScale,
       theme: pres.theme,
       mediaCache: this._mediaCache,
       resolveFont: (name: string) => this._resolveFont(name),
+      dynamicRenderers: this._dynamicRenderers.size > 0 ? this._dynamicRenderers : undefined,
     };
 
     // Clear and render
     ctx.clearRect(0, 0, slideWidthPx, slideHeightPx);
     renderSlide(slide, rctx, slideWidthPx, slideHeightPx);
+
+    // Check for deferred elements and kick off WASM loading if needed.
+    this._handleDeferredElements(slide.elements, index);
 
     this._emitProgress('rendering', 2, 2, 'Render complete');
   }
@@ -232,6 +262,36 @@ export class SlideKit {
   }
 
   /**
+   * Signal that specific slides should be re-rendered.
+   *
+   * Clears cached slide data for the given indices so that the next
+   * `renderSlide()` call re-parses and re-renders with any newly
+   * available capabilities.
+   *
+   * @param indices - Slide indices to invalidate. If empty, all slides
+   *   are invalidated.
+   */
+  invalidateSlides(indices?: number[]): void {
+    if (!indices || indices.length === 0) {
+      this._slideCache.clear();
+    } else {
+      for (const i of indices) {
+        this._slideCache.delete(i);
+      }
+    }
+  }
+
+  /**
+   * Register a dynamic renderer for a specific element kind.
+   *
+   * After registering, call `invalidateSlides()` for affected slides
+   * to trigger re-rendering with the new capability.
+   */
+  registerDynamicRenderer(elementKind: string, renderer: DynamicRenderer): void {
+    this._dynamicRenderers.set(elementKind, renderer);
+  }
+
+  /**
    * Clean up resources: clear caches, remove created canvas elements,
    * and mark this instance as disposed. After calling dispose(), all
    * other methods will throw.
@@ -242,6 +302,9 @@ export class SlideKit {
     this._disposed = true;
     this._slideCache.clear();
     this._mediaCache.clear();
+    this._deferredSlides.clear();
+    this._dynamicRenderers.clear();
+    this._loadingModules.clear();
     this._pkg = undefined;
     this._presentation = undefined;
 
@@ -284,6 +347,11 @@ export class SlideKit {
     }
 
     const slide = await this._parseSlideXml(ref.partUri, ref.layoutPartUri, ref.masterPartUri);
+
+    // Pre-load images referenced by picture elements so the media cache
+    // is populated before the renderer tries to draw them.
+    await this._loadSlideMedia(slide.elements, ref.partUri);
+
     this._slideCache.set(index, slide);
     return slide;
   }
@@ -304,6 +372,176 @@ export class SlideKit {
     const slideXml = await pkg.getPartXml(partUri);
     const theme = this._presentation!.theme;
     return parseSlide(slideXml, partUri, layoutPartUri, masterPartUri, theme);
+  }
+
+  /**
+   * Register the built-in TypeScript renderers with the capability registry.
+   *
+   * These are all 'immediate' — available without any async loading.
+   * Deferred (WASM) renderers can be registered later and will take
+   * precedence if they have higher priority.
+   */
+  private _registerBuiltinRenderers(): void {
+    const builtins: Array<{ id: string; kinds: string[] }> = [
+      { id: 'ts-shape', kinds: ['shape'] },
+      { id: 'ts-picture', kinds: ['picture'] },
+      { id: 'ts-group', kinds: ['group'] },
+      { id: 'ts-connector', kinds: ['connector'] },
+      { id: 'ts-table', kinds: ['table'] },
+    ];
+
+    for (const { id, kinds } of builtins) {
+      this._registry.register({
+        id,
+        kind: 'immediate',
+        canRender: (el) => kinds.includes(el.kind),
+        priority: 0,
+      });
+    }
+
+    // Register known deferred (WASM) capabilities at lower priority.
+    // These will show grey boxes until their modules load.
+    this._registry.register({
+      id: 'wasm-chart',
+      kind: 'deferred',
+      canRender: (el) => el.kind === 'chart',
+      priority: 0,
+      moduleId: 'chart-render',
+      estimatedBytes: 500_000,
+    });
+  }
+
+  /**
+   * After rendering a slide, check for deferred elements and kick off
+   * WASM module loading if needed.
+   *
+   * When a module loads, it fires `onSlideInvalidated` so the caller
+   * can re-render affected slides with the new capability.
+   */
+  private _handleDeferredElements(elements: SlideElementIR[], slideIndex: number): void {
+    const plan = this._registry.planRender(elements);
+
+    if (plan.deferred.length === 0) return;
+
+    // Group deferred elements by module ID and track which slides need them.
+    for (const entry of plan.deferred) {
+      let slides = this._deferredSlides.get(entry.moduleId);
+      if (!slides) {
+        slides = new Set();
+        this._deferredSlides.set(entry.moduleId, slides);
+      }
+      slides.add(slideIndex);
+
+      // Kick off loading if not already in progress.
+      this._loadDeferredModule(entry.moduleId);
+    }
+  }
+
+  /**
+   * Start loading a WASM module if not already loading.
+   *
+   * When the module loads successfully, it registers a dynamic renderer
+   * and fires `onSlideInvalidated` for all slides that need it.
+   */
+  private _loadDeferredModule(moduleId: string): void {
+    if (this._loadingModules.has(moduleId)) return;
+    if (this._disposed) return;
+
+    this._loadingModules.add(moduleId);
+
+    this._wasmLoader
+      .load(moduleId, (progress) => {
+        this._emitProgress(
+          'loading',
+          progress.bytesLoaded,
+          progress.bytesTotal,
+          `Loading ${moduleId}: ${progress.percent}%`
+        );
+      })
+      .then((wasmModule) => {
+        if (this._disposed) return;
+
+        // The WASM module's exports provide a render function.
+        // Register it as a dynamic renderer so re-rendering uses it.
+        const renderFn = wasmModule.exports['render'];
+        if (typeof renderFn === 'function') {
+          // WASM render functions are expected to match DynamicRenderer signature.
+          this._dynamicRenderers.set('chart', renderFn as DynamicRenderer);
+        }
+
+        // Upgrade the registry entry from deferred to immediate.
+        this._registry.register({
+          id: `wasm-${moduleId}`,
+          kind: 'immediate',
+          canRender: (el) => el.kind === 'chart',
+          priority: 10, // Higher than the deferred registration.
+        });
+
+        // Notify caller which slides need re-rendering.
+        const affectedSlides = this._deferredSlides.get(moduleId);
+        if (affectedSlides && affectedSlides.size > 0) {
+          const indices = [...affectedSlides];
+          // Clear slide cache so re-render picks up new media/state.
+          this.invalidateSlides(indices);
+          this._onSlideInvalidated?.(indices);
+          this._deferredSlides.delete(moduleId);
+        }
+      })
+      .catch(() => {
+        // WASM load failed — slides keep their grey-box placeholders.
+        // Not fatal: the presentation is still usable.
+      })
+      .finally(() => {
+        this._loadingModules.delete(moduleId);
+      });
+  }
+
+  /**
+   * Pre-load all images referenced by picture elements on a slide.
+   *
+   * Walks the element tree (including groups), resolves each picture's
+   * relationship ID to an OPC part URI, extracts the image bytes, decodes
+   * them, and populates the media cache so the renderer can draw them.
+   */
+  private async _loadSlideMedia(elements: SlideElementIR[], slidePartUri: string): Promise<void> {
+    const pkg = this._pkg!;
+
+    // Collect all image relationship IDs from the element tree.
+    const imageRIds: string[] = [];
+    const walk = (els: SlideElementIR[]) => {
+      for (const el of els) {
+        if (el.kind === 'picture' && el.imagePartUri) {
+          imageRIds.push(el.imagePartUri);
+        } else if (el.kind === 'group') {
+          walk(el.children);
+        }
+      }
+    };
+    walk(elements);
+
+    if (imageRIds.length === 0) return;
+
+    // Get the slide's relationship map (resolves rId → OPC part URI).
+    const rels = await pkg.getPartRelationships(slidePartUri);
+
+    // Load all images in parallel.
+    await Promise.all(
+      imageRIds.map(async (rId) => {
+        // Skip if already cached (e.g. same image used multiple times).
+        if (this._mediaCache.get(rId)) return;
+
+        const rel = rels.getById(rId);
+        if (!rel || rel.targetMode === 'External') return;
+
+        try {
+          const imageBytes = await pkg.getPart(rel.target);
+          await loadAndCacheImage(rId, imageBytes, this._mediaCache);
+        } catch {
+          // Silently skip images that fail to load — the renderer will
+          // draw a placeholder instead.
+        }
+      })
+    );
   }
 
   /**
