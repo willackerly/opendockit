@@ -27,6 +27,8 @@ import { MediaCache } from '@opendockit/core/media';
 import type { RenderContext } from '@opendockit/core/drawingml/renderer';
 import { emuToPx } from '@opendockit/core';
 import type { PresentationIR, SlideIR } from '../model/index.js';
+import { parsePresentation } from '../parser/presentation.js';
+import { parseSlide } from '../parser/slide.js';
 import { renderSlide } from '../renderer/index.js';
 
 // ---------------------------------------------------------------------------
@@ -260,93 +262,12 @@ export class SlideKit {
   /**
    * Parse top-level presentation metadata from the OPC package.
    *
-   * This is a placeholder implementation that extracts slide dimensions
-   * and theme from the presentation.xml part. The full parser is being
-   * built concurrently by another agent and will replace this.
+   * Delegates to the full `parsePresentation` parser which handles
+   * OPC navigation, slide ordering via `p:sldIdLst`, layout/master
+   * chain resolution, and theme parsing.
    */
   private async _parsePresentation(pkg: OpcPackage): Promise<PresentationIR> {
-    const { REL_OFFICE_DOCUMENT, REL_SLIDE, REL_THEME } = await import('@opendockit/core/opc');
-
-    // Find the main presentation part
-    const rootRels = await pkg.getRootRelationships();
-    const presRel = rootRels.getByType(REL_OFFICE_DOCUMENT)[0];
-    if (!presRel) {
-      throw new Error('Cannot find presentation part in OPC package.');
-    }
-
-    const presXml = await pkg.getPartXml(presRel.target);
-    const presRels = await pkg.getPartRelationships(presRel.target);
-
-    // Parse slide dimensions from p:sldSz
-    const sldSz = presXml.child('p:sldSz');
-    const slideWidth = sldSz ? parseInt(sldSz.attr('cx') ?? '12192000', 10) : 12192000;
-    const slideHeight = sldSz ? parseInt(sldSz.attr('cy') ?? '6858000', 10) : 6858000;
-
-    // Collect slide references
-    const slideRels = presRels.getByType(REL_SLIDE);
-    const slides = await Promise.all(
-      slideRels.map(async (rel, idx) => {
-        const slideRels2 = await pkg.getPartRelationships(rel.target);
-
-        // Find layout and master
-        const layoutRel = slideRels2.getByType(
-          'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout'
-        )[0];
-        const layoutTarget = layoutRel?.target ?? '';
-
-        let masterTarget = '';
-        if (layoutTarget) {
-          const layoutRels = await pkg.getPartRelationships(layoutTarget);
-          const masterRel = layoutRels.getByType(
-            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster'
-          )[0];
-          masterTarget = masterRel?.target ?? '';
-        }
-
-        return {
-          index: idx,
-          partUri: rel.target,
-          layoutPartUri: layoutTarget,
-          masterPartUri: masterTarget,
-          relationshipId: rel.id,
-        };
-      })
-    );
-
-    // Sort slides by relationship ID order (rId1, rId2, ...)
-    slides.sort((a, b) => {
-      const numA = parseInt(a.relationshipId.replace(/\D/g, ''), 10);
-      const numB = parseInt(b.relationshipId.replace(/\D/g, ''), 10);
-      return numA - numB;
-    });
-
-    // Reindex after sorting
-    for (let i = 0; i < slides.length; i++) {
-      slides[i].index = i;
-    }
-
-    // Parse theme
-    const themeRel = presRels.getByType(REL_THEME)[0];
-    let theme: ThemeIR;
-    if (themeRel) {
-      try {
-        const { parseTheme } = await import('@opendockit/core/theme');
-        const themeXml = await pkg.getPartXml(themeRel.target);
-        theme = parseTheme(themeXml);
-      } catch {
-        theme = this._defaultTheme();
-      }
-    } else {
-      theme = this._defaultTheme();
-    }
-
-    return {
-      slideWidth,
-      slideHeight,
-      slideCount: slides.length,
-      slides,
-      theme,
-    };
+    return parsePresentation(pkg);
   }
 
   /**
@@ -362,9 +283,6 @@ export class SlideKit {
       throw new RangeError(`No slide reference for index ${index}.`);
     }
 
-    // Parse the slide XML into SlideIR.
-    // This is a basic implementation that extracts the shape tree.
-    // The full parser agent will provide a more complete implementation.
     const slide = await this._parseSlideXml(ref.partUri, ref.layoutPartUri, ref.masterPartUri);
     this._slideCache.set(index, slide);
     return slide;
@@ -373,9 +291,9 @@ export class SlideKit {
   /**
    * Parse a single slide's XML into a SlideIR.
    *
-   * This is a basic implementation that extracts elements from the
-   * shape tree. The full parser agent will supply the complete version
-   * with placeholder inheritance and background resolution.
+   * Loads the slide XML from the OPC package and delegates to the
+   * full `parseSlide` parser for shape tree, background, and color
+   * map override extraction.
    */
   private async _parseSlideXml(
     partUri: string,
@@ -383,18 +301,9 @@ export class SlideKit {
     masterPartUri: string
   ): Promise<SlideIR> {
     const pkg = this._pkg!;
-    // Load the slide XML. The full parser agent will supply proper
-    // shape tree parsing; for now we just ensure the part exists.
-    await pkg.getPartXml(partUri);
-
-    // Return a minimal SlideIR. The parser agent will fill this in
-    // with proper shape tree parsing and background resolution.
-    return {
-      partUri,
-      elements: [],
-      layoutPartUri,
-      masterPartUri,
-    };
+    const slideXml = await pkg.getPartXml(partUri);
+    const theme = this._presentation!.theme;
+    return parseSlide(slideXml, partUri, layoutPartUri, masterPartUri, theme);
   }
 
   /**
@@ -464,39 +373,5 @@ export class SlideKit {
     if (!this._presentation) {
       throw new Error('No presentation loaded. Call load() first.');
     }
-  }
-
-  /** Create a minimal default theme when no theme part is found. */
-  private _defaultTheme(): ThemeIR {
-    const black = { r: 0, g: 0, b: 0, a: 1 };
-    const white = { r: 255, g: 255, b: 255, a: 1 };
-
-    return {
-      name: 'Default',
-      colorScheme: {
-        dk1: black,
-        lt1: white,
-        dk2: { r: 68, g: 84, b: 106, a: 1 },
-        lt2: { r: 231, g: 230, b: 230, a: 1 },
-        accent1: { r: 79, g: 129, b: 189, a: 1 },
-        accent2: { r: 192, g: 80, b: 77, a: 1 },
-        accent3: { r: 155, g: 187, b: 89, a: 1 },
-        accent4: { r: 128, g: 100, b: 162, a: 1 },
-        accent5: { r: 75, g: 172, b: 198, a: 1 },
-        accent6: { r: 247, g: 150, b: 70, a: 1 },
-        hlink: { r: 5, g: 99, b: 193, a: 1 },
-        folHlink: { r: 149, g: 79, b: 114, a: 1 },
-      },
-      fontScheme: {
-        majorLatin: 'Calibri Light',
-        minorLatin: 'Calibri',
-      },
-      formatScheme: {
-        fillStyles: [{ type: 'none' }, { type: 'none' }, { type: 'none' }],
-        lineStyles: [{}, {}, {}],
-        effectStyles: [[], [], []],
-        bgFillStyles: [{ type: 'none' }, { type: 'none' }, { type: 'none' }],
-      },
-    };
   }
 }

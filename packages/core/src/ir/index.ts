@@ -49,6 +49,8 @@ export type {
   PresetGeometryIR,
   CustomGeometryIR,
   GeometryIR,
+  // Style References
+  StyleReferenceIR,
   // Shape Properties
   ShapePropertiesIR,
   // Text

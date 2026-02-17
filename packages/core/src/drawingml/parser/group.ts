@@ -24,6 +24,7 @@ import { parseShapePropertiesFromParent } from './shape-properties.js';
 import { parseTextBodyFromParent } from './text-body.js';
 import { parsePicture } from './picture.js';
 import { parseGroupTransform } from './transform.js';
+import { parseStyleReference } from './style-reference.js';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -167,11 +168,17 @@ function parseShape(
 
   const properties = parseShapePropertiesFromParent(spElement, theme, context);
   const textBody = parseTextBodyFromParent(spElement, theme, context);
+  const style = parseStyleReference(spElement, theme);
 
   const shape: DrawingMLShapeIR = {
     kind: 'shape',
     properties,
   };
+
+  // Style references (p:style)
+  if (style !== undefined) {
+    shape.style = style;
+  }
 
   // Non-visual properties
   const id = cNvPr?.attr('id');

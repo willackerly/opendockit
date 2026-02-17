@@ -323,6 +323,22 @@ export interface CustomGeometryIR {
 export type GeometryIR = PresetGeometryIR | CustomGeometryIR;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Style References
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Style references from p:style — theme format scheme lookups. */
+export interface StyleReferenceIR {
+  /** Fill style reference (1-based index into theme fillStyles). */
+  fillRef?: { idx: number; color?: ResolvedColor };
+  /** Line style reference (1-based index into theme lineStyles). */
+  lnRef?: { idx: number; color?: ResolvedColor };
+  /** Effect style reference (1-based index into theme effectStyles). */
+  effectRef?: { idx: number; color?: ResolvedColor };
+  /** Font style reference. */
+  fontRef?: { idx: 'major' | 'minor'; color?: ResolvedColor };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Shape Properties (aggregate)
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -618,6 +634,8 @@ export interface DrawingMLShapeIR {
   /** Shape name from the non-visual properties, e.g. "Title 1". */
   name?: string;
   properties: ShapePropertiesIR;
+  /** Style references from p:style — theme format scheme lookups. */
+  style?: StyleReferenceIR;
   textBody?: TextBodyIR;
   /** Placeholder type, e.g. "title", "body", "ctrTitle". */
   placeholderType?: string;

@@ -12,6 +12,7 @@ import type {
   TransformIR,
   ShapePropertiesIR,
   SolidFillIR,
+  StyleReferenceIR,
   LineIR,
   OuterShadowIR,
   TextBodyIR,
@@ -504,5 +505,166 @@ describe('renderSlideElement', () => {
     renderSlideElement(connector, rctx);
 
     expect(rctx.ctx._calls).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Style reference merge tests
+// ---------------------------------------------------------------------------
+
+describe('renderShape — style reference resolution', () => {
+  /**
+   * Create a render context whose theme format scheme has real fill/line
+   * styles so that style reference resolution produces visible results.
+   */
+  function createStyledRenderContext() {
+    const rctx = createMockRenderContext();
+    rctx.theme.formatScheme.fillStyles = [
+      { type: 'solid', color: { r: 100, g: 150, b: 200, a: 1 } },
+      { type: 'solid', color: { r: 200, g: 100, b: 50, a: 1 } },
+      { type: 'solid', color: { r: 50, g: 200, b: 100, a: 1 } },
+    ];
+    rctx.theme.formatScheme.lineStyles = [
+      { width: 6350, color: { r: 0, g: 0, b: 0, a: 1 } },
+      { width: 12700, color: { r: 128, g: 128, b: 128, a: 1 } },
+      { width: 19050, color: { r: 255, g: 255, b: 255, a: 1 } },
+    ];
+    rctx.theme.fontScheme.majorLatin = 'Calibri Light';
+    rctx.theme.fontScheme.minorLatin = 'Calibri';
+    return rctx;
+  }
+
+  it('uses theme fill from style reference when no inline fill', () => {
+    const rctx = createStyledRenderContext();
+    const shape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform(),
+        // No inline fill
+      }),
+      style: {
+        fillRef: { idx: 1, color: { r: 68, g: 114, b: 196, a: 1 } },
+      },
+    });
+
+    renderShape(shape, rctx);
+
+    // The shape should have a fill call because fillRef idx=1 resolves
+    // to the first fill style (solid { r: 100, g: 150, b: 200 }).
+    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    expect(fillCalls).toHaveLength(1);
+  });
+
+  it('inline fill overrides style reference fill', () => {
+    const rctx = createStyledRenderContext();
+    const shape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform(),
+        fill: solidBlue, // Inline fill present
+      }),
+      style: {
+        fillRef: { idx: 1, color: { r: 68, g: 114, b: 196, a: 1 } },
+      },
+    });
+
+    renderShape(shape, rctx);
+
+    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    expect(fillCalls).toHaveLength(1);
+
+    // The fillStyle should be the inline blue, not the theme fill.
+    // Solid blue = rgba(0, 0, 255, 1)
+    expect(rctx.ctx.fillStyle).toContain('0, 0, 255');
+  });
+
+  it('uses theme line from style reference when no inline line', () => {
+    const rctx = createStyledRenderContext();
+    const shape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform(),
+        // No inline line
+      }),
+      style: {
+        lnRef: { idx: 2, color: { r: 68, g: 114, b: 196, a: 1 } },
+      },
+    });
+
+    renderShape(shape, rctx);
+
+    // The shape should have a stroke call because lnRef idx=2 resolves
+    // to the second line style.
+    const strokeCalls = rctx.ctx._calls.filter((c) => c.method === 'stroke');
+    expect(strokeCalls).toHaveLength(1);
+  });
+
+  it('inline line overrides style reference line', () => {
+    const rctx = createStyledRenderContext();
+    const shape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform(),
+        line: redLine, // Inline line present
+      }),
+      style: {
+        lnRef: { idx: 1, color: { r: 68, g: 114, b: 196, a: 1 } },
+      },
+    });
+
+    renderShape(shape, rctx);
+
+    const strokeCalls = rctx.ctx._calls.filter((c) => c.method === 'stroke');
+    expect(strokeCalls).toHaveLength(1);
+
+    // The strokeStyle should be the inline red line color.
+    expect(rctx.ctx.strokeStyle).toContain('255, 0, 0');
+  });
+
+  it('does not apply style fill when fillRef idx is 0', () => {
+    const rctx = createStyledRenderContext();
+    const shape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform(),
+      }),
+      style: {
+        fillRef: { idx: 0, color: { r: 68, g: 114, b: 196, a: 1 } },
+      },
+    });
+
+    renderShape(shape, rctx);
+
+    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    expect(fillCalls).toHaveLength(0);
+  });
+
+  it('does not apply style line when lnRef idx is 0', () => {
+    const rctx = createStyledRenderContext();
+    const shape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform(),
+      }),
+      style: {
+        lnRef: { idx: 0, color: { r: 68, g: 114, b: 196, a: 1 } },
+      },
+    });
+
+    renderShape(shape, rctx);
+
+    const strokeCalls = rctx.ctx._calls.filter((c) => c.method === 'stroke');
+    expect(strokeCalls).toHaveLength(0);
+  });
+
+  it('shape without style or inline properties renders without fill or stroke', () => {
+    const rctx = createStyledRenderContext();
+    const shape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform(),
+      }),
+      // No style, no inline fill/line
+    });
+
+    renderShape(shape, rctx);
+
+    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    const strokeCalls = rctx.ctx._calls.filter((c) => c.method === 'stroke');
+    expect(fillCalls).toHaveLength(0);
+    expect(strokeCalls).toHaveLength(0);
   });
 });

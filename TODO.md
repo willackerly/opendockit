@@ -5,6 +5,7 @@
 ## Completed
 
 ### Phase 0: Core Foundation
+
 - [x] OPC Package Reader (JSZip, lazy extraction, progress callbacks)
 - [x] Content types parser (`[Content_Types].xml`)
 - [x] Relationship resolver (`_rels/*.rels`)
@@ -19,6 +20,7 @@
 - [x] Font resolver (substitution table + metrics)
 
 ### Phase 1: DrawingML Pipeline
+
 - [x] Shape properties parser (a:spPr)
 - [x] Fill parser (solid, gradient, pattern, picture)
 - [x] Line parser (a:ln)
@@ -41,6 +43,7 @@
 - [x] Table parser + renderer (merged cells, borders, text bodies)
 
 ### Phase 2: PPTX Integration
+
 - [x] Presentation parser (presentation.xml -> slide list, dimensions)
 - [x] Slide master parser
 - [x] Slide layout parser
@@ -51,6 +54,7 @@
 - [x] Public API: SlideKit class
 
 ### Phase 3: Progressive Fidelity (partial)
+
 - [x] Capability registry + render plan generation
 - [x] Grey-box fallback with badges
 - [x] Coverage report API
@@ -63,6 +67,7 @@
 ## In Progress
 
 ### Phase 3 Stragglers
+
 - [ ] Placeholder resolution (master -> layout -> slide inheritance cascade)
 - [ ] Style reference resolution (a:style -> theme formatting via lnRef/fillRef/effectRef/fontRef)
 - [ ] Connector routing via connection sites (shape-to-shape endpoint resolution)
@@ -71,6 +76,7 @@
 - [ ] Progressive render pipeline (immediate -> grey box -> spinner -> re-render)
 
 ### Visual Validation
+
 - [ ] Dev harness page (load PPTX, render slides, screenshot comparison)
 - [ ] Test fixture PPTX files covering major element types
 - [ ] Side-by-side comparison with LibreOffice oracle
@@ -78,6 +84,7 @@
 ## Planned
 
 ### Phase 4: Charts + Export
+
 - [ ] ChartML parser and renderer
 - [ ] CanvasKit WASM integration
 - [ ] Slide transitions
@@ -85,11 +92,13 @@
 - [ ] SVG export
 
 ### Phase 5: DOCX
+
 - [ ] WordprocessingML parser
 - [ ] Page layout engine
 - [ ] Reuses ~40% of core DrawingML
 
 ### Phase 6: XLSX
+
 - [ ] SpreadsheetML parser
 - [ ] Grid layout engine
 - [ ] Reuses ~35% of core DrawingML

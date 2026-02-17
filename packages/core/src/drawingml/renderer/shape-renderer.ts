@@ -19,6 +19,9 @@ import type {
   TableIR,
   ChartIR,
   UnsupportedIR,
+  FillIR,
+  LineIR,
+  EffectIR,
 } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
@@ -30,6 +33,7 @@ import { renderPicture } from './picture-renderer.js';
 import { renderGroup } from './group-renderer.js';
 import { renderTable as renderTableImpl } from './table-renderer.js';
 import { renderConnector } from './connector-renderer.js';
+import { resolveFormatStyle } from '../../theme/index.js';
 
 // ---------------------------------------------------------------------------
 // Placeholder rendering
@@ -114,6 +118,82 @@ function renderUnsupported(element: UnsupportedIR, rctx: RenderContext): void {
 }
 
 // ---------------------------------------------------------------------------
+// Style reference resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve effective fill for a shape.
+ *
+ * Inline fill takes precedence over style reference fill. A fill of
+ * `{ type: 'none' }` is treated as "no fill specified" for precedence
+ * purposes only when a style reference exists — explicit noFill in
+ * inline properties is an intentional override.
+ */
+function resolveEffectiveFill(shape: DrawingMLShapeIR, rctx: RenderContext): FillIR | undefined {
+  // Inline fill present — use it
+  if (shape.properties.fill) {
+    return shape.properties.fill;
+  }
+
+  // Fall back to style reference
+  if (shape.style?.fillRef && shape.style.fillRef.idx > 0) {
+    const resolved = resolveFormatStyle(shape.style.fillRef.idx, 'fill', rctx.theme);
+    return resolved as FillIR | undefined;
+  }
+
+  return undefined;
+}
+
+/**
+ * Resolve effective line for a shape.
+ *
+ * Inline line takes precedence over style reference line.
+ */
+function resolveEffectiveLine(shape: DrawingMLShapeIR, rctx: RenderContext): LineIR | undefined {
+  // Inline line present — use it
+  if (shape.properties.line) {
+    return shape.properties.line;
+  }
+
+  // Fall back to style reference
+  if (shape.style?.lnRef && shape.style.lnRef.idx > 0) {
+    const resolved = resolveFormatStyle(shape.style.lnRef.idx, 'line', rctx.theme);
+    if (resolved) {
+      const styleLine = resolved as LineIR;
+      // Apply the style reference color if the resolved line has no color
+      if (!styleLine.color && shape.style.lnRef.color) {
+        return { ...styleLine, color: shape.style.lnRef.color };
+      }
+      return styleLine;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Resolve effective effects for a shape.
+ *
+ * Inline effects take precedence over style reference effects.
+ */
+function resolveEffectiveEffects(shape: DrawingMLShapeIR, rctx: RenderContext): EffectIR[] {
+  // Inline effects present and non-empty — use them
+  if (shape.properties.effects.length > 0) {
+    return shape.properties.effects;
+  }
+
+  // Fall back to style reference
+  if (shape.style?.effectRef && shape.style.effectRef.idx > 0) {
+    const resolved = resolveFormatStyle(shape.style.effectRef.idx, 'effect', rctx.theme);
+    if (resolved) {
+      return resolved as EffectIR[];
+    }
+  }
+
+  return [];
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -124,10 +204,10 @@ function renderUnsupported(element: UnsupportedIR, rctx: RenderContext): void {
  * 1. Extract and validate transform
  * 2. Save canvas state
  * 3. Apply transform (translate, rotate, flip)
- * 4. Apply effects (shadow, glow)
+ * 4. Apply effects (shadow, glow) — merged with style references
  * 5. Build geometry path (preset or default rect)
- * 6. Apply fill
- * 7. Apply line/stroke
+ * 6. Apply fill — merged with style references
+ * 7. Apply line/stroke — merged with style references
  * 8. Call effect cleanup
  * 9. Render text body
  * 10. Restore canvas state
@@ -163,8 +243,13 @@ export function renderShape(shape: DrawingMLShapeIR, rctx: RenderContext): void 
   // Bounds in the local coordinate space (post-transform origin is at 0,0).
   const bounds = { x: 0, y: 0, width: w, height: h };
 
+  // -- Resolve effective properties (inline takes precedence over style refs) --
+  const effectiveFill = resolveEffectiveFill(shape, rctx);
+  const effectiveLine = resolveEffectiveLine(shape, rctx);
+  const effectiveEffects = resolveEffectiveEffects(shape, rctx);
+
   // -- Effects (applied before drawing) --
-  const effectCleanup = applyEffects(shape.properties.effects, rctx, bounds);
+  const effectCleanup = applyEffects(effectiveEffects, rctx, bounds);
 
   // -- Geometry path --
   // If a path builder is available for preset geometries, use it.
@@ -173,13 +258,13 @@ export function renderShape(shape: DrawingMLShapeIR, rctx: RenderContext): void 
   ctx.rect(0, 0, w, h);
 
   // -- Fill --
-  if (shape.properties.fill) {
-    applyFill(shape.properties.fill, rctx, bounds);
+  if (effectiveFill) {
+    applyFill(effectiveFill, rctx, bounds);
   }
 
   // -- Line/Stroke --
-  if (shape.properties.line) {
-    applyLine(shape.properties.line, rctx);
+  if (effectiveLine) {
+    applyLine(effectiveLine, rctx);
   }
 
   // -- Effect cleanup --

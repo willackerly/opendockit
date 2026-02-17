@@ -261,4 +261,319 @@ describe('parseSlide', () => {
     // masterClrMapping means "use master's color map" — returns undefined
     expect(result.colorMap).toBeUndefined();
   });
+
+  it('parses a shape with solid fill and text body via core parsers', () => {
+    const xml = parseXml(`
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld>
+    <p:spTree>
+      <p:nvGrpSpPr>
+        <p:cNvPr id="1" name=""/>
+        <p:cNvGrpSpPr/>
+        <p:nvPr/>
+      </p:nvGrpSpPr>
+      <p:grpSpPr/>
+      <p:sp>
+        <p:nvSpPr>
+          <p:cNvPr id="4" name="Filled Box"/>
+          <p:cNvSpPr/>
+          <p:nvPr/>
+        </p:nvSpPr>
+        <p:spPr>
+          <a:xfrm>
+            <a:off x="100000" y="200000"/>
+            <a:ext cx="3000000" cy="1500000"/>
+          </a:xfrm>
+          <a:prstGeom prst="roundRect">
+            <a:avLst>
+              <a:gd name="adj" fmla="val 16667"/>
+            </a:avLst>
+          </a:prstGeom>
+          <a:solidFill>
+            <a:srgbClr val="0070C0"/>
+          </a:solidFill>
+          <a:ln w="25400">
+            <a:solidFill>
+              <a:srgbClr val="002060"/>
+            </a:solidFill>
+          </a:ln>
+        </p:spPr>
+        <p:txBody>
+          <a:bodyPr wrap="square" anchor="ctr"/>
+          <a:p>
+            <a:r>
+              <a:rPr lang="en-US" sz="2400" b="1"/>
+              <a:t>Hello World</a:t>
+            </a:r>
+          </a:p>
+        </p:txBody>
+      </p:sp>
+    </p:spTree>
+  </p:cSld>
+</p:sld>`);
+
+    const result = parseSlide(
+      xml,
+      '/ppt/slides/slide1.xml',
+      '/ppt/slideLayouts/slideLayout1.xml',
+      '/ppt/slideMasters/slideMaster1.xml',
+      minimalTheme()
+    );
+
+    expect(result.elements).toHaveLength(1);
+    const shape = result.elements[0];
+    expect(shape.kind).toBe('shape');
+
+    if (shape.kind === 'shape') {
+      // Transform
+      expect(shape.properties.transform?.position).toEqual({ x: 100000, y: 200000 });
+      expect(shape.properties.transform?.size).toEqual({ width: 3000000, height: 1500000 });
+
+      // Geometry — preset with adjust value
+      expect(shape.properties.geometry).toBeDefined();
+      expect(shape.properties.geometry?.kind).toBe('preset');
+      if (shape.properties.geometry?.kind === 'preset') {
+        expect(shape.properties.geometry.name).toBe('roundRect');
+        expect(shape.properties.geometry.adjustValues).toEqual({ adj: 16667 });
+      }
+
+      // Fill — solid blue
+      expect(shape.properties.fill).toBeDefined();
+      expect(shape.properties.fill?.type).toBe('solid');
+      if (shape.properties.fill?.type === 'solid') {
+        expect(shape.properties.fill.color).toEqual({ r: 0, g: 112, b: 192, a: 1 });
+      }
+
+      // Line — 25400 EMU, dark blue
+      expect(shape.properties.line).toBeDefined();
+      expect(shape.properties.line?.width).toBe(25400);
+      expect(shape.properties.line?.color).toEqual({ r: 0, g: 32, b: 96, a: 1 });
+
+      // Text body
+      expect(shape.textBody).toBeDefined();
+      expect(shape.textBody?.paragraphs).toHaveLength(1);
+      const run = shape.textBody?.paragraphs[0]?.runs[0];
+      expect(run?.kind).toBe('run');
+      if (run?.kind === 'run') {
+        expect(run.text).toBe('Hello World');
+        expect(run.properties.fontSize).toBe(2400);
+        expect(run.properties.bold).toBe(true);
+      }
+    }
+  });
+
+  it('parses a graphic frame containing a table', () => {
+    const xml = parseXml(`
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld>
+    <p:spTree>
+      <p:nvGrpSpPr>
+        <p:cNvPr id="1" name=""/>
+        <p:cNvGrpSpPr/>
+        <p:nvPr/>
+      </p:nvGrpSpPr>
+      <p:grpSpPr/>
+      <p:graphicFrame>
+        <p:nvGraphicFramePr>
+          <p:cNvPr id="5" name="Table 4"/>
+          <p:cNvGraphicFramePr/>
+          <p:nvPr/>
+        </p:nvGraphicFramePr>
+        <p:xfrm>
+          <a:off x="500000" y="1000000"/>
+          <a:ext cx="8000000" cy="3000000"/>
+        </p:xfrm>
+        <a:graphic>
+          <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">
+            <a:tbl>
+              <a:tblGrid>
+                <a:gridCol w="4000000"/>
+                <a:gridCol w="4000000"/>
+              </a:tblGrid>
+              <a:tr h="600000">
+                <a:tc>
+                  <a:txBody>
+                    <a:bodyPr/>
+                    <a:p>
+                      <a:r>
+                        <a:rPr lang="en-US"/>
+                        <a:t>Cell A1</a:t>
+                      </a:r>
+                    </a:p>
+                  </a:txBody>
+                  <a:tcPr/>
+                </a:tc>
+                <a:tc>
+                  <a:txBody>
+                    <a:bodyPr/>
+                    <a:p>
+                      <a:r>
+                        <a:rPr lang="en-US"/>
+                        <a:t>Cell B1</a:t>
+                      </a:r>
+                    </a:p>
+                  </a:txBody>
+                  <a:tcPr/>
+                </a:tc>
+              </a:tr>
+            </a:tbl>
+          </a:graphicData>
+        </a:graphic>
+      </p:graphicFrame>
+    </p:spTree>
+  </p:cSld>
+</p:sld>`);
+
+    const result = parseSlide(
+      xml,
+      '/ppt/slides/slide1.xml',
+      '/ppt/slideLayouts/slideLayout1.xml',
+      '/ppt/slideMasters/slideMaster1.xml',
+      minimalTheme()
+    );
+
+    expect(result.elements).toHaveLength(1);
+    const table = result.elements[0];
+    expect(table.kind).toBe('table');
+
+    if (table.kind === 'table') {
+      // Transform from p:xfrm
+      expect(table.properties.transform?.position).toEqual({ x: 500000, y: 1000000 });
+      expect(table.properties.transform?.size).toEqual({ width: 8000000, height: 3000000 });
+
+      // Column widths
+      expect(table.columnWidths).toEqual([4000000, 4000000]);
+
+      // Rows and cells
+      expect(table.rows).toHaveLength(1);
+      expect(table.rows[0].height).toBe(600000);
+      expect(table.rows[0].cells).toHaveLength(2);
+
+      // Cell text content
+      const cellA1 = table.rows[0].cells[0];
+      expect(cellA1.textBody?.paragraphs[0]?.runs[0]).toMatchObject({
+        kind: 'run',
+        text: 'Cell A1',
+      });
+    }
+  });
+
+  it('keeps unsupported graphic frames for non-table content', () => {
+    const xml = parseXml(`
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld>
+    <p:spTree>
+      <p:nvGrpSpPr>
+        <p:cNvPr id="1" name=""/>
+        <p:cNvGrpSpPr/>
+        <p:nvPr/>
+      </p:nvGrpSpPr>
+      <p:grpSpPr/>
+      <p:graphicFrame>
+        <p:nvGraphicFramePr>
+          <p:cNvPr id="6" name="Chart 5"/>
+          <p:cNvGraphicFramePr/>
+          <p:nvPr/>
+        </p:nvGraphicFramePr>
+        <p:xfrm>
+          <a:off x="100000" y="100000"/>
+          <a:ext cx="5000000" cy="3000000"/>
+        </p:xfrm>
+        <a:graphic>
+          <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+            <!-- chart data would be here -->
+          </a:graphicData>
+        </a:graphic>
+      </p:graphicFrame>
+    </p:spTree>
+  </p:cSld>
+</p:sld>`);
+
+    const result = parseSlide(
+      xml,
+      '/ppt/slides/slide1.xml',
+      '/ppt/slideLayouts/slideLayout1.xml',
+      '/ppt/slideMasters/slideMaster1.xml',
+      minimalTheme()
+    );
+
+    expect(result.elements).toHaveLength(1);
+    const el = result.elements[0];
+    expect(el.kind).toBe('unsupported');
+    if (el.kind === 'unsupported') {
+      expect(el.elementType).toBe('p:graphicFrame');
+    }
+  });
+
+  it('parses a connector with full properties via core parsers', () => {
+    const xml = parseXml(`
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld>
+    <p:spTree>
+      <p:nvGrpSpPr>
+        <p:cNvPr id="1" name=""/>
+        <p:cNvGrpSpPr/>
+        <p:nvPr/>
+      </p:nvGrpSpPr>
+      <p:grpSpPr/>
+      <p:cxnSp>
+        <p:nvCxnSpPr>
+          <p:cNvPr id="7" name="Connector 6"/>
+          <p:cNvCxnSpPr>
+            <a:stCxn id="2" idx="3"/>
+            <a:endCxn id="3" idx="1"/>
+          </p:cNvCxnSpPr>
+          <p:nvPr/>
+        </p:nvCxnSpPr>
+        <p:spPr>
+          <a:xfrm>
+            <a:off x="300000" y="400000"/>
+            <a:ext cx="2000000" cy="500000"/>
+          </a:xfrm>
+          <a:prstGeom prst="straightConnector1"/>
+          <a:ln w="12700">
+            <a:solidFill>
+              <a:srgbClr val="FF0000"/>
+            </a:solidFill>
+          </a:ln>
+        </p:spPr>
+      </p:cxnSp>
+    </p:spTree>
+  </p:cSld>
+</p:sld>`);
+
+    const result = parseSlide(
+      xml,
+      '/ppt/slides/slide1.xml',
+      '/ppt/slideLayouts/slideLayout1.xml',
+      '/ppt/slideMasters/slideMaster1.xml',
+      minimalTheme()
+    );
+
+    expect(result.elements).toHaveLength(1);
+    const connector = result.elements[0];
+    expect(connector.kind).toBe('connector');
+
+    if (connector.kind === 'connector') {
+      // Transform
+      expect(connector.properties.transform?.position).toEqual({ x: 300000, y: 400000 });
+      expect(connector.properties.transform?.size).toEqual({ width: 2000000, height: 500000 });
+
+      // Line properties parsed via core
+      expect(connector.properties.line?.width).toBe(12700);
+      expect(connector.properties.line?.color).toEqual({ r: 255, g: 0, b: 0, a: 1 });
+
+      // Connection references
+      expect(connector.startConnection).toEqual({ shapeId: '2', connectionSiteIndex: 3 });
+      expect(connector.endConnection).toEqual({ shapeId: '3', connectionSiteIndex: 1 });
+    }
+  });
 });

@@ -11,6 +11,7 @@
     "lint": "prettier --check . && pnpm -r typecheck",
     "format": "prettier --write .",
     "typecheck": "pnpm -r typecheck",
+    "dev:viewer": "pnpm --filter @opendockit/viewer dev",
     "clean": "pnpm -r clean && rm -rf node_modules"
   },
   "devDependencies": {
