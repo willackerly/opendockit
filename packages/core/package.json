@@ -18,6 +18,10 @@
       "types": "./dist/drawingml/index.d.ts",
       "import": "./dist/drawingml/index.js"
     },
+    "./drawingml/renderer": {
+      "types": "./dist/drawingml/renderer/index.d.ts",
+      "import": "./dist/drawingml/renderer/index.js"
+    },
     "./theme": {
       "types": "./dist/theme/index.d.ts",
       "import": "./dist/theme/index.js"
