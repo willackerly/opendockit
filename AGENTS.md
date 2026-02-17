@@ -111,6 +111,90 @@ Multiple agents work async on this codebase. Docs drift when agents complete wor
 - **DOCX support (future)** — WordprocessingML parser + page layout engine, reuses ~40% of core
 - **XLSX support (future)** — SpreadsheetML parser + grid layout, reuses ~35% of core
 
+---
+
+## Sub-Agent Parallelization Guide
+
+This project is designed for aggressive parallelization. The IR types are the central contract — parsers produce IR, renderers consume IR. They never call each other directly.
+
+### Dependency DAG (What Blocks What)
+
+```
+SPINE (must exist first — do these sequentially or with 3 agents)
+═══════════════════════════════════════════════════════════════
+  [IR Types]          [XML Parser Wrapper]      [Unit Conversions]
+  ir/common.ts        xml/fast-parser.ts        units/emu.ts
+  ir/drawingml-ir.ts  xml/namespace-map.ts      units/dxa.ts
+  ir/theme-ir.ts      xml/attribute-helpers.ts  units/half-points.ts
+       │                    │                        │
+       └────────────────────┴────────────────────────┘
+                            │
+FAN-OUT 1 (up to 6 agents) │
+═══════════════════════════════════════════════════════════════
+  [OPC Layer]     [Theme Parser]    [Color Resolver]
+  opc/*           theme/theme-      theme/color-
+                  parser.ts         resolver.ts
+                                         │
+  [Font Subst.]   [Shape Guide     [Preset Geometry
+  font/subst-     Evaluator]        Definitions]
+  table.ts        geometry/         geometry/preset-
+                  shape-guide-      geometries.ts
+                  eval.ts
+                       │
+FAN-OUT 2 (up to 13 agents — parsers + renderers in parallel)
+═══════════════════════════════════════════════════════════════
+  PARSERS (each independent):          RENDERERS (each independent):
+  [fill parser]    [line parser]       [fill renderer]    [line renderer]
+  [effect parser]  [transform parser]  [effect renderer]  [text renderer]
+  [text-body]      [picture parser]    [picture renderer]
+                       │                        │
+COMPOSE (2-3 agents)   │                        │
+═══════════════════════════════════════════════════════════════
+  [shape-properties parser]  →  [shape renderer]
+  [group parser]             →  [group renderer]
+```
+
+### How to Scope a Sub-Agent
+
+Each module directory has a `MODULE.md` with:
+- **Purpose** — what this module does (1 sentence)
+- **Inputs** — what types/interfaces it receives
+- **Outputs** — what types/interfaces it produces
+- **Dependencies** — what other modules it imports from
+- **Key reference** — which section of the architecture doc to read
+
+**Tell your sub-agent:** "Read `packages/core/src/<module>/MODULE.md`, implement everything described there, write tests, commit."
+
+### Rules for Parallel Agents
+
+1. **Never modify IR types** without coordinating — they're the shared contract
+2. **Each module owns its directory** — don't touch files outside your module
+3. **Import IR types, don't redefine them** — always `import { FillIR } from '../ir/index.js'`
+4. **Barrel exports** — each module has an `index.ts` that re-exports its public API
+5. **Tests are self-contained** — create test fixtures inline, don't depend on other modules' test data
+6. **Commit per module** — one commit per completed module, not one giant commit
+
+### Max Parallelism by Stage
+
+| Stage | Max Agents | Wall Clock | Notes |
+|-------|-----------|------------|-------|
+| Spine | 3 | ~2-3 hrs | IR types + XML + Units. MUST complete before fan-out. |
+| Fan-out 1 | 6 | ~3-4 hrs | OPC, theme, color, font, geometry eval, preset data |
+| Fan-out 2 | 8-13 | ~4-6 hrs | All parsers + all renderers can run simultaneously |
+| Compose | 2-3 | ~2-3 hrs | shape-props parser, shape renderer, group handling |
+| Phase 2 | 4-5 | ~6-8 hrs | PPTX-specific: slide parser, master/layout, viewport |
+
+### Cross-Phase Overlap
+
+Phase 1 work can start before Phase 0 is 100% complete:
+- Preset geometry definitions can start Day 1 (pure data, zero dependencies)
+- Shape guide evaluator can start once Units exists
+- All parsers can start once IR Types + XML Parser exist
+- All renderers can start once IR Types + Units exist
+- Theme-dependent rendering can use mock ThemeIR objects until Theme Engine ships
+
+---
+
 ## Build, Test & Development Commands
 
 ```
