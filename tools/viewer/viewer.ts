@@ -1,8 +1,8 @@
 /**
  * OpenDocKit Viewer — dev tool for visual inspection of PPTX rendering.
  *
- * Loads a PPTX file via file picker or drag-and-drop, renders slides
- * using SlideKit, and provides navigation and screenshot controls.
+ * Loads a PPTX file via file picker or drag-and-drop, renders ALL slides
+ * vertically in a scrollable layout with slide labels and PNG export.
  */
 
 import { SlideKit, type LoadedPresentation } from '@opendockit/pptx';
@@ -17,12 +17,8 @@ const fileInput = document.getElementById('file-input') as HTMLInputElement;
 const fileName = document.getElementById('file-name') as HTMLSpanElement;
 const dropZone = document.getElementById('drop-zone') as HTMLDivElement;
 const emptyState = document.getElementById('empty-state') as HTMLDivElement;
-const canvasContainer = document.getElementById('canvas-container') as HTMLDivElement;
+const slidesContainer = document.getElementById('slides-container') as HTMLDivElement;
 const errorBanner = document.getElementById('error-banner') as HTMLDivElement;
-const btnPrev = document.getElementById('btn-prev') as HTMLButtonElement;
-const btnNext = document.getElementById('btn-next') as HTMLButtonElement;
-const slideCounter = document.getElementById('slide-counter') as HTMLSpanElement;
-const btnScreenshot = document.getElementById('btn-screenshot') as HTMLButtonElement;
 const loadingIndicator = document.getElementById('loading') as HTMLSpanElement;
 const loadingMsg = document.getElementById('loading-msg') as HTMLSpanElement;
 const statusEl = document.getElementById('status') as HTMLDivElement;
@@ -59,27 +55,10 @@ function setLoading(loading: boolean, message?: string): void {
   } else {
     loadingIndicator.classList.remove('visible');
   }
-  updateNavState();
 }
 
 function setStatus(text: string): void {
   statusEl.textContent = text;
-}
-
-function updateNavState(): void {
-  if (!kit || !presentation || isLoading) {
-    btnPrev.disabled = true;
-    btnNext.disabled = true;
-    btnScreenshot.disabled = true;
-    return;
-  }
-
-  btnPrev.disabled = kit.currentSlide <= 0;
-  btnNext.disabled = kit.currentSlide >= presentation.slideCount - 1;
-  btnScreenshot.disabled = false;
-
-  const current = kit.currentSlide + 1;
-  slideCounter.textContent = `Slide ${current} of ${presentation.slideCount}`;
 }
 
 function updateSlideInfo(): void {
@@ -90,7 +69,7 @@ function updateSlideInfo(): void {
 
   const wPx = Math.round(emuToPx(presentation.slideWidth));
   const hPx = Math.round(emuToPx(presentation.slideHeight));
-  slideInfo.textContent = `${wPx} x ${hPx} px @ 96 dpi | Theme: ${presentation.theme.name}`;
+  slideInfo.textContent = `${presentation.slideCount} slides | ${wPx} x ${hPx} px @ 96 dpi | Theme: ${presentation.theme.name}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,13 +95,13 @@ async function loadFile(file: File): Promise<void> {
   currentFileName = file.name;
   fileName.textContent = file.name;
 
-  // Show canvas area, hide empty state
+  // Show slides area, hide empty state
   emptyState.style.display = 'none';
-  canvasContainer.classList.add('visible');
+  slidesContainer.classList.add('visible');
   dropZone.classList.remove('empty');
 
-  // Clear canvas container
-  canvasContainer.innerHTML = '';
+  // Clear previous slides
+  slidesContainer.innerHTML = '';
 
   setLoading(true, 'Opening file...');
   setStatus(`Loading ${file.name}...`);
@@ -130,25 +109,59 @@ async function loadFile(file: File): Promise<void> {
   try {
     const arrayBuffer = await file.arrayBuffer();
 
+    // Create a hidden offscreen canvas for SlideKit to render into
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.style.display = 'none';
+    document.body.appendChild(offscreenCanvas);
+
     kit = new SlideKit({
-      container: canvasContainer,
+      canvas: offscreenCanvas,
       onProgress: (event) => {
         const msg = event.message ?? `${event.phase} ${event.current}/${event.total}`;
         setLoading(true, msg);
-        setStatus(msg);
       },
     });
 
     presentation = await kit.load(arrayBuffer);
-
     updateSlideInfo();
-    setStatus(`Loaded ${presentation.slideCount} slides. Rendering slide 1...`);
 
-    await kit.renderSlide(0);
+    // Render all slides
+    for (let i = 0; i < presentation.slideCount; i++) {
+      setLoading(true, `Rendering slide ${i + 1} of ${presentation.slideCount}...`);
+      setStatus(`Rendering slide ${i + 1} of ${presentation.slideCount}...`);
+
+      await kit.renderSlide(i);
+
+      // Snapshot the offscreen canvas into a visible element
+      const slideWrapper = document.createElement('div');
+      slideWrapper.className = 'slide-wrapper';
+
+      const label = document.createElement('div');
+      label.className = 'slide-label';
+      label.textContent = `Slide ${i + 1}`;
+
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'btn btn-sm';
+      saveBtn.textContent = 'Save PNG';
+      saveBtn.addEventListener('click', () => saveSlideAsPng(img, i));
+      label.appendChild(saveBtn);
+
+      // Copy canvas to an img element
+      const img = document.createElement('img');
+      img.src = offscreenCanvas.toDataURL('image/png');
+      img.alt = `Slide ${i + 1}`;
+      img.className = 'slide-image';
+
+      slideWrapper.appendChild(label);
+      slideWrapper.appendChild(img);
+      slidesContainer.appendChild(slideWrapper);
+    }
+
+    // Clean up offscreen canvas
+    document.body.removeChild(offscreenCanvas);
 
     setLoading(false);
-    updateNavState();
-    setStatus('Ready');
+    setStatus(`Rendered ${presentation.slideCount} slides.`);
   } catch (err) {
     setLoading(false);
     const message = err instanceof Error ? err.message : String(err);
@@ -158,71 +171,13 @@ async function loadFile(file: File): Promise<void> {
   }
 }
 
-async function navigate(direction: 'prev' | 'next' | 'first' | 'last'): Promise<void> {
-  if (!kit || !presentation || isLoading) return;
-
-  setLoading(true, 'Rendering...');
-  clearError();
-
-  try {
-    switch (direction) {
-      case 'prev':
-        await kit.previousSlide();
-        break;
-      case 'next':
-        await kit.nextSlide();
-        break;
-      case 'first':
-        await kit.goToSlide(0);
-        break;
-      case 'last':
-        await kit.goToSlide(presentation.slideCount - 1);
-        break;
-    }
-
-    setLoading(false);
-    updateNavState();
-    setStatus('Ready');
-  } catch (err) {
-    setLoading(false);
-    updateNavState();
-    const message = err instanceof Error ? err.message : String(err);
-    showError(`Render error: ${message}`);
-    setStatus('Error');
-    console.error('Navigation error:', err);
-  }
-}
-
-function takeScreenshot(): void {
-  if (!kit || !presentation) return;
-
-  const canvas = canvasContainer.querySelector('canvas');
-  if (!canvas) {
-    showError('No canvas found to capture.');
-    return;
-  }
-
-  canvas.toBlob((blob) => {
-    if (!blob) {
-      showError('Failed to create screenshot.');
-      return;
-    }
-
-    const slideNum = kit!.currentSlide + 1;
-    const baseName = currentFileName.replace(/\.pptx$/i, '');
-    const downloadName = `${baseName}_slide${slideNum}.png`;
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = downloadName;
-    a.click();
-
-    // Clean up the object URL after a short delay
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-    setStatus(`Saved ${downloadName}`);
-  }, 'image/png');
+function saveSlideAsPng(img: HTMLImageElement, index: number): void {
+  const a = document.createElement('a');
+  a.href = img.src;
+  const baseName = currentFileName.replace(/\.pptx$/i, '');
+  a.download = `${baseName}_slide${index + 1}.png`;
+  a.click();
+  setStatus(`Saved ${a.download}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -239,7 +194,6 @@ fileInput.addEventListener('change', () => {
   if (file) {
     loadFile(file);
   }
-  // Reset so the same file can be re-selected
   fileInput.value = '';
 });
 
@@ -280,40 +234,6 @@ dropZone.addEventListener('drop', (e) => {
 dropZone.addEventListener('click', (e) => {
   if ((dropZone.classList.contains('empty') && e.target === dropZone) || e.target === emptyState) {
     fileInput.click();
-  }
-});
-
-// Navigation buttons
-btnPrev.addEventListener('click', () => navigate('prev'));
-btnNext.addEventListener('click', () => navigate('next'));
-
-// Screenshot
-btnScreenshot.addEventListener('click', takeScreenshot);
-
-// Keyboard navigation
-document.addEventListener('keydown', (e) => {
-  // Don't capture when typing in an input
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-    return;
-  }
-
-  switch (e.key) {
-    case 'ArrowLeft':
-      e.preventDefault();
-      navigate('prev');
-      break;
-    case 'ArrowRight':
-      e.preventDefault();
-      navigate('next');
-      break;
-    case 'Home':
-      e.preventDefault();
-      navigate('first');
-      break;
-    case 'End':
-      e.preventDefault();
-      navigate('last');
-      break;
   }
 });
 

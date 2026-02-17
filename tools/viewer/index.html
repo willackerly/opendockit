@@ -31,6 +31,9 @@
         align-items: center;
         gap: 16px;
         flex-shrink: 0;
+        position: sticky;
+        top: 0;
+        z-index: 20;
       }
 
       header h1 {
@@ -69,16 +72,6 @@
         border-color: #e94560;
       }
 
-      .btn:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-      }
-
-      .btn:disabled:hover {
-        background: #16213e;
-        border-color: #0f3460;
-      }
-
       .btn-primary {
         background: #e94560;
         border-color: #e94560;
@@ -87,6 +80,12 @@
 
       .btn-primary:hover {
         background: #c73550;
+      }
+
+      .btn-sm {
+        padding: 3px 10px;
+        font-size: 11px;
+        margin-left: auto;
       }
 
       #file-input {
@@ -99,17 +98,18 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
         position: relative;
+        overflow-y: auto;
       }
 
       #drop-zone.empty {
         cursor: pointer;
+        justify-content: center;
       }
 
       #drop-overlay {
         display: none;
-        position: absolute;
+        position: fixed;
         inset: 0;
         background: rgba(233, 69, 96, 0.15);
         border: 3px dashed #e94560;
@@ -143,28 +143,50 @@
         margin-top: 16px;
       }
 
-      /* Canvas area */
-      #canvas-container {
+      /* Slides container */
+      #slides-container {
         display: none;
-        padding: 24px;
-        overflow: auto;
-        flex: 1;
-        justify-content: center;
-        align-items: flex-start;
+        flex-direction: column;
+        align-items: center;
+        gap: 32px;
+        padding: 32px 24px;
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
       }
 
-      #canvas-container.visible {
+      #slides-container.visible {
         display: flex;
       }
 
-      #canvas-container canvas {
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
-        border-radius: 4px;
-        max-width: 100%;
-        height: auto;
+      .slide-wrapper {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
       }
 
-      /* Footer / controls */
+      .slide-label {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        max-width: 960px;
+        padding: 8px 4px;
+        font-size: 13px;
+        color: #999;
+        font-weight: 500;
+      }
+
+      .slide-image {
+        max-width: 960px;
+        width: 100%;
+        height: auto;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+        border-radius: 4px;
+        background: #fff;
+      }
+
+      /* Footer */
       footer {
         padding: 10px 24px;
         background: #16213e;
@@ -173,19 +195,9 @@
         align-items: center;
         gap: 16px;
         flex-shrink: 0;
-      }
-
-      .nav-controls {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .slide-counter {
-        font-size: 13px;
-        min-width: 120px;
-        text-align: center;
-        color: #bbb;
+        position: sticky;
+        bottom: 0;
+        z-index: 20;
       }
 
       .slide-info {
@@ -197,8 +209,6 @@
       #status {
         font-size: 12px;
         color: #777;
-        padding: 0 24px 8px;
-        background: #1a1a2e;
       }
 
       /* Error display */
@@ -246,7 +256,6 @@
         }
       }
 
-      /* Keyboard hint */
       kbd {
         display: inline-block;
         padding: 1px 5px;
@@ -277,31 +286,19 @@
       <div id="empty-state" class="empty-state">
         <p>Load a PPTX file to begin</p>
         <p>Click "Choose PPTX File" above or drag and drop a .pptx file</p>
-        <p class="hint">
-          Keyboard shortcuts: <kbd>&larr;</kbd> <kbd>&rarr;</kbd> prev/next &nbsp; <kbd>Home</kbd>
-          <kbd>End</kbd> first/last
-        </p>
+        <p class="hint">All slides render vertically -- just scroll</p>
       </div>
 
-      <div id="canvas-container"></div>
+      <div id="slides-container"></div>
     </div>
 
-    <div id="status"></div>
-
     <footer>
-      <div class="nav-controls">
-        <button id="btn-prev" class="btn" disabled>Prev</button>
-        <span id="slide-counter" class="slide-counter">No file loaded</span>
-        <button id="btn-next" class="btn" disabled>Next</button>
-      </div>
-
-      <button id="btn-screenshot" class="btn" disabled>Save PNG</button>
-
       <span id="loading" class="loading-indicator">
         <span class="spinner"></span>
         <span id="loading-msg">Loading...</span>
       </span>
 
+      <span id="status"></span>
       <span id="slide-info" class="slide-info"></span>
     </footer>
 
