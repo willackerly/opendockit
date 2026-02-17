@@ -1,1 +1,1 @@
-export { SlideKit } from './viewport/slide-viewport.js';
+// Public API — will export SlideKit once viewport module is implemented

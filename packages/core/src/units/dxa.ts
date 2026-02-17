@@ -11,7 +11,7 @@
  *            Apache POI: org.apache.poi.util.Units.EMU_PER_DXA
  */
 
-import { EMU_PER_DXA, EMU_PER_INCH } from './emu.js';
+import { EMU_PER_DXA } from './emu.js';
 
 // ---------------------------------------------------------------------------
 // Constants
