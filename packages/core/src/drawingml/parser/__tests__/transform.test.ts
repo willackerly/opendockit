@@ -13,10 +13,13 @@ function xfrm(attrs: string, innerXml: string): string {
 
 describe('parseTransform', () => {
   it('parses basic transform with position and size', () => {
-    const xml = xfrm('', `
+    const xml = xfrm(
+      '',
+      `
       <a:off x="457200" y="274638"/>
       <a:ext cx="8229600" cy="1143000"/>
-    `);
+    `
+    );
     const el = parseXml(xml);
     const result = parseTransform(el);
 
@@ -30,10 +33,13 @@ describe('parseTransform', () => {
   });
 
   it('parses transform with rotation', () => {
-    const xml = xfrm('rot="5400000"', `
+    const xml = xfrm(
+      'rot="5400000"',
+      `
       <a:off x="0" y="0"/>
       <a:ext cx="1000000" cy="500000"/>
-    `);
+    `
+    );
     const el = parseXml(xml);
     const result = parseTransform(el);
 
@@ -41,10 +47,13 @@ describe('parseTransform', () => {
   });
 
   it('parses transform with flipH', () => {
-    const xml = xfrm('flipH="1"', `
+    const xml = xfrm(
+      'flipH="1"',
+      `
       <a:off x="0" y="0"/>
       <a:ext cx="1000000" cy="500000"/>
-    `);
+    `
+    );
     const el = parseXml(xml);
     const result = parseTransform(el);
 
@@ -53,10 +62,13 @@ describe('parseTransform', () => {
   });
 
   it('parses transform with flipV', () => {
-    const xml = xfrm('flipV="1"', `
+    const xml = xfrm(
+      'flipV="1"',
+      `
       <a:off x="0" y="0"/>
       <a:ext cx="1000000" cy="500000"/>
-    `);
+    `
+    );
     const el = parseXml(xml);
     const result = parseTransform(el);
 
@@ -65,10 +77,13 @@ describe('parseTransform', () => {
   });
 
   it('parses transform with all attributes', () => {
-    const xml = xfrm('rot="5400000" flipH="1" flipV="1"', `
+    const xml = xfrm(
+      'rot="5400000" flipH="1" flipV="1"',
+      `
       <a:off x="457200" y="274638"/>
       <a:ext cx="8229600" cy="1143000"/>
-    `);
+    `
+    );
     const el = parseXml(xml);
     const result = parseTransform(el);
 
@@ -94,10 +109,13 @@ describe('parseTransform', () => {
 
   it('preserves EMU values without conversion', () => {
     // 914400 EMU = 1 inch = 96 pixels at 96 DPI
-    const xml = xfrm('', `
+    const xml = xfrm(
+      '',
+      `
       <a:off x="914400" y="914400"/>
       <a:ext cx="914400" cy="914400"/>
-    `);
+    `
+    );
     const el = parseXml(xml);
     const result = parseTransform(el);
 
@@ -108,10 +126,13 @@ describe('parseTransform', () => {
   });
 
   it('does not set flipH/flipV when explicitly false', () => {
-    const xml = xfrm('flipH="0" flipV="0"', `
+    const xml = xfrm(
+      'flipH="0" flipV="0"',
+      `
       <a:off x="0" y="0"/>
       <a:ext cx="100" cy="100"/>
-    `);
+    `
+    );
     const el = parseXml(xml);
     const result = parseTransform(el);
 
@@ -121,10 +142,13 @@ describe('parseTransform', () => {
   });
 
   it('handles 45-degree rotation', () => {
-    const xml = xfrm('rot="2700000"', `
+    const xml = xfrm(
+      'rot="2700000"',
+      `
       <a:off x="0" y="0"/>
       <a:ext cx="100" cy="100"/>
-    `);
+    `
+    );
     const el = parseXml(xml);
     const result = parseTransform(el);
 
@@ -132,10 +156,13 @@ describe('parseTransform', () => {
   });
 
   it('handles 360-degree rotation', () => {
-    const xml = xfrm('rot="21600000"', `
+    const xml = xfrm(
+      'rot="21600000"',
+      `
       <a:off x="0" y="0"/>
       <a:ext cx="100" cy="100"/>
-    `);
+    `
+    );
     const el = parseXml(xml);
     const result = parseTransform(el);
 
@@ -182,12 +209,15 @@ describe('parseTransformFromParent', () => {
 
 describe('parseGroupTransform', () => {
   it('parses group transform with child offset and extent', () => {
-    const xml = xfrm('', `
+    const xml = xfrm(
+      '',
+      `
       <a:off x="0" y="0"/>
       <a:ext cx="9144000" cy="6858000"/>
       <a:chOff x="100" y="200"/>
       <a:chExt cx="9144000" cy="6858000"/>
-    `);
+    `
+    );
     const el = parseXml(xml);
     const result = parseGroupTransform(el);
 
@@ -201,10 +231,13 @@ describe('parseGroupTransform', () => {
   });
 
   it('handles group transform without child offset/extent', () => {
-    const xml = xfrm('', `
+    const xml = xfrm(
+      '',
+      `
       <a:off x="457200" y="274638"/>
       <a:ext cx="8229600" cy="1143000"/>
-    `);
+    `
+    );
     const el = parseXml(xml);
     const result = parseGroupTransform(el);
 
@@ -216,12 +249,15 @@ describe('parseGroupTransform', () => {
   });
 
   it('parses group transform with rotation and child coords', () => {
-    const xml = xfrm('rot="10800000"', `
+    const xml = xfrm(
+      'rot="10800000"',
+      `
       <a:off x="0" y="0"/>
       <a:ext cx="5000000" cy="3000000"/>
       <a:chOff x="0" y="0"/>
       <a:chExt cx="10000000" cy="6000000"/>
-    `);
+    `
+    );
     const el = parseXml(xml);
     const result = parseGroupTransform(el);
 

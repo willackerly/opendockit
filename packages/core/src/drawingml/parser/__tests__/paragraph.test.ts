@@ -7,8 +7,7 @@ import type { ThemeIR } from '../../../ir/index.js';
 // Test fixtures
 // ---------------------------------------------------------------------------
 
-const NS =
-  'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+const NS = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
 
 const TEST_THEME: ThemeIR = {
   name: 'Test Theme',
@@ -45,45 +44,35 @@ const TEST_THEME: ThemeIR = {
 describe('parseParagraph', () => {
   describe('alignment', () => {
     it('parses left alignment', () => {
-      const el = parseXml(
-        `<a:p ${NS}><a:pPr algn="l"/><a:r><a:t>text</a:t></a:r></a:p>`
-      );
+      const el = parseXml(`<a:p ${NS}><a:pPr algn="l"/><a:r><a:t>text</a:t></a:r></a:p>`);
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.properties.alignment).toBe('left');
     });
 
     it('parses center alignment', () => {
-      const el = parseXml(
-        `<a:p ${NS}><a:pPr algn="ctr"/><a:r><a:t>text</a:t></a:r></a:p>`
-      );
+      const el = parseXml(`<a:p ${NS}><a:pPr algn="ctr"/><a:r><a:t>text</a:t></a:r></a:p>`);
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.properties.alignment).toBe('center');
     });
 
     it('parses right alignment', () => {
-      const el = parseXml(
-        `<a:p ${NS}><a:pPr algn="r"/><a:r><a:t>text</a:t></a:r></a:p>`
-      );
+      const el = parseXml(`<a:p ${NS}><a:pPr algn="r"/><a:r><a:t>text</a:t></a:r></a:p>`);
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.properties.alignment).toBe('right');
     });
 
     it('parses justify alignment', () => {
-      const el = parseXml(
-        `<a:p ${NS}><a:pPr algn="just"/><a:r><a:t>text</a:t></a:r></a:p>`
-      );
+      const el = parseXml(`<a:p ${NS}><a:pPr algn="just"/><a:r><a:t>text</a:t></a:r></a:p>`);
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.properties.alignment).toBe('justify');
     });
 
     it('parses distributed alignment', () => {
-      const el = parseXml(
-        `<a:p ${NS}><a:pPr algn="dist"/><a:r><a:t>text</a:t></a:r></a:p>`
-      );
+      const el = parseXml(`<a:p ${NS}><a:pPr algn="dist"/><a:r><a:t>text</a:t></a:r></a:p>`);
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.properties.alignment).toBe('distributed');
@@ -92,27 +81,21 @@ describe('parseParagraph', () => {
 
   describe('level and indentation', () => {
     it('parses paragraph level', () => {
-      const el = parseXml(
-        `<a:p ${NS}><a:pPr lvl="2"/><a:r><a:t>text</a:t></a:r></a:p>`
-      );
+      const el = parseXml(`<a:p ${NS}><a:pPr lvl="2"/><a:r><a:t>text</a:t></a:r></a:p>`);
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.properties.level).toBe(2);
     });
 
     it('parses indent in EMU', () => {
-      const el = parseXml(
-        `<a:p ${NS}><a:pPr indent="-342900"/><a:r><a:t>text</a:t></a:r></a:p>`
-      );
+      const el = parseXml(`<a:p ${NS}><a:pPr indent="-342900"/><a:r><a:t>text</a:t></a:r></a:p>`);
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.properties.indent).toBe(-342900);
     });
 
     it('parses left margin in EMU', () => {
-      const el = parseXml(
-        `<a:p ${NS}><a:pPr marL="457200"/><a:r><a:t>text</a:t></a:r></a:p>`
-      );
+      const el = parseXml(`<a:p ${NS}><a:pPr marL="457200"/><a:r><a:t>text</a:t></a:r></a:p>`);
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.properties.marginLeft).toBe(457200);
@@ -132,18 +115,14 @@ describe('parseParagraph', () => {
 
   describe('RTL', () => {
     it('parses rtl=true', () => {
-      const el = parseXml(
-        `<a:p ${NS}><a:pPr rtl="1"/><a:r><a:t>text</a:t></a:r></a:p>`
-      );
+      const el = parseXml(`<a:p ${NS}><a:pPr rtl="1"/><a:r><a:t>text</a:t></a:r></a:p>`);
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.properties.rtl).toBe(true);
     });
 
     it('parses rtl=false', () => {
-      const el = parseXml(
-        `<a:p ${NS}><a:pPr rtl="0"/><a:r><a:t>text</a:t></a:r></a:p>`
-      );
+      const el = parseXml(`<a:p ${NS}><a:pPr rtl="0"/><a:r><a:t>text</a:t></a:r></a:p>`);
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.properties.rtl).toBe(false);
@@ -366,9 +345,7 @@ describe('parseParagraph', () => {
     });
 
     it('returns undefined bulletProperties when no bullet element present', () => {
-      const el = parseXml(
-        `<a:p ${NS}><a:pPr algn="l"/><a:r><a:t>text</a:t></a:r></a:p>`
-      );
+      const el = parseXml(`<a:p ${NS}><a:pPr algn="l"/><a:r><a:t>text</a:t></a:r></a:p>`);
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.bulletProperties).toBeUndefined();
@@ -409,9 +386,7 @@ describe('parseParagraph', () => {
     });
 
     it('handles paragraph with no runs', () => {
-      const el = parseXml(
-        `<a:p ${NS}><a:pPr algn="l"/><a:endParaRPr lang="en-US"/></a:p>`
-      );
+      const el = parseXml(`<a:p ${NS}><a:pPr algn="l"/><a:endParaRPr lang="en-US"/></a:p>`);
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.runs).toHaveLength(0);
@@ -419,9 +394,7 @@ describe('parseParagraph', () => {
     });
 
     it('handles paragraph without pPr', () => {
-      const el = parseXml(
-        `<a:p ${NS}><a:r><a:t>plain text</a:t></a:r></a:p>`
-      );
+      const el = parseXml(`<a:p ${NS}><a:r><a:t>plain text</a:t></a:r></a:p>`);
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.runs).toHaveLength(1);

@@ -223,9 +223,7 @@ function wrapParagraph(
       // with the height of the line break's font.
       if (currentFragments.length === 0) {
         const fontSizePt = resolveFontSizePt(run.properties);
-        const lineSpacingPct = resolveLineSpacingPct(
-          paragraph.properties.lineSpacing
-        );
+        const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing);
         const heightPx =
           lineSpacingPct >= 0
             ? ptToCanvasPx(fontSizePt * (lineSpacingPct / 100), dpiScale)
@@ -246,13 +244,9 @@ function wrapParagraph(
     // run.kind === 'run'
     const fontString = buildFontString(run.properties, resolveFont);
     const fontSizePt = resolveFontSizePt(run.properties);
-    const fillStyle = run.properties.color
-      ? colorToRgba(run.properties.color)
-      : 'rgba(0, 0, 0, 1)';
+    const fillStyle = run.properties.color ? colorToRgba(run.properties.color) : 'rgba(0, 0, 0, 1)';
 
-    const lineSpacingPct = resolveLineSpacingPct(
-      paragraph.properties.lineSpacing
-    );
+    const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing);
     const fragmentHeightPx =
       lineSpacingPct >= 0
         ? ptToCanvasPx(fontSizePt * (lineSpacingPct / 100), dpiScale)
@@ -268,10 +262,7 @@ function wrapParagraph(
 
       // Wrap if this word would overflow — but not if the line is empty
       // (a single word wider than the line must still be placed).
-      if (
-        currentLineWidth + wordWidth > lineAvail &&
-        currentFragments.length > 0
-      ) {
+      if (currentLineWidth + wordWidth > lineAvail && currentFragments.length > 0) {
         commitLine();
       }
 
@@ -298,9 +289,7 @@ function wrapParagraph(
   // empty line with the default font height.
   if (lines.length === 0) {
     const fontSizePt = getParagraphFontSizePt(paragraph);
-    const lineSpacingPct = resolveLineSpacingPct(
-      paragraph.properties.lineSpacing
-    );
+    const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing);
     const heightPx =
       lineSpacingPct >= 0
         ? ptToCanvasPx(fontSizePt * (lineSpacingPct / 100), dpiScale)
@@ -349,9 +338,7 @@ function measureBullet(
   const resolved = rctx.resolveFont(fontFamily);
   const fontString = `${bulletFontSizePt}pt "${resolved}"`;
 
-  const fillStyle = bullet.color
-    ? colorToRgba(bullet.color)
-    : 'rgba(0, 0, 0, 1)';
+  const fillStyle = bullet.color ? colorToRgba(bullet.color) : 'rgba(0, 0, 0, 1)';
 
   const textWithGap = bulletChar + ' ';
   const widthPx = measureFragment(rctx.ctx, textWithGap, fontString);
@@ -420,10 +407,7 @@ export function renderTextBody(
   const leftInset = emuToScaledPx(body.leftInset ?? DEFAULT_INSET_EMU, rctx);
   const rightInset = emuToScaledPx(body.rightInset ?? DEFAULT_INSET_EMU, rctx);
   const topInset = emuToScaledPx(body.topInset ?? DEFAULT_INSET_EMU, rctx);
-  const bottomInset = emuToScaledPx(
-    body.bottomInset ?? DEFAULT_INSET_EMU,
-    rctx
-  );
+  const bottomInset = emuToScaledPx(body.bottomInset ?? DEFAULT_INSET_EMU, rctx);
 
   const textAreaX = bounds.x + leftInset;
   const textAreaY = bounds.y + topInset;
@@ -453,16 +437,8 @@ export function renderTextBody(
     const paragraph = textBody.paragraphs[pi];
     const fontSizePt = getParagraphFontSizePt(paragraph);
 
-    const spaceBeforePx = resolveSpacingPx(
-      paragraph.properties.spaceBefore,
-      fontSizePt,
-      dpiScale
-    );
-    const spaceAfterPx = resolveSpacingPx(
-      paragraph.properties.spaceAfter,
-      fontSizePt,
-      dpiScale
-    );
+    const spaceBeforePx = resolveSpacingPx(paragraph.properties.spaceBefore, fontSizePt, dpiScale);
+    const spaceAfterPx = resolveSpacingPx(paragraph.properties.spaceAfter, fontSizePt, dpiScale);
 
     const marginLeftPx = paragraph.properties.marginLeft
       ? emuToScaledPx(paragraph.properties.marginLeft, rctx)
@@ -474,17 +450,13 @@ export function renderTextBody(
     const bullet = measureBullet(paragraph, rctx);
     const bulletWidth = bullet ? bullet.widthPx : 0;
 
-    const availableWidth = shouldWrap
-      ? textAreaWidth - marginLeftPx
-      : Infinity;
+    const availableWidth = shouldWrap ? textAreaWidth - marginLeftPx : Infinity;
     const lines = wrapParagraph(paragraph, rctx, availableWidth, bulletWidth);
 
     const alignment = paragraph.properties.alignment ?? 'left';
 
     const paragraphHeight =
-      (pi === 0 ? 0 : spaceBeforePx) +
-      lines.reduce((sum, l) => sum + l.heightPx, 0) +
-      spaceAfterPx;
+      (pi === 0 ? 0 : spaceBeforePx) + lines.reduce((sum, l) => sum + l.heightPx, 0) + spaceAfterPx;
 
     totalHeight += paragraphHeight;
 
@@ -532,8 +504,7 @@ export function renderTextBody(
 
       // Compute alignment offset for this line.
       let lineX = baseX;
-      const totalLineWidth =
-        line.widthPx + (li === 0 && layout.bullet ? layout.bullet.widthPx : 0);
+      const totalLineWidth = line.widthPx + (li === 0 && layout.bullet ? layout.bullet.widthPx : 0);
 
       if (layout.alignment === 'center') {
         lineX += (lineAvailableWidth - totalLineWidth) / 2;
@@ -581,10 +552,7 @@ export function renderTextBody(
         }
 
         // Draw strikethrough.
-        if (
-          frag.props.strikethrough &&
-          frag.props.strikethrough !== 'none'
-        ) {
+        if (frag.props.strikethrough && frag.props.strikethrough !== 'none') {
           drawStrikethrough(
             ctx,
             drawX,

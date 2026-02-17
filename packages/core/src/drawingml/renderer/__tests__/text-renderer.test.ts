@@ -136,9 +136,7 @@ describe('renderTextBody', () => {
   it('renders paragraph with custom color', () => {
     const rctx = createMockRenderContext();
     const body = makeTextBody([
-      makeParagraph([
-        makeRun('RedText', { color: { r: 255, g: 0, b: 0, a: 1 } }),
-      ]),
+      makeParagraph([makeRun('RedText', { color: { r: 255, g: 0, b: 0, a: 1 } })]),
     ]);
 
     renderTextBody(body, rctx, BOUNDS);
@@ -193,9 +191,7 @@ describe('renderTextBody', () => {
 
   it('renders paragraph with center alignment', () => {
     const rctx = createMockRenderContext();
-    const body = makeTextBody([
-      makeParagraph([makeRun('Centered')], 'center'),
-    ]);
+    const body = makeTextBody([makeParagraph([makeRun('Centered')], 'center')]);
 
     renderTextBody(body, rctx, BOUNDS);
 
@@ -210,9 +206,7 @@ describe('renderTextBody', () => {
 
   it('renders paragraph with right alignment', () => {
     const rctx = createMockRenderContext();
-    const body = makeTextBody([
-      makeParagraph([makeRun('Right')], 'right'),
-    ]);
+    const body = makeTextBody([makeParagraph([makeRun('Right')], 'right')]);
 
     renderTextBody(body, rctx, BOUNDS);
 
@@ -233,15 +227,12 @@ describe('renderTextBody', () => {
 
   it('renders with body insets offsetting text area', () => {
     const rctx = createMockRenderContext();
-    const body = makeTextBody(
-      [makeParagraph([makeRun('Inset')])],
-      {
-        leftInset: 914400, // 1 inch = 96px
-        topInset: 914400,
-        rightInset: 0,
-        bottomInset: 0,
-      }
-    );
+    const body = makeTextBody([makeParagraph([makeRun('Inset')])], {
+      leftInset: 914400, // 1 inch = 96px
+      topInset: 914400,
+      rightInset: 0,
+      bottomInset: 0,
+    });
 
     renderTextBody(body, rctx, BOUNDS);
 
@@ -264,14 +255,10 @@ describe('renderTextBody', () => {
 
   it('renders with vertical alignment middle', () => {
     const rctx = createMockRenderContext();
-    const bodyTop = makeTextBody(
-      [makeParagraph([makeRun('Top')])],
-      { verticalAlign: 'top' }
-    );
-    const bodyMiddle = makeTextBody(
-      [makeParagraph([makeRun('Middle')])],
-      { verticalAlign: 'middle' }
-    );
+    const bodyTop = makeTextBody([makeParagraph([makeRun('Top')])], { verticalAlign: 'top' });
+    const bodyMiddle = makeTextBody([makeParagraph([makeRun('Middle')])], {
+      verticalAlign: 'middle',
+    });
 
     renderTextBody(bodyTop, rctx, BOUNDS);
     const topCalls = filterCalls(rctx.ctx._calls, 'fillText');
@@ -290,14 +277,10 @@ describe('renderTextBody', () => {
 
   it('renders with vertical alignment bottom', () => {
     const rctx = createMockRenderContext();
-    const bodyTop = makeTextBody(
-      [makeParagraph([makeRun('Top')])],
-      { verticalAlign: 'top' }
-    );
-    const bodyBottom = makeTextBody(
-      [makeParagraph([makeRun('Bottom')])],
-      { verticalAlign: 'bottom' }
-    );
+    const bodyTop = makeTextBody([makeParagraph([makeRun('Top')])], { verticalAlign: 'top' });
+    const bodyBottom = makeTextBody([makeParagraph([makeRun('Bottom')])], {
+      verticalAlign: 'bottom',
+    });
 
     renderTextBody(bodyTop, rctx, BOUNDS);
     const topCalls = filterCalls(rctx.ctx._calls, 'fillText');
@@ -332,9 +315,7 @@ describe('renderTextBody', () => {
 
     const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
     // The bullet should appear before the item text.
-    const bulletCall = fillTexts.find((c) =>
-      (c.args[0] as string).includes('\u2022')
-    );
+    const bulletCall = fillTexts.find((c) => (c.args[0] as string).includes('\u2022'));
     const itemCall = fillTexts.find((c) => c.args[0] === 'Item');
     expect(bulletCall).toBeDefined();
     expect(itemCall).toBeDefined();
@@ -369,9 +350,7 @@ describe('renderTextBody', () => {
 
   it('draws underline decoration for underlined text', () => {
     const rctx = createMockRenderContext();
-    const body = makeTextBody([
-      makeParagraph([makeRun('Underlined', { underline: 'single' })]),
-    ]);
+    const body = makeTextBody([makeParagraph([makeRun('Underlined', { underline: 'single' })])]);
 
     renderTextBody(body, rctx, BOUNDS);
 
@@ -382,9 +361,7 @@ describe('renderTextBody', () => {
 
   it('does not draw underline for underline=none', () => {
     const rctx = createMockRenderContext();
-    const body = makeTextBody([
-      makeParagraph([makeRun('No underline', { underline: 'none' })]),
-    ]);
+    const body = makeTextBody([makeParagraph([makeRun('No underline', { underline: 'none' })])]);
 
     renderTextBody(body, rctx, BOUNDS);
 
@@ -398,9 +375,7 @@ describe('renderTextBody', () => {
 
   it('draws strikethrough decoration', () => {
     const rctx = createMockRenderContext();
-    const body = makeTextBody([
-      makeParagraph([makeRun('Struck', { strikethrough: 'single' })]),
-    ]);
+    const body = makeTextBody([makeParagraph([makeRun('Struck', { strikethrough: 'single' })])]);
 
     renderTextBody(body, rctx, BOUNDS);
 
@@ -438,9 +413,7 @@ describe('renderTextBody', () => {
   it('uses latin font when fontFamily is not set', () => {
     const rctx = createMockRenderContext();
     const body = makeTextBody([
-      makeParagraph([
-        makeRun('Latin', { latin: 'Times New Roman', fontFamily: undefined }),
-      ]),
+      makeParagraph([makeRun('Latin', { latin: 'Times New Roman', fontFamily: undefined })]),
     ]);
 
     renderTextBody(body, rctx, BOUNDS);
@@ -451,9 +424,7 @@ describe('renderTextBody', () => {
   it('defaults to sans-serif when no font is specified', () => {
     const rctx = createMockRenderContext();
     const body = makeTextBody([
-      makeParagraph([
-        makeRun('Default', { fontFamily: undefined, latin: undefined }),
-      ]),
+      makeParagraph([makeRun('Default', { fontFamily: undefined, latin: undefined })]),
     ]);
 
     renderTextBody(body, rctx, BOUNDS);
@@ -480,17 +451,13 @@ describe('renderTextBody', () => {
 
     renderTextBody(bodyNoSpace, rctx, BOUNDS);
     const noSpaceCalls = filterCalls(rctx.ctx._calls, 'fillText');
-    const noSpaceSecondY = (
-      noSpaceCalls.find((c) => c.args[0] === 'Second')!.args[2] as number
-    );
+    const noSpaceSecondY = noSpaceCalls.find((c) => c.args[0] === 'Second')!.args[2] as number;
 
     rctx.ctx._calls.length = 0;
 
     renderTextBody(bodyWithSpace, rctx, BOUNDS);
     const withSpaceCalls = filterCalls(rctx.ctx._calls, 'fillText');
-    const withSpaceSecondY = (
-      withSpaceCalls.find((c) => c.args[0] === 'Second')!.args[2] as number
-    );
+    const withSpaceSecondY = withSpaceCalls.find((c) => c.args[0] === 'Second')!.args[2] as number;
 
     // With 36pt space before, the second paragraph should be lower.
     expect(withSpaceSecondY).toBeGreaterThan(noSpaceSecondY);
@@ -511,17 +478,13 @@ describe('renderTextBody', () => {
 
     renderTextBody(bodyNoSpace, rctx, BOUNDS);
     const noSpaceCalls = filterCalls(rctx.ctx._calls, 'fillText');
-    const noSpaceSecondY = (
-      noSpaceCalls.find((c) => c.args[0] === 'Second')!.args[2] as number
-    );
+    const noSpaceSecondY = noSpaceCalls.find((c) => c.args[0] === 'Second')!.args[2] as number;
 
     rctx.ctx._calls.length = 0;
 
     renderTextBody(bodyWithSpace, rctx, BOUNDS);
     const withSpaceCalls = filterCalls(rctx.ctx._calls, 'fillText');
-    const withSpaceSecondY = (
-      withSpaceCalls.find((c) => c.args[0] === 'Second')!.args[2] as number
-    );
+    const withSpaceSecondY = withSpaceCalls.find((c) => c.args[0] === 'Second')!.args[2] as number;
 
     expect(withSpaceSecondY).toBeGreaterThan(noSpaceSecondY);
   });
@@ -536,9 +499,7 @@ describe('renderTextBody', () => {
       kind: 'lineBreak',
       properties: { fontSize: 1800 },
     };
-    const body = makeTextBody([
-      makeParagraph([makeRun('Before'), lineBreak, makeRun('After')]),
-    ]);
+    const body = makeTextBody([makeParagraph([makeRun('Before'), lineBreak, makeRun('After')])]);
 
     renderTextBody(body, rctx, BOUNDS);
 
@@ -582,9 +543,7 @@ describe('renderTextBody', () => {
 
   it('defaults to black text when no color is specified', () => {
     const rctx = createMockRenderContext();
-    const body = makeTextBody([
-      makeParagraph([makeRun('Default color', { color: undefined })]),
-    ]);
+    const body = makeTextBody([makeParagraph([makeRun('Default color', { color: undefined })])]);
 
     renderTextBody(body, rctx, BOUNDS);
 
@@ -602,15 +561,12 @@ describe('renderTextBody', () => {
     const rctx1x = createMockRenderContext(undefined, 1);
     const rctx2x = createMockRenderContext(undefined, 2);
 
-    const body = makeTextBody(
-      [makeParagraph([makeRun('DPI')])],
-      {
-        leftInset: 914400, // 1 inch
-        topInset: 914400,
-        rightInset: 0,
-        bottomInset: 0,
-      }
-    );
+    const body = makeTextBody([makeParagraph([makeRun('DPI')])], {
+      leftInset: 914400, // 1 inch
+      topInset: 914400,
+      rightInset: 0,
+      bottomInset: 0,
+    });
 
     renderTextBody(body, rctx1x, BOUNDS);
     const calls1x = filterCalls(rctx1x.ctx._calls, 'fillText');
@@ -636,10 +592,7 @@ describe('renderTextBody', () => {
     const rctx = createMockRenderContext();
     // Create a very long run that would wrap in a narrow box.
     const longText = 'This is a very long text that exceeds the available width significantly';
-    const body = makeTextBody(
-      [makeParagraph([makeRun(longText)])],
-      { wrap: 'none' }
-    );
+    const body = makeTextBody([makeParagraph([makeRun(longText)])], { wrap: 'none' });
 
     renderTextBody(body, rctx, { x: 0, y: 0, width: 50, height: 300 });
 

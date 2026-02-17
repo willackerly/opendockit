@@ -74,11 +74,7 @@ export function parseFill(
  * </a:solidFill>
  * ```
  */
-function parseSolidFill(
-  solidFillEl: XmlElement,
-  theme: ThemeIR,
-  context?: ColorContext
-): FillIR {
+function parseSolidFill(solidFillEl: XmlElement, theme: ThemeIR, context?: ColorContext): FillIR {
   const color = resolveColorFromParent(solidFillEl, theme, context);
   return {
     type: 'solid',
@@ -106,11 +102,7 @@ function parseSolidFill(
  * </a:gradFill>
  * ```
  */
-function parseGradientFill(
-  gradFillEl: XmlElement,
-  theme: ThemeIR,
-  context?: ColorContext
-): FillIR {
+function parseGradientFill(gradFillEl: XmlElement, theme: ThemeIR, context?: ColorContext): FillIR {
   // Parse gradient stops
   const gsLst = gradFillEl.child('a:gsLst');
   const stops = gsLst
@@ -130,11 +122,7 @@ function parseGradientFill(
 
   if (pathEl) {
     // Path gradient (radial, rect, shape)
-    const pathType = parseEnumAttr(pathEl, 'path', [
-      'circle',
-      'rect',
-      'shape',
-    ] as const);
+    const pathType = parseEnumAttr(pathEl, 'path', ['circle', 'rect', 'shape'] as const);
 
     const kind = pathType === 'circle' ? 'radial' : 'path';
 
@@ -197,28 +185,24 @@ function parseTileRect(rectEl: XmlElement): {
  * </a:pattFill>
  * ```
  */
-function parsePatternFill(
-  pattFillEl: XmlElement,
-  theme: ThemeIR,
-  context?: ColorContext
-): FillIR {
+function parsePatternFill(pattFillEl: XmlElement, theme: ThemeIR, context?: ColorContext): FillIR {
   const preset = pattFillEl.attr('prst') ?? 'pct5';
 
   // Foreground color (from a:fgClr child)
   const fgClrEl = pattFillEl.child('a:fgClr');
   const foreground = fgClrEl
-    ? resolveColorFromParent(fgClrEl, theme, context) ?? { r: 0, g: 0, b: 0, a: 1 }
+    ? (resolveColorFromParent(fgClrEl, theme, context) ?? { r: 0, g: 0, b: 0, a: 1 })
     : { r: 0, g: 0, b: 0, a: 1 };
 
   // Background color (from a:bgClr child)
   const bgClrEl = pattFillEl.child('a:bgClr');
   const background = bgClrEl
-    ? resolveColorFromParent(bgClrEl, theme, context) ?? {
+    ? (resolveColorFromParent(bgClrEl, theme, context) ?? {
         r: 255,
         g: 255,
         b: 255,
         a: 1,
-      }
+      })
     : { r: 255, g: 255, b: 255, a: 1 };
 
   return {
@@ -281,12 +265,7 @@ function parseTileInfo(tileEl: XmlElement): TileInfo {
   const offsetY = parseIntAttr(tileEl, 'ty') ?? 0;
   const sxRaw = parseIntAttr(tileEl, 'sx') ?? 100_000;
   const syRaw = parseIntAttr(tileEl, 'sy') ?? 100_000;
-  const flip = parseEnumAttr(tileEl, 'flip', [
-    'none',
-    'x',
-    'y',
-    'xy',
-  ] as const);
+  const flip = parseEnumAttr(tileEl, 'flip', ['none', 'x', 'y', 'xy'] as const);
   const alignment = tileEl.attr('algn');
 
   return {

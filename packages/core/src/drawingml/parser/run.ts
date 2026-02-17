@@ -28,15 +28,9 @@ import { parseIntAttr, parseBoolAttr } from '../../xml/index.js';
  * </a:r>
  * ```
  */
-export function parseRun(
-  rElement: XmlElement,
-  theme: ThemeIR,
-  context?: ColorContext
-): RunIR {
+export function parseRun(rElement: XmlElement, theme: ThemeIR, context?: ColorContext): RunIR {
   const rPrEl = rElement.child('a:rPr');
-  const properties = rPrEl
-    ? parseCharacterProperties(rPrEl, theme, context)
-    : {};
+  const properties = rPrEl ? parseCharacterProperties(rPrEl, theme, context) : {};
 
   const tEl = rElement.child('a:t');
   const text = tEl ? tEl.text() : '';
@@ -183,9 +177,7 @@ export function parseLineBreak(
   context?: ColorContext
 ): LineBreakIR {
   const rPrEl = brElement.child('a:rPr');
-  const properties = rPrEl
-    ? parseCharacterProperties(rPrEl, theme, context)
-    : {};
+  const properties = rPrEl ? parseCharacterProperties(rPrEl, theme, context) : {};
 
   return {
     kind: 'lineBreak',
@@ -198,9 +190,7 @@ export function parseLineBreak(
 // ---------------------------------------------------------------------------
 
 /** Map OOXML underline attribute values to UnderlineStyle. */
-function parseUnderlineStyle(
-  raw: string
-): CharacterPropertiesIR['underline'] {
+function parseUnderlineStyle(raw: string): CharacterPropertiesIR['underline'] {
   const map: Record<string, CharacterPropertiesIR['underline']> = {
     none: 'none',
     sng: 'single',

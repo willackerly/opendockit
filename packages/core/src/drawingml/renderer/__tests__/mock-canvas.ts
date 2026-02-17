@@ -73,10 +73,11 @@ export function createMockContext(): MockContext {
     ) => calls.push({ method: 'ellipse', args: [x, y, rx, ry, rot, start, end] }),
     fillRect: (x: number, y: number, w: number, h: number) =>
       calls.push({ method: 'fillRect', args: [x, y, w, h] }),
+    strokeRect: (x: number, y: number, w: number, h: number) =>
+      calls.push({ method: 'strokeRect', args: [x, y, w, h] }),
     fillText: (text: string, x: number, y: number) =>
       calls.push({ method: 'fillText', args: [text, x, y] }),
-    drawImage: (...args: unknown[]) =>
-      calls.push({ method: 'drawImage', args }),
+    drawImage: (...args: unknown[]) => calls.push({ method: 'drawImage', args }),
     scale: (x: number, y: number) => calls.push({ method: 'scale', args: [x, y] }),
     rect: (x: number, y: number, w: number, h: number) =>
       calls.push({ method: 'rect', args: [x, y, w, h] }),
@@ -98,14 +99,12 @@ export function createMockContext(): MockContext {
     },
 
     // Dash
-    setLineDash: (segments: number[]) =>
-      calls.push({ method: 'setLineDash', args: [segments] }),
+    setLineDash: (segments: number[]) => calls.push({ method: 'setLineDash', args: [segments] }),
 
     // State
     save: () => calls.push({ method: 'save', args: [] }),
     restore: () => calls.push({ method: 'restore', args: [] }),
-    translate: (x: number, y: number) =>
-      calls.push({ method: 'translate', args: [x, y] }),
+    translate: (x: number, y: number) => calls.push({ method: 'translate', args: [x, y] }),
     rotate: (angle: number) => calls.push({ method: 'rotate', args: [angle] }),
 
     // Gradient factories

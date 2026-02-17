@@ -230,9 +230,7 @@ describe('parseCharacterProperties', () => {
   });
 
   it('parses latin font reference', () => {
-    const el = parseXml(
-      `<a:rPr ${NS}><a:latin typeface="Arial"/></a:rPr>`
-    );
+    const el = parseXml(`<a:rPr ${NS}><a:latin typeface="Arial"/></a:rPr>`);
     const props = parseCharacterProperties(el, TEST_THEME);
 
     expect(props.latin).toBe('Arial');
@@ -240,27 +238,21 @@ describe('parseCharacterProperties', () => {
   });
 
   it('parses east asian font reference', () => {
-    const el = parseXml(
-      `<a:rPr ${NS}><a:ea typeface="MS Gothic"/></a:rPr>`
-    );
+    const el = parseXml(`<a:rPr ${NS}><a:ea typeface="MS Gothic"/></a:rPr>`);
     const props = parseCharacterProperties(el, TEST_THEME);
 
     expect(props.eastAsian).toBe('MS Gothic');
   });
 
   it('parses complex script font reference', () => {
-    const el = parseXml(
-      `<a:rPr ${NS}><a:cs typeface="Times New Roman"/></a:rPr>`
-    );
+    const el = parseXml(`<a:rPr ${NS}><a:cs typeface="Times New Roman"/></a:rPr>`);
     const props = parseCharacterProperties(el, TEST_THEME);
 
     expect(props.complexScript).toBe('Times New Roman');
   });
 
   it('resolves major Latin theme font reference', () => {
-    const el = parseXml(
-      `<a:rPr ${NS}><a:latin typeface="+mj-lt"/></a:rPr>`
-    );
+    const el = parseXml(`<a:rPr ${NS}><a:latin typeface="+mj-lt"/></a:rPr>`);
     const props = parseCharacterProperties(el, TEST_THEME);
 
     expect(props.latin).toBe('+mj-lt');
@@ -268,9 +260,7 @@ describe('parseCharacterProperties', () => {
   });
 
   it('resolves minor Latin theme font reference', () => {
-    const el = parseXml(
-      `<a:rPr ${NS}><a:latin typeface="+mn-lt"/></a:rPr>`
-    );
+    const el = parseXml(`<a:rPr ${NS}><a:latin typeface="+mn-lt"/></a:rPr>`);
     const props = parseCharacterProperties(el, TEST_THEME);
 
     expect(props.latin).toBe('+mn-lt');
@@ -278,9 +268,7 @@ describe('parseCharacterProperties', () => {
   });
 
   it('resolves major East Asian theme font reference', () => {
-    const el = parseXml(
-      `<a:rPr ${NS}><a:latin typeface="+mj-ea"/></a:rPr>`
-    );
+    const el = parseXml(`<a:rPr ${NS}><a:latin typeface="+mj-ea"/></a:rPr>`);
     const props = parseCharacterProperties(el, TEST_THEME);
 
     expect(props.latin).toBe('+mj-ea');
@@ -288,9 +276,7 @@ describe('parseCharacterProperties', () => {
   });
 
   it('does not set fontFamily for empty latin typeface', () => {
-    const el = parseXml(
-      `<a:rPr ${NS}><a:latin typeface=""/></a:rPr>`
-    );
+    const el = parseXml(`<a:rPr ${NS}><a:latin typeface=""/></a:rPr>`);
     const props = parseCharacterProperties(el, TEST_THEME);
 
     // Empty string typeface is not set

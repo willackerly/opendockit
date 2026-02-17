@@ -50,14 +50,10 @@ export function parseParagraph(
 ): ParagraphIR {
   // Parse paragraph properties
   const pPrEl = pElement.child('a:pPr');
-  const properties = pPrEl
-    ? parseParagraphProperties(pPrEl)
-    : {};
+  const properties = pPrEl ? parseParagraphProperties(pPrEl) : {};
 
   // Parse bullet properties
-  const bulletProperties = pPrEl
-    ? parseBulletProperties(pPrEl, theme, context)
-    : undefined;
+  const bulletProperties = pPrEl ? parseBulletProperties(pPrEl, theme, context) : undefined;
 
   // Collect runs and line breaks in document order
   const runs: (RunIR | LineBreakIR)[] = [];

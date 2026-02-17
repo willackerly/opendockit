@@ -21,9 +21,7 @@ import { emuToScaledPx } from './render-context.js';
  * raw Uint8Array buffers. If we only have raw bytes, we treat the image
  * as not-yet-decoded and fall back to the placeholder.
  */
-function isDrawableImage(
-  media: CachedMedia
-): media is ImageBitmap | HTMLImageElement {
+function isDrawableImage(media: CachedMedia): media is ImageBitmap | HTMLImageElement {
   // In Node/test environments these globals may not exist, so we
   // also accept any object that has a `width` and `height` property
   // (duck-typing for mock images).

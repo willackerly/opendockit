@@ -44,9 +44,7 @@ function makePicture(overrides?: {
       transform,
       effects: [],
     },
-    blipFill: overrides?.crop
-      ? { crop: overrides.crop }
-      : undefined,
+    blipFill: overrides?.crop ? { crop: overrides.crop } : undefined,
     nonVisualProperties: {
       name: 'Test Picture',
     },

@@ -35,9 +35,7 @@ export function parseTextBody(
 ): TextBodyIR {
   // Parse body properties
   const bodyPrEl = txBodyElement.child('a:bodyPr');
-  const bodyProperties = bodyPrEl
-    ? parseBodyProperties(bodyPrEl)
-    : {};
+  const bodyProperties = bodyPrEl ? parseBodyProperties(bodyPrEl) : {};
 
   // Parse all paragraphs
   const paragraphs = txBodyElement
@@ -60,8 +58,7 @@ export function parseTextBodyFromParent(
   theme: ThemeIR,
   context?: ColorContext
 ): TextBodyIR | undefined {
-  const txBody =
-    parentElement.child('p:txBody') ?? parentElement.child('a:txBody');
+  const txBody = parentElement.child('p:txBody') ?? parentElement.child('a:txBody');
   if (!txBody) {
     return undefined;
   }

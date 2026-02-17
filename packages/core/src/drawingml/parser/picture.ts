@@ -123,9 +123,7 @@ function extractImagePartUri(blipFillEl: XmlElement | undefined): string {
 /**
  * Parse the blip fill element for crop, stretch, and tile information.
  */
-function parseBlipFill(
-  blipFillEl: XmlElement
-): PictureIR['blipFill'] {
+function parseBlipFill(blipFillEl: XmlElement): PictureIR['blipFill'] {
   // Source crop rectangle
   const srcRectEl = blipFillEl.child('a:srcRect');
   const crop = srcRectEl ? parseCropRect(srcRectEl) : undefined;

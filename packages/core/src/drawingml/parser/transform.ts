@@ -30,13 +30,13 @@ import { parseIntAttr, parseBoolAttr, parseAngle } from '../../xml/index.js';
 export function parseTransform(xfrmElement: XmlElement): TransformIR {
   // Position from a:off
   const offEl = xfrmElement.child('a:off');
-  const x = offEl ? parseIntAttr(offEl, 'x') ?? 0 : 0;
-  const y = offEl ? parseIntAttr(offEl, 'y') ?? 0 : 0;
+  const x = offEl ? (parseIntAttr(offEl, 'x') ?? 0) : 0;
+  const y = offEl ? (parseIntAttr(offEl, 'y') ?? 0) : 0;
 
   // Size from a:ext
   const extEl = xfrmElement.child('a:ext');
-  const width = extEl ? parseIntAttr(extEl, 'cx') ?? 0 : 0;
-  const height = extEl ? parseIntAttr(extEl, 'cy') ?? 0 : 0;
+  const width = extEl ? (parseIntAttr(extEl, 'cx') ?? 0) : 0;
+  const height = extEl ? (parseIntAttr(extEl, 'cy') ?? 0) : 0;
 
   // Rotation: 60000ths of a degree -> degrees
   const rotation = parseAngle(xfrmElement, 'rot');
@@ -68,9 +68,7 @@ export function parseTransform(xfrmElement: XmlElement): TransformIR {
  *
  * Returns `undefined` if no `<a:xfrm>` child is present.
  */
-export function parseTransformFromParent(
-  parentElement: XmlElement
-): TransformIR | undefined {
+export function parseTransformFromParent(parentElement: XmlElement): TransformIR | undefined {
   const xfrm = parentElement.child('a:xfrm');
   if (!xfrm) {
     return undefined;
@@ -106,9 +104,7 @@ export interface GroupTransformResult {
  *
  * Returns `undefined` if the element is not a valid transform.
  */
-export function parseGroupTransform(
-  xfrmElement: XmlElement
-): GroupTransformResult | undefined {
+export function parseGroupTransform(xfrmElement: XmlElement): GroupTransformResult | undefined {
   const transform = parseTransform(xfrmElement);
 
   // Child offset from a:chOff

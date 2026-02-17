@@ -44,14 +44,7 @@ const LINE_CAPS = ['flat', 'round', 'square'] as const;
 
 const COMPOUND_LINES = ['sng', 'dbl', 'thickThin', 'thinThick', 'tri'] as const;
 
-const LINE_END_TYPES = [
-  'none',
-  'triangle',
-  'stealth',
-  'diamond',
-  'oval',
-  'arrow',
-] as const;
+const LINE_END_TYPES = ['none', 'triangle', 'stealth', 'diamond', 'oval', 'arrow'] as const;
 
 const LINE_END_SIZES = ['sm', 'med', 'lg'] as const;
 
@@ -86,11 +79,7 @@ const COMPOUND_LINE_MAP: Record<string, CompoundLine> = {
  * </a:ln>
  * ```
  */
-export function parseLine(
-  lnElement: XmlElement,
-  theme: ThemeIR,
-  context?: ColorContext
-): LineIR {
+export function parseLine(lnElement: XmlElement, theme: ThemeIR, context?: ColorContext): LineIR {
   const result: LineIR = {};
 
   // Width in EMU
@@ -207,8 +196,7 @@ function parseLineJoin(lnElement: XmlElement): LineJoin | undefined {
  * ```
  */
 function parseLineEnd(endEl: XmlElement): LineEnd {
-  const type =
-    parseEnumAttr(endEl, 'type', LINE_END_TYPES) ?? 'none';
+  const type = parseEnumAttr(endEl, 'type', LINE_END_TYPES) ?? 'none';
   const width = parseEnumAttr(endEl, 'w', LINE_END_SIZES);
   const length = parseEnumAttr(endEl, 'len', LINE_END_SIZES);
 

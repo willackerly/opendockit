@@ -94,11 +94,7 @@ export function parseEffectsFromParent(
  * </a:outerShdw>
  * ```
  */
-function parseOuterShadow(
-  el: XmlElement,
-  theme: ThemeIR,
-  context?: ColorContext
-): EffectIR {
+function parseOuterShadow(el: XmlElement, theme: ThemeIR, context?: ColorContext): EffectIR {
   const blurRadius = parseIntAttr(el, 'blurRad') ?? 0;
   const distance = parseIntAttr(el, 'dist') ?? 0;
   const direction = parseAngle(el, 'dir') ?? 0;
@@ -133,11 +129,7 @@ function parseOuterShadow(
  * </a:innerShdw>
  * ```
  */
-function parseInnerShadow(
-  el: XmlElement,
-  theme: ThemeIR,
-  context?: ColorContext
-): EffectIR {
+function parseInnerShadow(el: XmlElement, theme: ThemeIR, context?: ColorContext): EffectIR {
   const blurRadius = parseIntAttr(el, 'blurRad') ?? 0;
   const distance = parseIntAttr(el, 'dist') ?? 0;
   const direction = parseAngle(el, 'dir') ?? 0;
@@ -170,11 +162,7 @@ function parseInnerShadow(
  * </a:glow>
  * ```
  */
-function parseGlow(
-  el: XmlElement,
-  theme: ThemeIR,
-  context?: ColorContext
-): EffectIR {
+function parseGlow(el: XmlElement, theme: ThemeIR, context?: ColorContext): EffectIR {
   const radius = parseIntAttr(el, 'rad') ?? 0;
   const color = resolveColorFromParent(el, theme, context) ?? {
     r: 0,
