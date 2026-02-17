@@ -1,8 +1,8 @@
 # Quick Context
 
-**Last updated:** 2026-02-16
+**Last updated:** 2026-02-17
 **Branch:** main
-**Phase:** 0 — Core Foundation
+**Phase:** 3 (stragglers) — Core rendering pipeline complete
 
 ## What Is This?
 
@@ -10,22 +10,21 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer. It reads 
 
 ## Current State
 
-- Monorepo scaffolded (pnpm workspaces)
-- Two packages: `@opendockit/core` and `@opendockit/pptx`
-- Architecture docs finalized (see `docs/architecture/`)
-- No production code yet — starting Phase 0 implementation
+The full rendering pipeline is implemented and working:
+
+- **1,158 tests** passing (1,112 core + 46 pptx), typecheck clean, lint clean
+- **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system, all DrawingML parsers (fill, line, effect, transform, text, picture, group, table), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector), media cache, capability registry, WASM module loader
+- **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer, SlideKit viewport API
 
 ## What's Next
 
-Phase 0 deliverables (Weeks 1-3):
+Phase 3 stragglers (highest impact for real-world PPTX fidelity):
 
-- OPC Package Reader (ZIP + content types + relationships)
-- XML parser wrapper (fast-xml-parser with namespace support)
-- Unit conversions (EMU, DXA, half-points)
-- IR type definitions (all shared types)
-- Theme parser (theme1.xml → ThemeIR)
-- Color resolver (all 5 color types + transforms)
-- Font resolver (substitution table + FontFace API)
+1. **Placeholder resolution** — master -> layout -> slide inheritance cascade (critical for text/formatting inheritance)
+2. **Style reference resolution** — a:style -> theme formatting via lnRef/fillRef/effectRef/fontRef
+3. **Visual test harness** — dev page to load PPTX files, render slides, get screenshots
+4. **Hyperlinks, notes view** — minor features
+5. **Progressive render pipeline** — wire capability registry into SlideKit for live progressive loading
 
 ## Key Architecture Decisions
 
@@ -40,10 +39,10 @@ Phase 0 deliverables (Weeks 1-3):
 
 ```
 packages/
-├── core/   @opendockit/core   — OPC, DrawingML, themes, geometry, capability registry
+├── core/   @opendockit/core   — OPC, DrawingML, themes, geometry, capability registry, WASM loader
 └── pptx/   @opendockit/pptx   — PresentationML parser, slide renderer, SlideKit API
 ```
 
 ## Blockers
 
-None currently — greenfield project.
+None currently.

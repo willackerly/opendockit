@@ -111,12 +111,13 @@ Multiple agents work async on this codebase. Docs drift when agents complete wor
 
 `test-data/` holds PPTX/DOCX/XLSX test fixtures. `docs/` mirrors the project hierarchy.
 
-## Active Workstreams (2026-02-16)
+## Active Workstreams (2026-02-17)
 
-- **Phase 0: Core Foundation (in progress)** — OPC reader, XML parser, units, IR types, theme engine, color resolver, font resolver
-- **Phase 1: DrawingML Pipeline (planned)** — Shape/fill/line/effect/text parsers, preset geometry engine, Canvas2D renderers
-- **Phase 2: PPTX Integration (planned)** — PresentationML parser, slide renderer, capability registry, SlideKit API
-- **Phase 3: Progressive Fidelity (planned)** — WASM loader, progress UX, tables, remaining geometries, auto-fit text
+- **Phase 0: Core Foundation (COMPLETE)** — OPC reader, XML parser, units, IR types, theme engine, color resolver, font resolver
+- **Phase 1: DrawingML Pipeline (COMPLETE)** — All parsers, 187 preset geometries, Canvas2D renderers, media cache
+- **Phase 2: PPTX Integration (COMPLETE)** — PresentationML parser, slide renderer, SlideKit API
+- **Phase 3: Progressive Fidelity (IN PROGRESS)** — Capability registry, WASM loader, tables, connectors, auto-fit done; placeholder resolution + style refs remaining
+- **Visual Validation (IN PROGRESS)** — Dev harness page for loading PPTX and rendering slides
 - **Phase 4: Charts + Export (planned)** — ChartML, CanvasKit WASM, transitions, PDF/SVG export
 - **DOCX support (future)** — WordprocessingML parser + page layout engine, reuses ~40% of core
 - **XLSX support (future)** — SpreadsheetML parser + grid layout, reuses ~35% of core

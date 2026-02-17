@@ -1,118 +1,100 @@
 # TODO
 
-**Last synced:** 2026-02-16
+**Last synced:** 2026-02-17
 
-## Phase 0: Core Foundation (Current)
+## Completed
 
-### OPC Layer
+### Phase 0: Core Foundation
+- [x] OPC Package Reader (JSZip, lazy extraction, progress callbacks)
+- [x] Content types parser (`[Content_Types].xml`)
+- [x] Relationship resolver (`_rels/*.rels`)
+- [x] Part URI resolution and normalization
+- [x] XML parser wrapper (fast-xml-parser with namespace support)
+- [x] OOXML namespace map (all xmlns URIs)
+- [x] Common attribute parsing helpers
+- [x] EMU, DXA, half-point conversions with exhaustive tests
+- [x] IR types (ShapePropertiesIR, FillIR, LineIR, EffectIR, TransformIR, TextBodyIR, etc.)
+- [x] Theme parser (theme1.xml -> ThemeIR)
+- [x] Color resolver (all 5 types + 13 transforms)
+- [x] Font resolver (substitution table + metrics)
 
-- [ ] OPC Package Reader — JSZip wrapper with lazy extraction, progress callbacks
-- [ ] Content types parser (`[Content_Types].xml`)
-- [ ] Relationship resolver (`_rels/*.rels`)
-- [ ] Part URI resolution and normalization
+### Phase 1: DrawingML Pipeline
+- [x] Shape properties parser (a:spPr)
+- [x] Fill parser (solid, gradient, pattern, picture)
+- [x] Line parser (a:ln)
+- [x] Effect parser (a:effectLst)
+- [x] Transform parser (a:xfrm)
+- [x] Text body parser (a:txBody -> paragraphs -> runs)
+- [x] Picture parser (pic:pic + a:blipFill)
+- [x] Group parser (a:grpSp - recursive)
+- [x] Shape guide formula evaluator (16 OOXML operators)
+- [x] Preset geometry definitions (187 shapes from Apache POI oracle)
+- [x] Path builder (guide results -> canvas paths)
+- [x] Shape renderer (geometry + fill + stroke -> Canvas2D)
+- [x] Fill renderer (solid, gradient -> Canvas2D)
+- [x] Line renderer (stroke, dash, arrows)
+- [x] Effect renderer (drop shadow via Canvas2D)
+- [x] Text renderer (wrapping, alignment, font size, auto-fit)
+- [x] Picture renderer (drawImage + crop/transforms)
+- [x] Group renderer (recursive with save/restore)
+- [x] Media cache (lazy image extraction + LRU)
+- [x] Table parser + renderer (merged cells, borders, text bodies)
 
-### XML Parsing
+### Phase 2: PPTX Integration
+- [x] Presentation parser (presentation.xml -> slide list, dimensions)
+- [x] Slide master parser
+- [x] Slide layout parser
+- [x] Slide parser (shape tree -> flat element list)
+- [x] Background renderer (solid, gradient, pattern fills)
+- [x] Slide renderer (orchestrate all elements)
+- [x] SlideViewport (canvas management, DPI scaling)
+- [x] Public API: SlideKit class
 
-- [ ] XML parser wrapper over fast-xml-parser with namespace support
-- [ ] OOXML namespace map (all xmlns URIs)
-- [ ] Common attribute parsing helpers
+### Phase 3: Progressive Fidelity (partial)
+- [x] Capability registry + render plan generation
+- [x] Grey-box fallback with badges
+- [x] Coverage report API
+- [x] WASM module loader (3-tier cache: memory -> Cache API -> network)
+- [x] 187 preset geometries (expanded from 40)
+- [x] Auto-fit text (normAutofit with fontScale/lnSpcReduction)
+- [x] Connector rendering (straight, bent, curved)
+- [x] Table parser + renderer (merged cells, borders)
 
-### Unit Conversions
+## In Progress
 
-- [ ] EMU ↔ px/pt/in/cm conversions
-- [ ] DXA (twentieths of a point) conversions
-- [ ] Half-point conversions (font sizes)
-- [ ] Exhaustive test suite for all conversions
-
-### IR Types
-
-- [ ] ShapePropertiesIR, FillIR, LineIR, EffectIR, TransformIR
-- [ ] TextBodyIR, ParagraphIR, RunIR
-- [ ] ThemeIR, ColorScheme, FontScheme, FormatScheme
-- [ ] Common types: BoundingBox, ResolvedColor, GeometryIR
-- [ ] UnsupportedIR with raw XML capture
-
-### Theme Engine
-
-- [ ] Theme parser (theme1.xml → ThemeIR)
-- [ ] Color resolver — all 5 color types (srgbClr, schemeClr, sysClr, hslClr, prstClr)
-- [ ] Color transforms (lumMod, lumOff, tint, shade, alpha, satMod)
-- [ ] Font resolver (scheme fonts → concrete font names)
-- [ ] Format resolver (fill/line/effect style resolution)
-
-### Font System
-
-- [ ] Font substitution table (Calibri→Arial, Cambria→Georgia, etc.)
-- [ ] FontFace API integration for availability checking
-- [ ] Font metrics estimation (width/height)
-
-## Phase 1: DrawingML Pipeline (Upcoming)
-
-### Parsers
-
-- [ ] Shape properties parser (a:spPr)
-- [ ] Fill parser (solid, gradient, pattern, picture)
-- [ ] Line parser (a:ln)
-- [ ] Effect parser (a:effectLst)
-- [ ] Transform parser (a:xfrm)
-- [ ] Text body parser (a:txBody → paragraphs → runs)
-- [ ] Picture parser (pic:pic + a:blipFill)
-- [ ] Group parser (a:grpSp — recursive)
-
-### Geometry Engine
-
-- [ ] Shape guide formula evaluator (all operators)
-- [ ] Top-40 preset geometry definitions
-- [ ] Path builder (guide results → canvas paths)
-- [ ] Custom geometry parser (a:custGeom)
-
-### Renderers
-
-- [ ] Shape renderer (geometry + fill + stroke → Canvas2D)
-- [ ] Fill renderer (solid, gradient → Canvas2D)
-- [ ] Line renderer (stroke, dash, arrows)
-- [ ] Effect renderer (drop shadow via Canvas2D)
-- [ ] Text renderer (wrapping, alignment, font size)
-- [ ] Picture renderer (drawImage + crop/transforms)
-- [ ] Group renderer (recursive with save/restore)
-- [ ] Media cache (lazy image extraction + LRU)
-
-## Phase 2: PPTX Integration (Planned)
-
-- [ ] Presentation parser (presentation.xml → slide list, dimensions)
-- [ ] Slide master parser
-- [ ] Slide layout parser
-- [ ] Slide parser (shape tree → flat element list)
-- [ ] Placeholder resolution (master → layout → slide cascade)
-- [ ] Style reference resolution (a:style → theme formatting)
-- [ ] Background renderer
-- [ ] Slide renderer (orchestrate all elements)
-- [ ] Capability registry + render plan generation
-- [ ] Grey-box fallback with badges
-- [ ] Coverage report API
-- [ ] SlideViewport (canvas management, DPI scaling)
-- [ ] Slide navigator (prev/next, thumbnails)
-- [ ] Public API: SlideKit class
-
-## Phase 3: Progressive Fidelity (Planned)
-
-- [ ] WASM module loader with Cache API + progress
-- [ ] Progressive render pipeline (immediate → grey box → spinner → re-render)
-- [ ] Table renderer
-- [ ] Remaining 160+ preset geometries
-- [x] Auto-fit text (normAutofit with fontScale/lnSpcReduction; spAutoFit renders at normal size)
-- [x] Connector rendering (straight, bent, curved geometries with line styling and arrowheads)
+### Phase 3 Stragglers
+- [ ] Placeholder resolution (master -> layout -> slide inheritance cascade)
+- [ ] Style reference resolution (a:style -> theme formatting via lnRef/fillRef/effectRef/fontRef)
 - [ ] Connector routing via connection sites (shape-to-shape endpoint resolution)
-- [ ] Hyperlinks, notes view
+- [ ] Hyperlinks (a:hlinkClick -> click handler / URL)
+- [ ] Notes view (p:notes parsing + rendering)
+- [ ] Progressive render pipeline (immediate -> grey box -> spinner -> re-render)
 
-## Phase 4: Charts + Export (Planned)
+### Visual Validation
+- [ ] Dev harness page (load PPTX, render slides, screenshot comparison)
+- [ ] Test fixture PPTX files covering major element types
+- [ ] Side-by-side comparison with LibreOffice oracle
 
+## Planned
+
+### Phase 4: Charts + Export
 - [ ] ChartML parser and renderer
 - [ ] CanvasKit WASM integration
 - [ ] Slide transitions
 - [ ] RenderBackend abstraction + PDF export
 - [ ] SVG export
 
+### Phase 5: DOCX
+- [ ] WordprocessingML parser
+- [ ] Page layout engine
+- [ ] Reuses ~40% of core DrawingML
+
+### Phase 6: XLSX
+- [ ] SpreadsheetML parser
+- [ ] Grid layout engine
+- [ ] Reuses ~35% of core DrawingML
+
 ## Code Debt
 
-(None yet — greenfield)
+- [ ] Connector routing via connection sites (deferred - needs shape registry for endpoint lookup)
+- [ ] spAutoFit text (shape resize to fit text - needs layout feedback loop)
