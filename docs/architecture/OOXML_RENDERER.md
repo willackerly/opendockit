@@ -455,7 +455,7 @@ This is 100% shared. Every OOXML file is a ZIP with the same conventions.
 
 export interface OpcPackage {
   contentTypes: ContentTypeMap;
-  relationships: RelationshipMap;      // Package-level rels
+  relationships: RelationshipMap; // Package-level rels
   getPart(uri: string): Promise<Uint8Array>;
   getPartText(uri: string): Promise<string>;
   getPartRelationships(uri: string): Promise<RelationshipMap>;
@@ -463,9 +463,9 @@ export interface OpcPackage {
 }
 
 export interface Relationship {
-  id: string;           // e.g., "rId1"
-  type: string;         // e.g., ".../officeDocument"
-  target: string;       // e.g., "ppt/presentation.xml"
+  id: string; // e.g., "rId1"
+  type: string; // e.g., ".../officeDocument"
+  target: string; // e.g., "ppt/presentation.xml"
   targetMode?: 'Internal' | 'External';
 }
 
@@ -534,11 +534,11 @@ import { ThemeIR } from '../../ir/theme-ir';
 import { FillIR, LineIR, EffectIR, TransformIR } from '../../ir/drawingml-ir';
 
 export interface ShapePropertiesIR {
-  transform: TransformIR;        // Position, size, rotation, flip
-  fill?: FillIR;                 // Solid, gradient, pattern, picture, or none
-  line?: LineIR;                 // Outline/border
-  effects: EffectIR[];           // Shadow, glow, reflection, etc.
-  geometry: GeometryIR;          // Preset or custom shape path
+  transform: TransformIR; // Position, size, rotation, flip
+  fill?: FillIR; // Solid, gradient, pattern, picture, or none
+  line?: LineIR; // Outline/border
+  effects: EffectIR[]; // Shadow, glow, reflection, etc.
+  geometry: GeometryIR; // Preset or custom shape path
 }
 
 /**
@@ -604,7 +604,7 @@ that's identical regardless of format:
 export function resolveColor(
   colorElement: XmlElement,
   theme: ThemeIR,
-  context?: ColorContext   // For phClr (placeholder color) resolution
+  context?: ColorContext // For phClr (placeholder color) resolution
 ): ResolvedColor {
   let baseColor: RgbaColor;
 
@@ -624,8 +624,7 @@ export function resolveColor(
       break;
     }
     case 'a:sysClr':
-      baseColor = resolveSystemColor(colorElement.attr('val'),
-                                      colorElement.attr('lastClr'));
+      baseColor = resolveSystemColor(colorElement.attr('val'), colorElement.attr('lastClr'));
       break;
     case 'a:hslClr':
       baseColor = hslToRgba(
@@ -661,34 +660,34 @@ export interface ThemeIR {
   name: string;
 
   colorScheme: {
-    dk1: RgbaColor;      // Dark 1 (typically black)
-    lt1: RgbaColor;      // Light 1 (typically white)
-    dk2: RgbaColor;      // Dark 2
-    lt2: RgbaColor;      // Light 2
+    dk1: RgbaColor; // Dark 1 (typically black)
+    lt1: RgbaColor; // Light 1 (typically white)
+    dk2: RgbaColor; // Dark 2
+    lt2: RgbaColor; // Light 2
     accent1: RgbaColor;
     accent2: RgbaColor;
     accent3: RgbaColor;
     accent4: RgbaColor;
     accent5: RgbaColor;
     accent6: RgbaColor;
-    hlink: RgbaColor;    // Hyperlink
+    hlink: RgbaColor; // Hyperlink
     folHlink: RgbaColor; // Followed hyperlink
   };
 
   fontScheme: {
-    majorLatin: string;   // Heading font (e.g., "Calibri Light")
+    majorLatin: string; // Heading font (e.g., "Calibri Light")
     majorEastAsia: string;
     majorComplexScript: string;
-    minorLatin: string;   // Body font (e.g., "Calibri")
+    minorLatin: string; // Body font (e.g., "Calibri")
     minorEastAsia: string;
     minorComplexScript: string;
   };
 
   formatScheme: {
-    fillStyles: FillIR[];      // 3 fill styles (subtle, moderate, intense)
-    lineStyles: LineIR[];      // 3 line styles
-    effectStyles: EffectIR[];  // 3 effect styles
-    bgFillStyles: FillIR[];    // 3 background fill styles
+    fillStyles: FillIR[]; // 3 fill styles (subtle, moderate, intense)
+    lineStyles: LineIR[]; // 3 line styles
+    effectStyles: EffectIR[]; // 3 effect styles
+    bgFillStyles: FillIR[]; // 3 background fill styles
   };
 }
 ```
@@ -855,10 +854,7 @@ export interface RenderContext {
  * - Effect rendering (shadow, etc.)
  * - Text body rendering (if present)
  */
-export function renderDrawingMLShape(
-  rctx: RenderContext,
-  shape: DrawingMLShapeIR
-): RenderResult {
+export function renderDrawingMLShape(rctx: RenderContext, shape: DrawingMLShapeIR): RenderResult {
   const { ctx } = rctx;
   const { transform, properties, textBody } = shape;
 
@@ -868,8 +864,7 @@ export function renderDrawingMLShape(
   applyTransform(ctx, transform, rctx.dpiScale);
 
   // Build geometry path
-  const pathResult = buildGeometryPath(ctx, properties.geometry,
-                                        transform.width, transform.height);
+  const pathResult = buildGeometryPath(ctx, properties.geometry, transform.width, transform.height);
 
   // Render shadow FIRST (behind shape)
   for (const effect of properties.effects) {
@@ -899,7 +894,8 @@ export function renderDrawingMLShape(
   // Text body
   if (textBody) {
     renderTextBody(rctx, textBody, {
-      x: 0, y: 0,
+      x: 0,
+      y: 0,
       width: transform.width,
       height: transform.height,
     });
@@ -909,9 +905,7 @@ export function renderDrawingMLShape(
 
   return {
     rendered: true,
-    unsupportedEffects: properties.effects
-      .filter(e => !canRenderEffect(e))
-      .map(e => e.type),
+    unsupportedEffects: properties.effects.filter((e) => !canRenderEffect(e)).map((e) => e.type),
   };
 }
 ```
@@ -999,9 +993,7 @@ function parsePresentationShape(
 
   // Check for placeholder
   const phElement = nvSpPr?.child('p:nvPr')?.child('p:ph');
-  const placeholder = phElement
-    ? resolvePlaceholder(phElement, layout, master)
-    : undefined;
+  const placeholder = phElement ? resolvePlaceholder(phElement, layout, master) : undefined;
 
   // Merge: direct properties > placeholder > style reference > defaults
   const mergedSpPr = mergePlaceholderProperties(spPr, placeholder?.spPr);
@@ -1015,9 +1007,7 @@ function parsePresentationShape(
     applyStyleReference(properties, style, theme);
   }
 
-  const text = mergedTxBody
-    ? parseTextBody(mergedTxBody, theme)
-    : undefined;
+  const text = mergedTxBody ? parseTextBody(mergedTxBody, theme) : undefined;
 
   return {
     kind: 'shape',
@@ -1161,7 +1151,7 @@ import { parseShapeProperties } from '@opendockit/core/drawingml';
 export function parseSpreadsheetDrawing(
   drawingXml: string,
   theme: ThemeIR,
-  gridDimensions: GridDimensions  // Row heights, column widths
+  gridDimensions: GridDimensions // Row heights, column widths
 ): SpreadsheetDrawingIR[] {
   const doc = parseXml(drawingXml);
   const drawings: SpreadsheetDrawingIR[] = [];
@@ -1174,8 +1164,8 @@ export function parseSpreadsheetDrawing(
         // Convert cell coordinates to pixels using grid dimensions
         const bounds = cellAnchorToBounds(from, to, gridDimensions);
 
-        const shapeElement = anchor.firstChild(
-          n => ['xdr:sp', 'xdr:pic', 'xdr:grpSp', 'xdr:graphicFrame'].includes(n)
+        const shapeElement = anchor.firstChild((n) =>
+          ['xdr:sp', 'xdr:pic', 'xdr:grpSp', 'xdr:graphicFrame'].includes(n)
         );
 
         // Delegate to SHARED DrawingML parser for shape interior
@@ -1280,6 +1270,7 @@ export function renderWordParagraph(
 ```
 
 The key shared utilities at the text rendering level are:
+
 - **Font resolution** (name → available font, substitution)
 - **Font metrics** (measureText, ascent, descent, line height)
 - **Canvas2D text drawing** (fillText, strokeText, decoration)
@@ -1340,13 +1331,15 @@ export class CapabilityRegistry {
           plan.stats.supported++;
           break;
         case 'partial':
-          plan.immediate.push({ element, renderer: verdict.renderer,
-                                 missing: verdict.missing });
+          plan.immediate.push({ element, renderer: verdict.renderer, missing: verdict.missing });
           plan.stats.partial++;
           break;
         case 'needs-wasm':
-          plan.deferred.push({ element, moduleId: verdict.moduleId,
-                                estimatedBytes: verdict.estimatedSize });
+          plan.deferred.push({
+            element,
+            moduleId: verdict.moduleId,
+            estimatedBytes: verdict.estimatedSize,
+          });
           plan.stats.needsWasm++;
           break;
         case 'unsupported':
@@ -1371,24 +1364,29 @@ export class CapabilityRegistry {
       wasmRequired: plan.stats.needsWasm,
       unsupported: plan.stats.unsupported,
       coveragePercent: Math.round(
-        (plan.stats.supported + plan.stats.partial) / plan.stats.total * 100
+        ((plan.stats.supported + plan.stats.partial) / plan.stats.total) * 100
       ),
-      wasmModulesNeeded: [...new Set(plan.deferred.map(d => d.moduleId))],
+      wasmModulesNeeded: [...new Set(plan.deferred.map((d) => d.moduleId))],
       wasmTotalBytes: plan.deferred.reduce((sum, d) => sum + d.estimatedBytes, 0),
-      unsupportedTypes: [...new Set(plan.unsupported.map(u => u.element.kind))],
+      unsupportedTypes: [...new Set(plan.unsupported.map((u) => u.element.kind))],
       details: [
         ...plan.immediate.map((e, i) => ({
-          index: i, kind: e.element.kind,
-          status: 'rendered' as const, missing: e.missing,
+          index: i,
+          kind: e.element.kind,
+          status: 'rendered' as const,
+          missing: e.missing,
         })),
         ...plan.deferred.map((e, i) => ({
-          index: plan.immediate.length + i, kind: e.element.kind,
-          status: 'wasm-pending' as const, moduleId: e.moduleId,
+          index: plan.immediate.length + i,
+          kind: e.element.kind,
+          status: 'wasm-pending' as const,
+          moduleId: e.moduleId,
         })),
         ...plan.unsupported.map((e, i) => ({
           index: plan.immediate.length + plan.deferred.length + i,
           kind: e.element.kind,
-          status: 'unsupported' as const, reason: e.reason,
+          status: 'unsupported' as const,
+          reason: e.reason,
         })),
       ],
     };
@@ -1417,6 +1415,7 @@ Deliverable: @opendockit/core with OPC, XML, units, types
 - [ ] `core/font`: Font substitution table, FontFace API integration
 
 **Verification:**
+
 - Unit tests for every unit conversion
 - Parse themes from 10+ real PPTX/DOCX/XLSX files — same parser works for all
 - Color resolution tests against known PowerPoint outputs
@@ -1443,6 +1442,7 @@ Deliverable: @opendockit/core DrawingML pipeline renders shapes to canvas
 - [ ] `core/drawingml/renderer`: Group → recursive rendering
 
 **Verification:**
+
 - Render every preset geometry as a standalone test
 - Visual regression: render test shapes, compare against reference PNGs
 - ✅ **Fork-point validation:** render a DrawingML shape extracted from a DOCX
@@ -1469,6 +1469,7 @@ Deliverable: @opendockit/pptx renders real presentations
 - [ ] Coverage report API
 
 **Verification:**
+
 - Render slides from 20+ real-world PPTX files
 - Visual regression CI with LibreOffice reference renders
 - Coverage report for each test file
@@ -1492,6 +1493,7 @@ Deliverable: WASM loader, progress UX, expanded coverage
 - [ ] Notes view
 
 **Verification:**
+
 - 90%+ element coverage on test corpus
 - WASM module loads and re-renders smoothly
 - Lighthouse performance audit on slide load
@@ -1534,6 +1536,7 @@ This is where the shared core pays off massively:
 - [ ] `docx/viewport`: Scrollable page view
 
 **Estimated code reuse from core:** ~40% of the codebase
+
 - OPC layer: 100% reused
 - Theme engine: 100% reused
 - DrawingML parser: 100% reused (shapes, pictures, charts in DOCX)
@@ -1567,6 +1570,7 @@ Deliverable: @opendockit/xlsx reads and renders spreadsheets
 ## Part 8: Risk Analysis & Mitigations
 
 ### Risk: Preset Geometry Complexity
+
 **Impact:** 200+ shapes, each with unique formulas
 **Mitigation:** Extract definitions programmatically from the OOXML spec XSD.
 The shape definitions are declarative data, not code. Build a code generator
@@ -1574,18 +1578,21 @@ that reads the spec and emits TypeScript shape definitions. Test each shape
 independently.
 
 ### Risk: Text Layout Fidelity
+
 **Impact:** PowerPoint's text wrapping has undocumented behaviors
 **Mitigation:** Accept approximate text layout initially. Use LibreOffice
 reference renders to identify divergences. Build a "text layout accuracy"
 score into the CI pipeline. Optionally load HarfBuzz WASM for complex scripts.
 
 ### Risk: Font Availability
+
 **Impact:** Users won't have Calibri/Cambria on non-Windows systems
 **Mitigation:** Font substitution table built into core. Document font
 dependencies in the coverage report. Support embedded fonts from PPTX.
 Consider bundling a web-safe font set (Noto) as optional download.
 
 ### Risk: DOCX Layout Engine Complexity
+
 **Impact:** Full page layout is an enormous engineering effort
 **Mitigation:** Start with a simplified layout engine (no floating objects,
 no multi-column). Add features progressively. The "grey box" approach
@@ -1593,6 +1600,7 @@ works for unsupported layout features too — show the content even if
 positioning is imperfect.
 
 ### Risk: Memory on Large Files
+
 **Impact:** 100MB+ PPTX files with embedded video
 **Mitigation:** Lazy extraction (already in design). Media LRU cache with
 configurable size limit. `OffscreenCanvas` in workers. Explicit cleanup API.
@@ -1601,13 +1609,13 @@ configurable size limit. `OffscreenCanvas` in workers. Explicit cleanup API.
 
 ## Part 9: Dependencies
 
-| Package | License | Size | Used By | Purpose |
-|---------|---------|------|---------|---------|
-| jszip | MIT | 45KB | core | ZIP extraction |
-| fast-xml-parser | MIT | 40KB | core | XML → JS object |
-| canvaskit-wasm | BSD-3 | 1.5MB gz | wasm-modules | Advanced 2D effects |
-| opentype.js | MIT | 180KB | core | Font metrics |
-| harfbuzzjs | MIT | 800KB | wasm-modules | Complex text shaping |
+| Package         | License | Size     | Used By      | Purpose              |
+| --------------- | ------- | -------- | ------------ | -------------------- |
+| jszip           | MIT     | 45KB     | core         | ZIP extraction       |
+| fast-xml-parser | MIT     | 40KB     | core         | XML → JS object      |
+| canvaskit-wasm  | BSD-3   | 1.5MB gz | wasm-modules | Advanced 2D effects  |
+| opentype.js     | MIT     | 180KB    | core         | Font metrics         |
+| harfbuzzjs      | MIT     | 800KB    | wasm-modules | Complex text shaping |
 
 **Total core bundle (no WASM):** ~265KB gzipped
 **With CanvasKit (on-demand):** +1.5MB

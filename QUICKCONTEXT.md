@@ -18,6 +18,7 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer. It reads 
 ## What's Next
 
 Phase 0 deliverables (Weeks 1-3):
+
 - OPC Package Reader (ZIP + content types + relationships)
 - XML parser wrapper (fast-xml-parser with namespace support)
 - Unit conversions (EMU, DXA, half-points)

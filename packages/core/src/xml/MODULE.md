@@ -7,6 +7,7 @@
 **Inputs:** Raw XML strings from OPC package parts
 
 **Outputs:**
+
 - `fast-parser.ts` — `XmlElement` class/interface with methods:
   - `.name: string` — element tag name (e.g., `'a:spPr'`)
   - `.attr(name: string): string | undefined` — get attribute value
@@ -24,6 +25,7 @@
 **Key reference:** `docs/architecture/OOXML_RENDERER.md` Part 3.2 shows how parsers use `XmlElement` (e.g., `spPrElement.child('a:xfrm')`, `colorElement.attr('val')`).
 
 **Design decisions:**
+
 - `fast-xml-parser` returns plain objects. Wrap in `XmlElement` for ergonomic navigation.
 - Handle OOXML's namespace prefixes (e.g., `a:`, `p:`, `r:`) — parser must preserve them.
 - `.child()` returns `undefined` (not throws) for missing elements — parsers check presence.

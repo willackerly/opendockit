@@ -16,6 +16,7 @@ All DrawingML parsing and rendering lives in `@opendockit/core`. Format-specific
 From the ECMA-376 spec: DrawingML shape properties (a:spPr) are identical across all three formats. Only the wrapper elements differ (p:sp, wps:wsp, xdr:sp). This gives ~40% code reuse when adding DOCX/XLSX support.
 
 The sharing matrix:
+
 - **100% shared:** OPC, DrawingML shapes/fills/effects, themes, colors, preset geometries, fonts, charts
 - **Divergent:** Document model, layout engine, text model, placement/anchoring
 

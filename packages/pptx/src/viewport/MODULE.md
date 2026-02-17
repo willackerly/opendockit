@@ -6,14 +6,15 @@
 
 **Files:**
 
-| File | Purpose |
-|------|---------|
-| `slide-viewport.ts` | `SlideKit` class — the public API. Load, render, navigate, getCoverage, dispose. |
-| `slide-navigator.ts` | Prev/next, go-to-slide, keyboard navigation |
-| `thumbnail-strip.ts` | Slide thumbnail panel (render at reduced scale) |
-| `presenter-view.ts` | Notes + current + next slide (Phase 3) |
+| File                 | Purpose                                                                          |
+| -------------------- | -------------------------------------------------------------------------------- |
+| `slide-viewport.ts`  | `SlideKit` class — the public API. Load, render, navigate, getCoverage, dispose. |
+| `slide-navigator.ts` | Prev/next, go-to-slide, keyboard navigation                                      |
+| `thumbnail-strip.ts` | Slide thumbnail panel (render at reduced scale)                                  |
+| `presenter-view.ts`  | Notes + current + next slide (Phase 3)                                           |
 
 **Public API (SlideKit):**
+
 ```typescript
 const kit = new SlideKit({ container, wasmBasePath?, fontSubstitutions?, onProgress? });
 const presentation = await kit.load(pptxArrayBuffer);
@@ -25,6 +26,7 @@ kit.dispose();
 ```
 
 **Dependencies:**
+
 - `../parser/` — PPTX parsing pipeline
 - `../renderer/` — slide rendering pipeline
 - `@opendockit/core/capability` — coverage reports

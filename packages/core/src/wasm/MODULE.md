@@ -7,6 +7,7 @@
 **Inputs:** Module IDs (e.g., `'text-layout'`, `'effect-engine'`, `'chart-render'`)
 
 **Outputs:**
+
 - `module-loader.ts` — `WasmModuleLoader` class:
   - `.load(moduleId, onProgress): Promise<WasmModule>`
   - In-memory cache → Cache API → network fetch → `WebAssembly.compileStreaming`

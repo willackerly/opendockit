@@ -5,23 +5,27 @@
 ## Phase 0: Core Foundation (Current)
 
 ### OPC Layer
+
 - [ ] OPC Package Reader — JSZip wrapper with lazy extraction, progress callbacks
 - [ ] Content types parser (`[Content_Types].xml`)
 - [ ] Relationship resolver (`_rels/*.rels`)
 - [ ] Part URI resolution and normalization
 
 ### XML Parsing
+
 - [ ] XML parser wrapper over fast-xml-parser with namespace support
 - [ ] OOXML namespace map (all xmlns URIs)
 - [ ] Common attribute parsing helpers
 
 ### Unit Conversions
+
 - [ ] EMU ↔ px/pt/in/cm conversions
 - [ ] DXA (twentieths of a point) conversions
 - [ ] Half-point conversions (font sizes)
 - [ ] Exhaustive test suite for all conversions
 
 ### IR Types
+
 - [ ] ShapePropertiesIR, FillIR, LineIR, EffectIR, TransformIR
 - [ ] TextBodyIR, ParagraphIR, RunIR
 - [ ] ThemeIR, ColorScheme, FontScheme, FormatScheme
@@ -29,6 +33,7 @@
 - [ ] UnsupportedIR with raw XML capture
 
 ### Theme Engine
+
 - [ ] Theme parser (theme1.xml → ThemeIR)
 - [ ] Color resolver — all 5 color types (srgbClr, schemeClr, sysClr, hslClr, prstClr)
 - [ ] Color transforms (lumMod, lumOff, tint, shade, alpha, satMod)
@@ -36,6 +41,7 @@
 - [ ] Format resolver (fill/line/effect style resolution)
 
 ### Font System
+
 - [ ] Font substitution table (Calibri→Arial, Cambria→Georgia, etc.)
 - [ ] FontFace API integration for availability checking
 - [ ] Font metrics estimation (width/height)
@@ -43,6 +49,7 @@
 ## Phase 1: DrawingML Pipeline (Upcoming)
 
 ### Parsers
+
 - [ ] Shape properties parser (a:spPr)
 - [ ] Fill parser (solid, gradient, pattern, picture)
 - [ ] Line parser (a:ln)
@@ -53,12 +60,14 @@
 - [ ] Group parser (a:grpSp — recursive)
 
 ### Geometry Engine
+
 - [ ] Shape guide formula evaluator (all operators)
 - [ ] Top-40 preset geometry definitions
 - [ ] Path builder (guide results → canvas paths)
 - [ ] Custom geometry parser (a:custGeom)
 
 ### Renderers
+
 - [ ] Shape renderer (geometry + fill + stroke → Canvas2D)
 - [ ] Fill renderer (solid, gradient → Canvas2D)
 - [ ] Line renderer (stroke, dash, arrows)

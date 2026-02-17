@@ -4,10 +4,10 @@
 
 ## Summary
 
-| Package | Statements | Branches | Functions | Lines |
-|---------|-----------|----------|-----------|-------|
-| @opendockit/core | — | — | — | — |
-| @opendockit/pptx | — | — | — | — |
+| Package          | Statements | Branches | Functions | Lines |
+| ---------------- | ---------- | -------- | --------- | ----- |
+| @opendockit/core | —          | —        | —         | —     |
+| @opendockit/pptx | —          | —        | —         | —     |
 
 No production code yet. Will update as Phase 0 implementation begins.
 
@@ -18,6 +18,7 @@ See `../specifications/README.md` for OOXML spec section → implementation mapp
 ## Element Coverage (Corpus)
 
 Will track coverage across test PPTX corpus once Phase 2 delivers the capability registry:
+
 - Total elements across corpus
 - Rendered (full fidelity)
 - Partial (missing effects)

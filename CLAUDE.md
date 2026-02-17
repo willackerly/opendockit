@@ -9,13 +9,12 @@ Progressive-fidelity, 100% client-side OOXML document renderer. Monorepo with sh
 ## Cold Start (New Agent?)
 
 **Read in order:**
+
 1. `QUICKCONTEXT.md` → 30-second orientation, current state
 2. `KNOWN_ISSUES.md` → blockers, gotchas, common errors
 3. `TODO.md` → what needs doing
 
-**Then deep dive:**
-4. `AGENTS.md` → norms, workstreams, doc maintenance policy
-5. `docs/README.md` → full documentation tree
+**Then deep dive:** 4. `AGENTS.md` → norms, workstreams, doc maintenance policy 5. `docs/README.md` → full documentation tree
 
 ## Commands
 
@@ -55,22 +54,26 @@ Co-locate unit tests beside code or in `__tests__/`. Tag E2E tests (`@critical`,
 The following command patterns are pre-approved for autonomous execution:
 
 ### Package Management & Build
+
 - `pnpm install`, `pnpm add`, `pnpm remove`, `pnpm rebuild`
 - `pnpm build`, `pnpm dev`, `pnpm clean`
 - `pnpm --filter <pkg> build`, `pnpm --filter <pkg> dev`
 - `npm run build`, `npm rebuild`
 
 ### Testing
+
 - `pnpm test`, `pnpm test:watch`, `pnpm test:unit`
 - `pnpm test:e2e`, `pnpm test:e2e:critical`
 - `pnpm test:contracts`
 - `npx vitest`, `npx playwright test`
 
 ### Type Checking & Linting
+
 - `pnpm lint`, `pnpm format`, `pnpm typecheck`
 - `pnpm tsc`
 
 ### Git Operations
+
 - `git status`, `git diff`, `git log`, `git show`
 - `git add`, `git commit`, `git push`, `git pull`
 - `git checkout`, `git branch`, `git fetch`
@@ -80,6 +83,7 @@ The following command patterns are pre-approved for autonomous execution:
 - `git worktree`, `git remote`
 
 ### File & System Utilities
+
 - `ls`, `tree`, `find`, `cat`, `head`, `tail`
 - `echo`, `tee`, `stat`, `chmod`, `dd`
 - `strings`, `awk`, `xargs`, `test`
@@ -87,6 +91,7 @@ The following command patterns are pre-approved for autonomous execution:
 - `curl`, `node`, `python3`
 
 ### Scripts
+
 - `./scripts/*.sh`
 - `node <script>.mjs`, `node <script>.js`
 - `bash <script>.sh`
@@ -94,6 +99,7 @@ The following command patterns are pre-approved for autonomous execution:
 ## Web Fetch Domains
 
 Pre-approved for fetching:
+
 - `github.com`, `raw.githubusercontent.com`
 - `npmjs.com`, `pnpm.io`
 - `vitejs.dev`, `vitest.dev`, `playwright.dev`
@@ -159,21 +165,24 @@ Pre-approved for fetching:
 
 ### The Two-Tag System
 
-| Tag | Meaning | Action Required |
-|-----|---------|-----------------|
-| `TODO:` | Untracked work item | Must be tracked before commit |
+| Tag             | Meaning                 | Action Required                      |
+| --------------- | ----------------------- | ------------------------------------ |
+| `TODO:`         | Untracked work item     | Must be tracked before commit        |
 | `TRACKED-TASK:` | Already in TODO.md/docs | Periodically verify still documented |
 
 ### Workflow
 
 **When you add a TODO in code:**
+
 ```typescript
 // TODO: Handle edge case for encrypted PDFs
 ```
 
 **Before committing, you MUST either:**
+
 1. Fix it immediately (remove the TODO), OR
 2. Track it in `TODO.md` and convert to:
+
 ```typescript
 // TRACKED-TASK: Handle edge case for encrypted PDFs - see TODO.md "Code Debt"
 ```
@@ -181,6 +190,7 @@ Pre-approved for fetching:
 ### Pre-Commit Checklist
 
 **Run before every commit:**
+
 ```bash
 # Find untracked TODOs (should be 0 before commit)
 grep -rn "TODO:" --include="*.ts" --include="*.tsx" packages/
@@ -190,6 +200,7 @@ grep -rn "TRACKED-TASK:" --include="*.ts" --include="*.tsx" packages/
 ```
 
 **If untracked TODOs exist, you must:**
+
 1. Add each to `TODO.md` under appropriate section
 2. Convert `TODO:` → `TRACKED-TASK:` in source
 3. Re-run check to confirm zero untracked TODOs
@@ -197,6 +208,7 @@ grep -rn "TRACKED-TASK:" --include="*.ts" --include="*.tsx" packages/
 ### Periodic Scrub (Weekly or Per-Sprint)
 
 For `TRACKED-TASK:` items:
+
 1. Verify each is still in `TODO.md` or relevant doc
 2. If completed, remove from both code and docs
 3. If stale (no longer relevant), remove from both

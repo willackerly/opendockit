@@ -8,20 +8,21 @@
 
 **Files:**
 
-| File | Input (XML) | Output (IR) | Independent? |
-|------|-------------|-------------|-------------|
-| `shape-properties.ts` | `a:spPr` | `ShapePropertiesIR` | No — calls fill, line, effect, transform, geometry parsers |
-| `fill.ts` | `a:solidFill`, `a:gradFill`, `a:pattFill`, `a:blipFill`, `a:noFill` | `FillIR` | Yes |
-| `line.ts` | `a:ln` | `LineIR` | Yes |
-| `effect.ts` | `a:effectLst`, `a:effectDag` | `EffectIR[]` | Yes |
-| `transform.ts` | `a:xfrm` | `TransformIR` | Yes |
-| `text-body.ts` | `a:txBody` | `TextBodyIR` | Yes (includes paragraph + run parsing) |
-| `paragraph.ts` | `a:p` | `ParagraphIR` | Yes (called by text-body) |
-| `run.ts` | `a:r` | `RunIR` | Yes (called by paragraph) |
-| `picture.ts` | `pic:pic` | `PictureIR` | Yes (uses fill parser for blipFill) |
-| `group.ts` | `a:grpSp` | `GroupIR` | No — recursive, calls shape-properties |
+| File                  | Input (XML)                                                         | Output (IR)         | Independent?                                               |
+| --------------------- | ------------------------------------------------------------------- | ------------------- | ---------------------------------------------------------- |
+| `shape-properties.ts` | `a:spPr`                                                            | `ShapePropertiesIR` | No — calls fill, line, effect, transform, geometry parsers |
+| `fill.ts`             | `a:solidFill`, `a:gradFill`, `a:pattFill`, `a:blipFill`, `a:noFill` | `FillIR`            | Yes                                                        |
+| `line.ts`             | `a:ln`                                                              | `LineIR`            | Yes                                                        |
+| `effect.ts`           | `a:effectLst`, `a:effectDag`                                        | `EffectIR[]`        | Yes                                                        |
+| `transform.ts`        | `a:xfrm`                                                            | `TransformIR`       | Yes                                                        |
+| `text-body.ts`        | `a:txBody`                                                          | `TextBodyIR`        | Yes (includes paragraph + run parsing)                     |
+| `paragraph.ts`        | `a:p`                                                               | `ParagraphIR`       | Yes (called by text-body)                                  |
+| `run.ts`              | `a:r`                                                               | `RunIR`             | Yes (called by paragraph)                                  |
+| `picture.ts`          | `pic:pic`                                                           | `PictureIR`         | Yes (uses fill parser for blipFill)                        |
+| `group.ts`            | `a:grpSp`                                                           | `GroupIR`           | No — recursive, calls shape-properties                     |
 
 **Dependencies:**
+
 - `../../xml/` — `XmlElement`, `parseXml`
 - `../../ir/` — all IR types
 - `../../theme/` — `resolveColor`, `ThemeIR` (for color attributes in fills/lines)

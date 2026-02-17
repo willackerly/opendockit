@@ -6,13 +6,13 @@
 
 **Files:**
 
-| File | Purpose | Dependencies | Independent? |
-|------|---------|-------------|-------------|
-| `shape-guide-eval.ts` | Formula evaluator for shape guides | `../../units/` (angles) | Yes |
-| `preset-geometries.ts` | Data file: all 200+ preset shape definitions | None (pure data) | Yes — can start Day 1 |
-| `path-builder.ts` | Convert evaluated guides + path commands → Canvas2D path | `shape-guide-eval.ts` | Depends on evaluator |
-| `custom-geometry.ts` | Parse `a:custGeom` XML → path data | `../../xml/`, `shape-guide-eval.ts` | Depends on evaluator + XML |
-| `index.ts` | Barrel export | — | — |
+| File                   | Purpose                                                  | Dependencies                        | Independent?               |
+| ---------------------- | -------------------------------------------------------- | ----------------------------------- | -------------------------- |
+| `shape-guide-eval.ts`  | Formula evaluator for shape guides                       | `../../units/` (angles)             | Yes                        |
+| `preset-geometries.ts` | Data file: all 200+ preset shape definitions             | None (pure data)                    | Yes — can start Day 1      |
+| `path-builder.ts`      | Convert evaluated guides + path commands → Canvas2D path | `shape-guide-eval.ts`               | Depends on evaluator       |
+| `custom-geometry.ts`   | Parse `a:custGeom` XML → path data                       | `../../xml/`, `shape-guide-eval.ts` | Depends on evaluator + XML |
+| `index.ts`             | Barrel export                                            | —                                   | —                          |
 
 **Shape Guide Formula Language:**
 
@@ -25,14 +25,15 @@ Angles are in 60000ths of a degree (5400000 = 90°).
 Path commands: `moveTo`, `lnTo`, `arcTo`, `cubicBezTo`, `quadBezTo`, `close`
 
 **Preset geometry data structure:**
+
 ```typescript
 interface PresetGeometry {
-  name: string;              // e.g., 'rect', 'roundRect', 'ellipse'
-  avLst: AdjustValue[];      // default handle positions
-  gdLst: ShapeGuide[];       // formula list
-  pathLst: ShapePath[];      // drawing paths
+  name: string; // e.g., 'rect', 'roundRect', 'ellipse'
+  avLst: AdjustValue[]; // default handle positions
+  gdLst: ShapeGuide[]; // formula list
+  pathLst: ShapePath[]; // drawing paths
   cxnLst?: ConnectionSite[]; // connector sites
-  rect?: TextRect;           // text rectangle within shape
+  rect?: TextRect; // text rectangle within shape
 }
 ```
 

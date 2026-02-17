@@ -7,6 +7,7 @@
 **Inputs:** Font names from OOXML, theme font scheme references
 
 **Outputs:**
+
 - `substitution-table.ts` — `getFontSubstitution(fontName: string): string | undefined`
   - Maps Windows fonts to web-safe equivalents:
   - Calibri → Arial, Cambria → Georgia, Calibri Light → Arial
@@ -22,6 +23,7 @@
 - `index.ts` — barrel export
 
 **Dependencies:**
+
 - `../units/` — for point/pixel conversions in metrics
 
 **Key reference:** `docs/architecture/PPTX_SLIDEKIT.md` "Key Technical Decisions > Font Handling"

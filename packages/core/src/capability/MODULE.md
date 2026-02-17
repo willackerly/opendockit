@@ -7,6 +7,7 @@
 **Inputs:** Arrays of `BaseElementIR` from parsed documents
 
 **Outputs:**
+
 - `registry.ts` — `CapabilityRegistry` class:
   - `.register(entry: RendererRegistration): void`
   - `.route(element: BaseElementIR): RenderVerdict`
@@ -21,6 +22,7 @@
 - `index.ts` — barrel export
 
 **Dependencies:**
+
 - `../ir/` — `BaseElementIR` and element type unions
 
 **Key reference:** `docs/architecture/OOXML_RENDERER.md` Part 6, `docs/architecture/PPTX_SLIDEKIT.md` "Layer 2: Capability Registry"

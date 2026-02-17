@@ -6,17 +6,18 @@
 
 **Files:**
 
-| File | Input | Output | Independent? |
-|------|-------|--------|-------------|
-| `presentation.ts` | `presentation.xml` | Slide list, dimensions, default text styles | Yes |
-| `slide-master.ts` | `slideMasterN.xml` | `MasterIR` (shapes, backgrounds, text styles) | Yes |
-| `slide-layout.ts` | `slideLayoutN.xml` | `LayoutIR` (placeholder positions) | Needs master for defaults |
-| `slide.ts` | `slideN.xml` | `SlideIR` (flat element list) | Needs master + layout + theme |
-| `shape-tree.ts` | `p:spTree` | `SlideElementIR[]` | Called by slide parser |
-| `placeholder.ts` | `p:ph` | Resolved placeholder properties | Needs layout + master |
-| `inheritance.ts` | Master + Layout + Slide | Merged properties | Composition of above |
+| File              | Input                   | Output                                        | Independent?                  |
+| ----------------- | ----------------------- | --------------------------------------------- | ----------------------------- |
+| `presentation.ts` | `presentation.xml`      | Slide list, dimensions, default text styles   | Yes                           |
+| `slide-master.ts` | `slideMasterN.xml`      | `MasterIR` (shapes, backgrounds, text styles) | Yes                           |
+| `slide-layout.ts` | `slideLayoutN.xml`      | `LayoutIR` (placeholder positions)            | Needs master for defaults     |
+| `slide.ts`        | `slideN.xml`            | `SlideIR` (flat element list)                 | Needs master + layout + theme |
+| `shape-tree.ts`   | `p:spTree`              | `SlideElementIR[]`                            | Called by slide parser        |
+| `placeholder.ts`  | `p:ph`                  | Resolved placeholder properties               | Needs layout + master         |
+| `inheritance.ts`  | Master + Layout + Slide | Merged properties                             | Composition of above          |
 
 **Dependencies:**
+
 - `@opendockit/core/opc` — package reading
 - `@opendockit/core/xml` — XML parsing
 - `@opendockit/core/drawingml` — shape property/text body parsers (delegated to)

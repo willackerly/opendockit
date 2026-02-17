@@ -18,12 +18,12 @@ pnpm test
 
 ## Packages
 
-| Package | Description | Status |
-|---------|-------------|--------|
+| Package            | Description                                                                   | Status  |
+| ------------------ | ----------------------------------------------------------------------------- | ------- |
 | `@opendockit/core` | Shared OOXML infrastructure (OPC, DrawingML, themes, colors, fonts, geometry) | Phase 0 |
-| `@opendockit/pptx` | PPTX renderer (SlideKit) | Phase 2 |
-| `@opendockit/docx` | DOCX renderer (future) | Planned |
-| `@opendockit/xlsx` | XLSX renderer (future) | Planned |
+| `@opendockit/pptx` | PPTX renderer (SlideKit)                                                      | Phase 2 |
+| `@opendockit/docx` | DOCX renderer (future)                                                        | Planned |
+| `@opendockit/xlsx` | XLSX renderer (future)                                                        | Planned |
 
 ## Architecture
 

@@ -7,6 +7,7 @@
 **Inputs:** Numeric values in OOXML units
 
 **Outputs:**
+
 - `emu.ts` — EMU (English Metric Units) conversions:
   - `emuToPx(emu: number, dpi?: number): number` — default 96 DPI
   - `emuToPt(emu: number): number`
@@ -29,6 +30,7 @@
 **Key reference:** `docs/architecture/PPTX_SLIDEKIT.md` "Key Technical Decisions > EMU"
 
 **Constants:**
+
 - 1 inch = 914400 EMU
 - 1 point = 12700 EMU
 - 1 cm = 360000 EMU

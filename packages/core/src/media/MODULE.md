@@ -7,12 +7,14 @@
 **Inputs:** Part URIs from OPC package, image transform parameters from IR
 
 **Outputs:**
+
 - `image-loader.ts` — `loadImage(pkg: OpcPackage, partUri: string): Promise<ImageBitmap | HTMLImageElement>`
 - `media-cache.ts` — `MediaCache` class with LRU eviction and configurable size limit
 - `image-transforms.ts` — crop rect application, brightness/contrast (future)
 - `index.ts` — barrel export
 
 **Dependencies:**
+
 - `../opc/` — `OpcPackage` for part extraction
 - `../ir/` — image transform IR types
 

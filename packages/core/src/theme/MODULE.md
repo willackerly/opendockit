@@ -7,6 +7,7 @@
 **Inputs:** XML from `ppt/theme/theme1.xml` (or `word/theme/`, `xl/theme/` — same schema)
 
 **Outputs:**
+
 - `theme-parser.ts` — `parseTheme(xml: XmlElement): ThemeIR`
 - `color-resolver.ts` — `resolveColor(colorElement: XmlElement, theme: ThemeIR, context?: ColorContext): ResolvedColor`
   - Handles all 5 OOXML color types: `a:srgbClr`, `a:schemeClr`, `a:sysClr`, `a:hslClr`, `a:prstClr`
@@ -20,12 +21,14 @@
 - `index.ts` — barrel export
 
 **Dependencies:**
+
 - `../xml/` — `XmlElement` for parsing
 - `../ir/` — `ThemeIR`, `ResolvedColor`, `RgbaColor`, `FillIR`, `LineIR`, `EffectIR`
 
 **Key reference:** `docs/architecture/OOXML_RENDERER.md` Parts 3.3–3.4 (color resolver with full code, theme parser with ThemeIR interface)
 
 **Color scheme key mapping:**
+
 - `dk1` → Dark 1, `lt1` → Light 1, `dk2` → Dark 2, `lt2` → Light 2
 - `accent1`–`accent6`, `hlink`, `folHlink`
 - `tx1` = `dk1`, `tx2` = `dk2`, `bg1` = `lt1`, `bg2` = `lt2` (aliases)

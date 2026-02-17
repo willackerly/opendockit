@@ -3,20 +3,19 @@
 ## Read Before Coding
 
 **Quick start (new agent):**
+
 1. `QUICKCONTEXT.md` → 30-second orientation, current state of the world
 2. `KNOWN_ISSUES.md` → active blockers, gotchas, common errors
 3. `TODO.md` → consolidated task tracking
 
-**Full context:**
-4. `README.md` → repo purpose + quick start
-5. `AGENTS.md` (this file) → norms
-6. `docs/README.md` → documentation tree
+**Full context:** 4. `README.md` → repo purpose + quick start 5. `AGENTS.md` (this file) → norms 6. `docs/README.md` → documentation tree
 
 ## Agent Autonomy
 
 **Maximum autonomy granted.** Act decisively. Ship code. Don't ask permission for routine work.
 
 ### Full Authority (no approval needed)
+
 - Write, edit, refactor, delete code
 - Run, write, fix tests
 - Git: commit, push, branch, merge, rebase
@@ -26,7 +25,9 @@
 - Implement features that follow existing patterns
 
 ### Requires Discussion (enter plan mode)
+
 Only **fundamental architectural decisions** that are hard to reverse:
+
 - New major dependencies (e.g., framework changes)
 - Data model/schema changes (database, API contracts)
 - Security model changes (encryption, auth, key management)
@@ -35,6 +36,7 @@ Only **fundamental architectural decisions** that are hard to reverse:
 - Breaking changes affecting existing users/data
 
 ### Never Without Explicit Request
+
 - `git push --force` to shared branches
 - `git reset --hard` on commits others have
 - Deleting production data
@@ -49,6 +51,7 @@ Only **fundamental architectural decisions** that are hard to reverse:
 **When starting a new session, always perform this sanity check before acting:**
 
 ### Step 1: Verify Document Freshness (5 min)
+
 Don't trust docs blindly. Cross-reference against actual state:
 
 ```bash
@@ -67,26 +70,33 @@ git log --oneline -20 | head -10
 ```
 
 ### Step 2: Identify Discrepancies
+
 Look for these common drift patterns:
+
 - **Branch mismatch**: Docs say one branch, you're on another
 - **Phase status lag**: Code shows Phase N complete but docs say Phase N-1
 - **Stale dates**: "Last Updated" > 2 weeks old warrants scrutiny
 - **Missing features**: Grep for features in code vs docs
 
 ### Step 3: Update Before Acting
+
 If you find discrepancies:
+
 1. **Minor drift**: Update the doc inline while working
 2. **Major drift**: Update docs FIRST, then proceed with task
 3. **Conflicting signals**: Ask user for clarification
 
 ### Step 4: Strategic Assessment
+
 Before diving into code, ask:
+
 - What's the **actual** current state? (git log, file structure)
 - What's the **documented** next step? (TODO.md, workstreams)
 - Do they align? If not, which is authoritative?
 - Are there **blocked** items I should avoid?
 
 ### Why This Matters
+
 Multiple agents work async on this codebase. Docs drift when agents complete work but don't update all references. Taking 5 minutes to verify state prevents hours of wasted effort on outdated priorities.
 
 ## Project Structure & Module Ownership
@@ -157,6 +167,7 @@ COMPOSE (2-3 agents)   │                        │
 ### How to Scope a Sub-Agent
 
 Each module directory has a `MODULE.md` with:
+
 - **Purpose** — what this module does (1 sentence)
 - **Inputs** — what types/interfaces it receives
 - **Outputs** — what types/interfaces it produces
@@ -176,17 +187,18 @@ Each module directory has a `MODULE.md` with:
 
 ### Max Parallelism by Stage
 
-| Stage | Max Agents | Wall Clock | Notes |
-|-------|-----------|------------|-------|
-| Spine | 3 | ~2-3 hrs | IR types + XML + Units. MUST complete before fan-out. |
-| Fan-out 1 | 6 | ~3-4 hrs | OPC, theme, color, font, geometry eval, preset data |
-| Fan-out 2 | 8-13 | ~4-6 hrs | All parsers + all renderers can run simultaneously |
-| Compose | 2-3 | ~2-3 hrs | shape-props parser, shape renderer, group handling |
-| Phase 2 | 4-5 | ~6-8 hrs | PPTX-specific: slide parser, master/layout, viewport |
+| Stage     | Max Agents | Wall Clock | Notes                                                 |
+| --------- | ---------- | ---------- | ----------------------------------------------------- |
+| Spine     | 3          | ~2-3 hrs   | IR types + XML + Units. MUST complete before fan-out. |
+| Fan-out 1 | 6          | ~3-4 hrs   | OPC, theme, color, font, geometry eval, preset data   |
+| Fan-out 2 | 8-13       | ~4-6 hrs   | All parsers + all renderers can run simultaneously    |
+| Compose   | 2-3        | ~2-3 hrs   | shape-props parser, shape renderer, group handling    |
+| Phase 2   | 4-5        | ~6-8 hrs   | PPTX-specific: slide parser, master/layout, viewport  |
 
 ### Cross-Phase Overlap
 
 Phase 1 work can start before Phase 0 is 100% complete:
+
 - Preset geometry definitions can start Day 1 (pure data, zero dependencies)
 - Shape guide evaluator can start once Units exists
 - All parsers can start once IR Types + XML Parser exist
@@ -227,15 +239,15 @@ Unit/integration coverage runs through Vitest; co-locate specs beside code or in
 
 **After every code change or task completion**, walk the doc tree and update affected files:
 
-| Change Type | Docs to Update |
-|-------------|----------------|
-| **New feature/module** | Package README, architecture docs if structural, workstreams if major |
-| **API change** | `docs/specifications/` first (contract-first!), then implementation |
-| **Bug fix** | Relevant README if it clarifies behavior; remove stale warnings |
-| **Config/env change** | Getting started docs, package README, `.env.example` |
-| **Test change** | Coverage docs if coverage shifts ≥2pts |
-| **Phase/milestone complete** | Plan docs, workstreams, status docs |
-| **New file/module** | Parent folder's README "File intent" table or header comment |
+| Change Type                  | Docs to Update                                                        |
+| ---------------------------- | --------------------------------------------------------------------- |
+| **New feature/module**       | Package README, architecture docs if structural, workstreams if major |
+| **API change**               | `docs/specifications/` first (contract-first!), then implementation   |
+| **Bug fix**                  | Relevant README if it clarifies behavior; remove stale warnings       |
+| **Config/env change**        | Getting started docs, package README, `.env.example`                  |
+| **Test change**              | Coverage docs if coverage shifts ≥2pts                                |
+| **Phase/milestone complete** | Plan docs, workstreams, status docs                                   |
+| **New file/module**          | Parent folder's README "File intent" table or header comment          |
 
 **Doc Update Checklist** (include in PR/commit):
 
@@ -251,17 +263,18 @@ Unit/integration coverage runs through Vitest; co-locate specs beside code or in
 
 #### Doc Ownership by Workstream
 
-| Workstream | Owned Docs | Responsibility |
-|------------|-----------|----------------|
-| **Core (OPC, DrawingML, theme)** | `packages/core/`, `docs/architecture/OOXML_RENDERER.md` | Active development |
-| **PPTX (SlideKit)** | `packages/pptx/`, `docs/architecture/PPTX_SLIDEKIT.md` | Active development |
-| **WASM Modules** | `packages/wasm-modules/` | Future |
-| **Testing Infrastructure** | `tools/`, `docs/testing/` | Active development |
-| **Cross-cutting** | `AGENTS.md`, `QUICKCONTEXT.md`, `KNOWN_ISSUES.md`, `TODO.md`, `docs/README.md` | All agents share |
+| Workstream                       | Owned Docs                                                                     | Responsibility     |
+| -------------------------------- | ------------------------------------------------------------------------------ | ------------------ |
+| **Core (OPC, DrawingML, theme)** | `packages/core/`, `docs/architecture/OOXML_RENDERER.md`                        | Active development |
+| **PPTX (SlideKit)**              | `packages/pptx/`, `docs/architecture/PPTX_SLIDEKIT.md`                         | Active development |
+| **WASM Modules**                 | `packages/wasm-modules/`                                                       | Future             |
+| **Testing Infrastructure**       | `tools/`, `docs/testing/`                                                      | Active development |
+| **Cross-cutting**                | `AGENTS.md`, `QUICKCONTEXT.md`, `KNOWN_ISSUES.md`, `TODO.md`, `docs/README.md` | All agents share   |
 
 #### Archive Policy
 
 **When to archive:**
+
 - Feature/phase 100% complete and no longer changing
 - Status snapshot > 3 months old AND newer snapshot exists
 - Planning doc for approach not implemented
@@ -269,6 +282,7 @@ Unit/integration coverage runs through Vitest; co-locate specs beside code or in
 **Never archive:** `AGENTS.md`, `QUICKCONTEXT.md`, `TODO.md`, `KNOWN_ISSUES.md`, `CLAUDE.md`, `docs/architecture/` (latest versions), `docs/specifications/`
 
 **How to archive:**
+
 1. Move to `docs/archive/YYYY-MM-DD-description/`
 2. Add header: `ARCHIVED: [DATE] | REASON: [reason] | CURRENT: [link to replacement]`
 3. Update archive index
@@ -276,17 +290,17 @@ Unit/integration coverage runs through Vitest; co-locate specs beside code or in
 
 #### Navigation: Where to Document What
 
-| I Need to Document | Go Here |
-|--------------------|---------|
-| **Feature being built** | `docs/plans/[NAME]_PLAN.md` |
-| **System design** | `docs/architecture/[TOPIC].md` |
-| **API or data format** | `docs/specifications/` |
-| **Testing approach** | `docs/testing/` |
-| **Current state** | `docs/current-status/STATUS_YYYY-MM-DD.md` |
-| **Blockers** | `KNOWN_ISSUES.md` |
-| **Tasks** | `TODO.md` (track with TRACKED-TASK: in code) |
-| **File purpose** | Nearest README "File intent" table |
-| **Historical context** | `docs/archive/` |
+| I Need to Document      | Go Here                                      |
+| ----------------------- | -------------------------------------------- |
+| **Feature being built** | `docs/plans/[NAME]_PLAN.md`                  |
+| **System design**       | `docs/architecture/[TOPIC].md`               |
+| **API or data format**  | `docs/specifications/`                       |
+| **Testing approach**    | `docs/testing/`                              |
+| **Current state**       | `docs/current-status/STATUS_YYYY-MM-DD.md`   |
+| **Blockers**            | `KNOWN_ISSUES.md`                            |
+| **Tasks**               | `TODO.md` (track with TRACKED-TASK: in code) |
+| **File purpose**        | Nearest README "File intent" table           |
+| **Historical context**  | `docs/archive/`                              |
 
 ### Quality Gates
 
@@ -304,10 +318,10 @@ Use conventional prefixes (`feat:`, `fix:`, `ui:`, `docs:`, `build:`). PRs must 
 
 ### Two-Tag System
 
-| Tag | Meaning | Commit Allowed? |
-|-----|---------|-----------------|
-| `TODO:` | Untracked work | No - must track first |
-| `TRACKED-TASK:` | In TODO.md/docs | Yes |
+| Tag             | Meaning         | Commit Allowed?       |
+| --------------- | --------------- | --------------------- |
+| `TODO:`         | Untracked work  | No - must track first |
+| `TRACKED-TASK:` | In TODO.md/docs | Yes                   |
 
 ### Before Every Commit
 
@@ -326,11 +340,13 @@ grep -rn "TODO:" --include="*.ts" --include="*.tsx" packages/
 ### When Adding Code Comments
 
 **Wrong (blocks commit):**
+
 ```typescript
 // TODO: Handle edge case for encrypted PDFs
 ```
 
 **Right (after tracking in TODO.md):**
+
 ```typescript
 // TRACKED-TASK: Handle edge case for encrypted PDFs - see TODO.md "Code Debt"
 ```
@@ -338,6 +354,7 @@ grep -rn "TODO:" --include="*.ts" --include="*.tsx" packages/
 ### Periodic Scrub
 
 Weekly or per-sprint, audit `TRACKED-TASK:` comments:
+
 1. Verify each is still documented in TODO.md
 2. Remove completed items from both code and docs
 3. Update stale references

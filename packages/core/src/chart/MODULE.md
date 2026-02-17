@@ -7,6 +7,7 @@
 **Inputs:** Chart XML from OPC package parts
 
 **Outputs:**
+
 - `parser/chart-parser.ts` — `parseChart(xml: XmlElement): ChartIR`
 - `parser/series.ts` — data series extraction
 - `parser/axis.ts` — axis configuration
@@ -14,6 +15,7 @@
 - `index.ts` — barrel export
 
 **Dependencies:**
+
 - `../xml/` — XML parsing
 - `../ir/` — `ChartIR`
 - `../theme/` — color resolution for chart series

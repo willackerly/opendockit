@@ -8,18 +8,19 @@
 
 **Files:**
 
-| File | Input (IR) | Output | Independent? |
-|------|-----------|--------|-------------|
-| `render-context.ts` | — | `RenderContext` interface definition | Yes (define first) |
-| `shape-renderer.ts` | `DrawingMLShapeIR` | Canvas2D calls | No — calls fill, line, effect, geometry renderers |
-| `fill-renderer.ts` | `FillIR` | Canvas2D fillStyle / gradients | Yes |
-| `line-renderer.ts` | `LineIR` | Canvas2D strokeStyle / dash | Yes |
-| `effect-renderer.ts` | `EffectIR[]` | Canvas2D shadow/filter | Yes |
-| `text-renderer.ts` | `TextBodyIR` | Canvas2D fillText | Yes |
-| `picture-renderer.ts` | `PictureIR` | Canvas2D drawImage | Yes |
-| `group-renderer.ts` | `GroupIR` | Recursive Canvas2D | No — calls shape-renderer |
+| File                  | Input (IR)         | Output                               | Independent?                                      |
+| --------------------- | ------------------ | ------------------------------------ | ------------------------------------------------- |
+| `render-context.ts`   | —                  | `RenderContext` interface definition | Yes (define first)                                |
+| `shape-renderer.ts`   | `DrawingMLShapeIR` | Canvas2D calls                       | No — calls fill, line, effect, geometry renderers |
+| `fill-renderer.ts`    | `FillIR`           | Canvas2D fillStyle / gradients       | Yes                                               |
+| `line-renderer.ts`    | `LineIR`           | Canvas2D strokeStyle / dash          | Yes                                               |
+| `effect-renderer.ts`  | `EffectIR[]`       | Canvas2D shadow/filter               | Yes                                               |
+| `text-renderer.ts`    | `TextBodyIR`       | Canvas2D fillText                    | Yes                                               |
+| `picture-renderer.ts` | `PictureIR`        | Canvas2D drawImage                   | Yes                                               |
+| `group-renderer.ts`   | `GroupIR`          | Recursive Canvas2D                   | No — calls shape-renderer                         |
 
 **RenderContext interface** (define in `render-context.ts`):
+
 ```typescript
 interface RenderContext {
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -32,6 +33,7 @@ interface RenderContext {
 ```
 
 **Dependencies:**
+
 - `../../ir/` — all IR types (consumed, never produced)
 - `../../units/` — EMU-to-pixel conversions
 - `../../theme/` — `ThemeIR` (via RenderContext, for color resolution at render time)
@@ -43,6 +45,7 @@ interface RenderContext {
 **Key reference:** `docs/architecture/OOXML_RENDERER.md` Part 3.6, `docs/architecture/PPTX_SLIDEKIT.md` "Layer 3: TypeScript Renderers"
 
 **Testing:** Renderers are harder to unit test (Canvas2D output). Options:
+
 1. Mock `CanvasRenderingContext2D` and assert method calls
 2. Use `@napi-rs/canvas` in Node for actual pixel output
 3. Structural tests: verify correct Canvas2D API sequences

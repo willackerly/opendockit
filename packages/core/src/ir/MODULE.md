@@ -7,6 +7,7 @@
 **Inputs:** None (pure type definitions)
 
 **Outputs:**
+
 - `common.ts` — `RgbaColor`, `ResolvedColor`, `BoundingBox`, `Point`, `Size`
 - `drawingml-ir.ts` — `ShapePropertiesIR`, `FillIR` (union: `SolidFillIR | GradientFillIR | PatternFillIR | PictureFillIR | NoFill`), `LineIR`, `EffectIR` (union: `OuterShadowIR | InnerShadowIR | GlowIR | ReflectionIR | SoftEdgeIR`), `TransformIR`, `GeometryIR` (union: `PresetGeometryIR | CustomGeometryIR`), `TextBodyIR`, `ParagraphIR`, `RunIR`, `CharacterPropertiesIR`, `PictureIR`, `GroupIR`, `DrawingMLShapeIR`, `BaseElementIR`, `UnsupportedIR`
 - `theme-ir.ts` — `ThemeIR`, `ColorScheme`, `FontScheme`, `FormatScheme`

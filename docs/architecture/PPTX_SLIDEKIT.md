@@ -52,12 +52,14 @@ that your progressive renderer is converging toward.
 ## Layer 1: ZIP + OOXML Parser (Pure TypeScript)
 
 ### 1.1 Unzip Layer
+
 - **JSZip** (BSD) — battle-tested, streams, works in browser + Node
 - Extract `[Content_Types].xml`, `_rels/.rels`, `ppt/presentation.xml`
 - Lazy extraction: only decompress slide XML + media when that slide is requested
 - Emit progress events: `onProgress({ phase: 'unzip', slideIndex, total })`
 
 ### 1.2 PresentationML Parser
+
 All pure TypeScript. The PPTX structure is:
 
 ```
@@ -77,35 +79,36 @@ Parse into a **Slide IR (intermediate representation)** — a clean JSON AST:
 interface SlideIR {
   dimensions: { width: number; height: number }; // in EMU
   background: BackgroundIR;
-  elements: SlideElementIR[];   // z-ordered
+  elements: SlideElementIR[]; // z-ordered
   notes?: string;
   transitions?: TransitionIR;
 }
 
 type SlideElementIR =
-  | ShapeIR        // rectangles, ovals, preset geometries, custom paths
-  | TextBoxIR      // text frames with paragraph/run structure
-  | ImageIR        // embedded or linked images
-  | TableIR        // grid with merged cells
-  | ChartIR        // chart data + type
-  | GroupIR        // grouped elements (recursive)
-  | SmartArtIR     // decomposed to shapes if possible
-  | ConnectorIR    // line connectors
-  | MediaIR        // audio/video
-  | OleObjectIR    // embedded objects
+  | ShapeIR // rectangles, ovals, preset geometries, custom paths
+  | TextBoxIR // text frames with paragraph/run structure
+  | ImageIR // embedded or linked images
+  | TableIR // grid with merged cells
+  | ChartIR // chart data + type
+  | GroupIR // grouped elements (recursive)
+  | SmartArtIR // decomposed to shapes if possible
+  | ConnectorIR // line connectors
+  | MediaIR // audio/video
+  | OleObjectIR // embedded objects
   | UnsupportedIR; // ← CRITICAL: everything we can't parse yet
 
 interface UnsupportedIR {
   kind: 'unsupported';
-  elementType: string;        // e.g. 'mc:AlternateContent', 'dgm:relIds'
-  xmlTag: string;             // original tag name
-  bounds: BoundingBox;        // we can always extract position/size
-  rawXml?: string;            // optionally preserve for debugging
-  reason: string;             // human-readable: "SmartArt diagrams not yet supported"
+  elementType: string; // e.g. 'mc:AlternateContent', 'dgm:relIds'
+  xmlTag: string; // original tag name
+  bounds: BoundingBox; // we can always extract position/size
+  rawXml?: string; // optionally preserve for debugging
+  reason: string; // human-readable: "SmartArt diagrams not yet supported"
 }
 ```
 
 **Key design decisions:**
+
 - The IR is **serializable** — you can cache it, send it to a worker, persist it
 - Every element has a `bounds: BoundingBox` — even unsupported ones can be positioned
 - **Theme resolution happens at parse time** — colors, fonts resolved to concrete values
@@ -123,6 +126,7 @@ Theme (colors, fonts, effects)
 ```
 
 Resolve this in the parser so renderers see final concrete values:
+
 - `schemeClr val="accent1"` → `#4472C4` (resolved from theme)
 - `<a:latin typeface="+mj-lt"/>` → `"Calibri"` (resolved from theme fonts)
 - Placeholder text styles inherited from master → layout → slide
@@ -179,6 +183,7 @@ interface RenderPlan {
 ```
 
 This enables the UX you described:
+
 1. Render all `immediate` elements instantly
 2. Show grey boxes with badges for `unsupported` elements
 3. Show progress spinners for `deferred` elements, download WASM, re-render in place
@@ -192,31 +197,31 @@ and avoids DOM/CSS layout quirks. (Optional: SVG output for accessibility/print.
 
 ### 3.1 What TS can handle well (80% of real slides)
 
-| Element | Complexity | Notes |
-|---------|-----------|-------|
-| Rectangles, rounded rects | Low | Canvas2D native |
-| Solid fills, gradient fills | Low | Linear/radial gradients in Canvas2D |
-| Images (png, jpg, svg) | Low | drawImage + createImageBitmap |
-| Text (basic) | Medium | measureText + fillText, line wrapping |
-| Lines, arrows | Low | Paths + custom arrow heads |
-| Tables | Medium | Grid layout + cell rendering |
-| Ovals, circles | Low | Canvas2D arc/ellipse |
-| Simple preset shapes | Medium | ~40 most common of 200+ presets |
-| Drop shadows | Low | Canvas2D shadowBlur/shadowOffset |
-| Opacity/transparency | Low | globalAlpha |
-| Rotation, flip | Low | Canvas2D transforms |
-| Slide backgrounds (solid/gradient/image) | Low | Full-canvas fill |
+| Element                                  | Complexity | Notes                                 |
+| ---------------------------------------- | ---------- | ------------------------------------- |
+| Rectangles, rounded rects                | Low        | Canvas2D native                       |
+| Solid fills, gradient fills              | Low        | Linear/radial gradients in Canvas2D   |
+| Images (png, jpg, svg)                   | Low        | drawImage + createImageBitmap         |
+| Text (basic)                             | Medium     | measureText + fillText, line wrapping |
+| Lines, arrows                            | Low        | Paths + custom arrow heads            |
+| Tables                                   | Medium     | Grid layout + cell rendering          |
+| Ovals, circles                           | Low        | Canvas2D arc/ellipse                  |
+| Simple preset shapes                     | Medium     | ~40 most common of 200+ presets       |
+| Drop shadows                             | Low        | Canvas2D shadowBlur/shadowOffset      |
+| Opacity/transparency                     | Low        | globalAlpha                           |
+| Rotation, flip                           | Low        | Canvas2D transforms                   |
+| Slide backgrounds (solid/gradient/image) | Low        | Full-canvas fill                      |
 
 ### 3.2 What needs work but is doable in TS
 
-| Element | Complexity | Approach |
-|---------|-----------|----------|
-| Text auto-fit (shrink to fit) | High | Binary search on font size |
-| Bullet lists (multi-level) | Medium | Indent + bullet char from numbering |
-| Text columns | Medium | Split text flow into column rects |
-| Pattern fills | Medium | Canvas2D createPattern |
-| Preset shape geometries (full set) | High | Port the 200+ shape formulas |
-| Connector routing | Medium | A* or simple orthogonal routing |
+| Element                            | Complexity | Approach                            |
+| ---------------------------------- | ---------- | ----------------------------------- |
+| Text auto-fit (shrink to fit)      | High       | Binary search on font size          |
+| Bullet lists (multi-level)         | Medium     | Indent + bullet char from numbering |
+| Text columns                       | Medium     | Split text flow into column rects   |
+| Pattern fills                      | Medium     | Canvas2D createPattern              |
+| Preset shape geometries (full set) | High       | Port the 200+ shape formulas        |
+| Connector routing                  | Medium     | A\* or simple orthogonal routing    |
 
 ### 3.3 Preset Geometry Engine
 
@@ -226,6 +231,7 @@ basically parameterized path construction with variables like `adj1`, `adj2`
 (user-adjustable handles).
 
 The spec defines these in "Annex D" of ISO 29500-1. Each shape is:
+
 - A set of **guide formulas** (`val`, `*/`, `+-`, `sin`, `cos`, `at2`, `mod`, etc.)
 - A set of **path segments** (`moveTo`, `lnTo`, `arcTo`, `cubicBezTo`, `close`)
 - **Adjust values** (handles the user can drag)
@@ -236,9 +242,9 @@ This is a pure math/geometry problem — perfect for TypeScript:
 ```typescript
 interface PresetGeometry {
   name: string;
-  avLst: AdjustValue[];           // default handle positions
-  gdLst: ShapeGuide[];            // formula list
-  pathLst: ShapePath[];           // drawing paths
+  avLst: AdjustValue[]; // default handle positions
+  gdLst: ShapeGuide[]; // formula list
+  pathLst: ShapePath[]; // drawing paths
   cxnLst?: ConnectionSite[];
   rect?: TextRect;
 }
@@ -255,11 +261,20 @@ function renderPresetShape(
     ctx.beginPath();
     for (const cmd of path.commands) {
       switch (cmd.type) {
-        case 'moveTo': ctx.moveTo(env.resolve(cmd.x), env.resolve(cmd.y)); break;
-        case 'lnTo':   ctx.lineTo(env.resolve(cmd.x), env.resolve(cmd.y)); break;
-        case 'arcTo':  /* ... elliptical arc approximation ... */ break;
-        case 'cubicBezTo': ctx.bezierCurveTo(/* ... */); break;
-        case 'close':  ctx.closePath(); break;
+        case 'moveTo':
+          ctx.moveTo(env.resolve(cmd.x), env.resolve(cmd.y));
+          break;
+        case 'lnTo':
+          ctx.lineTo(env.resolve(cmd.x), env.resolve(cmd.y));
+          break;
+        case 'arcTo':
+          /* ... elliptical arc approximation ... */ break;
+        case 'cubicBezTo':
+          ctx.bezierCurveTo(/* ... */);
+          break;
+        case 'close':
+          ctx.closePath();
+          break;
       }
     }
     applyFillAndStroke(ctx, path);
@@ -276,13 +291,13 @@ add the rest progressively. Each shape is an isolated unit — easy to test.
 
 ### Module inventory (each independently loadable):
 
-| Module | Language | Size (est.) | Loads when... |
-|--------|----------|-------------|---------------|
-| `text-layout` | Rust + HarfBuzz | ~800KB | Complex scripts (Arabic, Devanagari, CJK vertical) |
-| `chart-render` | Rust or C++ | ~400KB | Slide contains ChartML |
-| `effect-engine` | C++ (Skia subset) | ~1.5MB | 3D effects, reflections, artistic effects |
-| `emf-wmf` | C/C++ | ~200KB | Embedded EMF/WMF metafiles |
-| `smartart` | TS (no WASM) | N/A | SmartArt decomposition to shapes |
+| Module          | Language          | Size (est.) | Loads when...                                      |
+| --------------- | ----------------- | ----------- | -------------------------------------------------- |
+| `text-layout`   | Rust + HarfBuzz   | ~800KB      | Complex scripts (Arabic, Devanagari, CJK vertical) |
+| `chart-render`  | Rust or C++       | ~400KB      | Slide contains ChartML                             |
+| `effect-engine` | C++ (Skia subset) | ~1.5MB      | 3D effects, reflections, artistic effects          |
+| `emf-wmf`       | C/C++             | ~200KB      | Embedded EMF/WMF metafiles                         |
+| `smartart`      | TS (no WASM)      | N/A         | SmartArt decomposition to shapes                   |
 
 ### Loading protocol:
 
@@ -300,7 +315,9 @@ class WasmModuleLoader {
 
     // 2. Check Cache API (persists across sessions)
     const cached = await caches.match(`/wasm/${moduleId}.wasm`);
-    if (cached) { /* ... */ }
+    if (cached) {
+      /* ... */
+    }
 
     // 3. Stream download with progress
     const response = await fetch(`/wasm/${moduleId}.wasm`);
@@ -319,6 +336,7 @@ class WasmModuleLoader {
 ### Why Skia/CanvasKit for the effect engine?
 
 For the subset of PPTX features that Canvas2D can't handle well:
+
 - **3D bevel/extrusion effects** — need a real 3D pipeline
 - **Artistic effects** (blur, glow, soft edges, reflection) — Skia has GPU-accelerated filters
 - **Complex gradient meshes**
@@ -456,6 +474,7 @@ pixelmatch reference/slide1.png actual/slide1.png diff/slide1.png --threshold 0.
 ```
 
 Test categories:
+
 1. **Corpus tests** — grab 1000 real-world PPTXs, render every slide, track diff scores over time
 2. **Feature unit tests** — one PPTX per feature (specific shape, gradient type, text layout case)
 3. **Preset geometry tests** — render all 200+ presets, compare against PowerPoint reference
@@ -511,6 +530,7 @@ DrawingML
 ## Implementation Phases
 
 ### Phase 0: Foundation (Weeks 1-3)
+
 - [ ] Project scaffolding: TypeScript, build system, test harness
 - [ ] JSZip integration with lazy slide extraction + progress events
 - [ ] PresentationML parser: presentation.xml, slide list, dimensions
@@ -520,6 +540,7 @@ DrawingML
 **Verifiable:** parse any PPTX, emit SlideIR JSON, validate structure
 
 ### Phase 1: Text & Shapes (Weeks 4-8)
+
 - [ ] Shape parser: sp, grpSp with transforms (position, rotation, flip)
 - [ ] Solid fill, linear/radial gradient fill
 - [ ] Line/outline rendering (stroke, dash patterns, line ends)
@@ -532,6 +553,7 @@ DrawingML
 **Verifiable:** render typical corporate slides (title + bullets + images)
 
 ### Phase 2: Progressive Fidelity Infrastructure (Weeks 9-12)
+
 - [ ] Capability registry + router
 - [ ] RenderPlan generation
 - [ ] Grey-box fallback renderer with badges
@@ -542,6 +564,7 @@ DrawingML
 **Verifiable:** can articulate exactly what any given PPTX needs that we don't have yet
 
 ### Phase 3: Expanding Coverage (Weeks 13-20)
+
 - [ ] Table renderer
 - [ ] Remaining preset geometries (batch implementation)
 - [ ] Auto-fit text (shrink-to-fit, auto-size)
@@ -554,6 +577,7 @@ DrawingML
 **Verifiable:** 90%+ element coverage on a 1000-PPTX corpus
 
 ### Phase 4: WASM Accelerators (Weeks 21-30)
+
 - [ ] CanvasKit integration for advanced effects
 - [ ] HarfBuzz WASM for complex text shaping
 - [ ] EMF/WMF metafile renderer
@@ -572,6 +596,7 @@ time using the viewport's DPI scaling.
 ### Font Handling
 
 The hardest practical problem. Strategy:
+
 1. Parse theme font declarations + per-run font specs
 2. Use CSS `FontFace` API to check availability
 3. Provide a font substitution table (Calibri→Arial, Cambria→Georgia, etc.)
@@ -596,6 +621,7 @@ worker.onmessage = (e) => {
 ### Memory Management
 
 PPTX files can be large (100MB+ with embedded video). Strategy:
+
 - Parse slide XML on demand (don't parse all 200 slides at once)
 - Release media blobs after rendering (re-extract from ZIP if needed)
 - Use `OffscreenCanvas` in workers where available
@@ -605,12 +631,12 @@ PPTX files can be large (100MB+ with embedded video). Strategy:
 
 ## Dependencies (All OSS-friendly licenses)
 
-| Library | License | Purpose |
-|---------|---------|---------|
-| JSZip | MIT | ZIP extraction |
-| canvaskit-wasm | BSD-3 | Advanced 2D rendering (optional WASM) |
-| sax / fast-xml-parser | MIT | XML parsing |
-| harfbuzz-wasm | MIT | Complex text shaping (optional WASM) |
-| opentype.js | MIT | Font parsing/metrics (TS) |
+| Library               | License | Purpose                               |
+| --------------------- | ------- | ------------------------------------- |
+| JSZip                 | MIT     | ZIP extraction                        |
+| canvaskit-wasm        | BSD-3   | Advanced 2D rendering (optional WASM) |
+| sax / fast-xml-parser | MIT     | XML parsing                           |
+| harfbuzz-wasm         | MIT     | Complex text shaping (optional WASM)  |
+| opentype.js           | MIT     | Font parsing/metrics (TS)             |
 
 No AGPL. No copyleft. Full embedding freedom.

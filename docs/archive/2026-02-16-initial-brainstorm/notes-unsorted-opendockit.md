@@ -1,4 +1,4 @@
-PREVIOUS conversation leading up to the other docs in this directory... its rather choppy, but there may have been some context that didn't get reflected in these docs.  purely informational:
+PREVIOUS conversation leading up to the other docs in this directory... its rather choppy, but there may have been some context that didn't get reflected in these docs. purely informational:
 
 ====================
 
@@ -7,24 +7,13 @@ i'd like to seriously consider options for high fidelity PPTX rendering in web..
 Feb 12
 This is a great question — PPTX rendering in the browser is one of those deceptively hard problems. Let me do some serious research on what's available.
 
-
 Searched the web
 
-
-
-
-
-
-
-
-
 Now let me look at a couple more critical pieces — CanvasKit/Skia's official WASM build, and the ONLYOFFICE sdkjs architecture which is the most relevant pure-JS presentation renderer:
-
 
 Searched the web
 
 Excellent. I now have a comprehensive picture. Let me also quickly check on CanvasKit (Skia's official WASM build):
-
 
 Searched the web
 
@@ -37,34 +26,34 @@ Tier 1: Commercial (what you're trying to avoid)
 Apryse (PDFTron) WebViewer and Nutrient (PSPDFKit) both take the same approach: a C++ rendering engine compiled to WASM that converts PPTX→PDF client-side, then renders the PDF. High fidelity, but expensive. This is your reference quality bar.
 
 Tier 2: Server-side rendering with web frontend
-Collabora Online / COOL — LibreOffice-based, renders server-side and sends tile images to the browser. MPLv2 licensed, uses LibreOfficeKit for document loading and rendering. 
+Collabora Online / COOL — LibreOffice-based, renders server-side and sends tile images to the browser. MPLv2 licensed, uses LibreOfficeKit for document loading and rendering.
 Wikipedia
- Very high fidelity but requires server infrastructure. The rendering quality is essentially LibreOffice Impress quality, which is good but not pixel-perfect against PowerPoint.
+Very high fidelity but requires server infrastructure. The rendering quality is essentially LibreOffice Impress quality, which is good but not pixel-perfect against PowerPoint.
 
-ONLYOFFICE Document Server — Built on HTML5 Canvas and a JavaScript SDK, with Node.js for server-side scripting and OOXML as its core format. 
+ONLYOFFICE Document Server — Built on HTML5 Canvas and a JavaScript SDK, with Node.js for server-side scripting and OOXML as its core format.
 Amazonaws
- AGPL v3. This is the most interesting existing OSS option because it does real client-side canvas rendering of OOXML natively (not converting to PDF first). The sdkjs repo has a dedicated slide/ directory with presentation rendering logic. However, it requires the full Document Server stack and the AGPL license is a real constraint for product embedding.
+AGPL v3. This is the most interesting existing OSS option because it does real client-side canvas rendering of OOXML natively (not converting to PDF first). The sdkjs repo has a dedicated slide/ directory with presentation rendering logic. However, it requires the full Document Server stack and the AGPL license is a real constraint for product embedding.
 
 Tier 3: Pure JS in-browser (existing OSS)
 These all parse the PPTX zip, extract the XML, and attempt to render to HTML/CSS or Canvas:
 
 PPTXjs (meshesha/PPTXjs) — jQuery plugin, parses PPTX→HTML. The most feature-complete pure-JS reader. Handles shapes, charts (via d3), text, images. But rendering fidelity is mediocre — it's CSS-box-model-based, so complex DrawingML geometry, gradients, 3D effects, and text layout are approximate at best.
-PPTX2HTML (multiple forks: g21589, arantes555) — Similar approach, less maintained. Known issues include lack of support for most shapes, audio, video. 
+PPTX2HTML (multiple forks: g21589, arantes555) — Similar approach, less maintained. Known issues include lack of support for most shapes, audio, video.
 Js
 PptxGenJS — Write-only, not a reader. Irrelevant for your use case.
 Tier 4: LibreOffice-in-WASM (the nuclear option)
-ZetaOffice / zetajs (by Allotropia) — A JS wrapper on top of LibreOffice compiled to WASM via Emscripten, enabling embedding and controlling a full LibreOffice instance in the browser. 
+ZetaOffice / zetajs (by Allotropia) — A JS wrapper on top of LibreOffice compiled to WASM via Emscripten, enabling embedding and controlling a full LibreOffice instance in the browser.
 GitHub
- MIT licensed. This is the most ambitious existing approach. Use cases include headless document conversion (PPTX→rendered output) entirely client-side.
+MIT licensed. This is the most ambitious existing approach. Use cases include headless document conversion (PPTX→rendered output) entirely client-side.
 
-The practical reality check from Hacker News: initial download is ~50MB, text rendering has issues, input is broken in places, and some UI operations crash the app. 
+The practical reality check from Hacker News: initial download is ~50MB, text rendering has issues, input is broken in places, and some UI operations crash the app.
 Hacker News
- Opening a document can pull in ~1GB of code, and the memory footprint exceeds that — though the team is actively working on modularization. 
+Opening a document can pull in ~1GB of code, and the memory footprint exceeds that — though the team is actively working on modularization.
 The Register
 
-Collabora Online WASM — There are also build instructions for building Collabora Online as WASM, requiring LibreOffice core, Poco, and zstd compiled with Emscripten. 
+Collabora Online WASM — There are also build instructions for building Collabora Online as WASM, requiring LibreOffice core, Poco, and zstd compiled with Emscripten.
 GitHub
- This is the headless variant — no Qt UI, just the rendering engine. More relevant to your use case than full ZetaOffice.
+This is the headless variant — no Qt UI, just the rendering engine. More relevant to your use case than full ZetaOffice.
 
 Serious Architecture Options
 Given you want high-fidelity read-only rendering and are willing to invest significant engineering, here's how I'd think about the build-vs-assemble decision:
@@ -109,18 +98,18 @@ Approach: Build a bespoke PPTX parser in TypeScript/Rust that walks the OOXML Pr
 Pros:
 
 Full architectural control
-CanvasKit provides WebGL-accelerated drawing with Skia's path, text, gradient, and shader APIs 
+CanvasKit provides WebGL-accelerated drawing with Skia's path, text, gradient, and shader APIs
 Skia
- — ~2.9MB gzipped, very reasonable
+— ~2.9MB gzipped, very reasonable
 Rendering quality would be excellent — Skia handles anti-aliasing, complex path operations, text shaping (via HarfBuzz/ICU built in), gradients, blend modes
 No license encumbrances — Skia is BSD, your parser is yours
 Could compile the parser in Rust→WASM for performance, with Skia's CanvasKit as the rendering backend
 Testable: you can write pixel-comparison tests against reference renders from PowerPoint
 Cons:
 
-The OOXML spec is enormous. The specification runs to several thousands of pages. 
+The OOXML spec is enormous. The specification runs to several thousands of pages.
 Aspose
- DrawingML alone (shapes, effects, 3D, gradients, preset geometries) is a multi-year effort to fully cover.
+DrawingML alone (shapes, effects, 3D, gradients, preset geometries) is a multi-year effort to fully cover.
 You need to implement: PresentationML parsing, DrawingML rendering (200+ preset shapes, custom geometries, effects), theme resolution, slide master/layout inheritance, text layout (paragraphs, runs, bullets, auto-fit), embedded charts (ChartML), SmartArt, tables, EMU→pixel coordinate math
 Font metrics and text layout are the hardest part — PowerPoint's text flow algorithm has undocumented behaviors
 Effort: 6-12 months for 80% coverage of common slides, 18-24 months for production-grade fidelity across the long tail. This is the most engineering but gives the best long-term competitive asset.
@@ -141,7 +130,7 @@ The hybrid path is compelling: ship with LibreOffice WASM initially for correctn
 
 Want me to dig deeper into any of these paths? I can do a more detailed technical breakdown of the OOXML parsing challenge (the DrawingML preset geometry list is particularly gnarly), or explore the Collabora headless WASM build pipeline, or prototype an OOXML→CanvasKit renderer architecture.
 
-i'd love to have a true client-side build path towards very high fidelity, but to your point we dont need 100% day 1 - i think if we can make sure that we KNOW what we do/dont support and have clean hooks / warnings [grey box where we dont have things yet]... i'd also love to have a path towards generally inspectable code, so migrating to ts/js for base cases, and having wasm modules to help out perhaps... can also help w/ dynamic lib loading only when you need it to render a thing... and progress widgets as we DL/execute within a given slide :)... thoughts?  maybe we start w/ the libreOffice WASM and plan to pick it apart, have a JS envelope for the main stuff unzip/ parse bla bla bla???
+i'd love to have a true client-side build path towards very high fidelity, but to your point we dont need 100% day 1 - i think if we can make sure that we KNOW what we do/dont support and have clean hooks / warnings [grey box where we dont have things yet]... i'd also love to have a path towards generally inspectable code, so migrating to ts/js for base cases, and having wasm modules to help out perhaps... can also help w/ dynamic lib loading only when you need it to render a thing... and progress widgets as we DL/execute within a given slide :)... thoughts? maybe we start w/ the libreOffice WASM and plan to pick it apart, have a JS envelope for the main stuff unzip/ parse bla bla bla???
 
 Feb 12
 This is a really well-articulated architecture vision. Let me think through this carefully because the "progressive fidelity with inspectable code" angle is actually a fundamentally different (and better) design than any existing solution takes.
@@ -149,7 +138,6 @@ This is a really well-articulated architecture vision. Let me think through this
 The key insight is: the envelope/orchestration layer should be pure TS, the OOXML parsing should be pure TS, and WASM modules should be leaf-node rendering accelerators that get loaded on demand. LibreOffice WASM is the wrong starting point to "pick apart" — it's a monolith. Let me explain why and propose something better.
 
 Let me sketch this out properly:
-
 
 Viewed a file, created a file, read a file
 Here's the core argument for why I'd push back on the "start with LibreOffice WASM and pick it apart" approach, and what I think is actually the right path:
@@ -172,25 +160,22 @@ The phased rollout gets you to "renders 80% of real slides well" in about 8 week
 Want me to start prototyping any specific layer? The preset geometry engine (those 200+ shape formulas) is a particularly meaty and self-contained piece I could start extracting from the OOXML spec.
 
 Pptx renderer architecture
-Document · MD 
-i love this.  can you really build out your plan in detail as you envision it here?  can you do a deep consideration of whether we want to maintain hooks where we can elegantly fork to DOCX / XLSX?  i'd imagine theres a lot of shared logic across these.
+Document · MD
+i love this. can you really build out your plan in detail as you envision it here? can you do a deep consideration of whether we want to maintain hooks where we can elegantly fork to DOCX / XLSX? i'd imagine theres a lot of shared logic across these.
 
 Feb 12
 Let me think about this carefully — the shared-core question is architecturally critical and needs to be gotten right before writing code. Let me research the actual overlap between the three OOXML formats.
 
-
 Searched the web
 
-
 This is exactly the research I needed. The shared-vs-divergent surface area is now very clear. Let me build the comprehensive architecture document.
-
 
 Viewed a file, created a file, read a file
 Here's the core of the analysis:
 
-Yes, design for DOCX/XLSX from day 1 — but surgically. The OOXML spec literally uses the same DrawingML markup across all three formats. DrawingML defines graphical objects like pictures, shapes, charts, and diagrams used within WordprocessingML, SpreadsheetML, and PresentationML documents — it is not a standalone markup language. 
+Yes, design for DOCX/XLSX from day 1 — but surgically. The OOXML spec literally uses the same DrawingML markup across all three formats. DrawingML defines graphical objects like pictures, shapes, charts, and diagrams used within WordprocessingML, SpreadsheetML, and PresentationML documents — it is not a standalone markup language.
 Officeopenxml
- Although placement within the document varies by document type, the actual details of the shape itself are the same in most respects. 
+Although placement within the document varies by document type, the actual details of the shape itself are the same in most respects.
 Officeopenxml
 
 The sharing matrix is surprisingly clean once you map it out:
@@ -219,8 +204,8 @@ Starting with PPTX is the right call because its layout is trivial (absolute pos
 The document has full file tree, code-level integration points showing exactly where DOCX/XLSX would call into the shared DrawingML parser, the complete phase plan, risk analysis, and estimated reuse percentages. Want to start prototyping any layer?
 
 Opendockit architecture
-Document · MD 
-Hmmmmmmmmm.... ok last question.  thoughts on following a LibreOffice like model where theres an intermediate file format thats canonical?  or just go straight from native to canvas?  i'm wondering on account of if we'd want to convert to PDF and then allow things like digital signatures without bloaty flattening... but then again flattening can have its advantages :/. and disadvantages.  i do think that eventually allowing for comments and Dsig... anyway maybe i'm going way too far afield here
+Document · MD
+Hmmmmmmmmm.... ok last question. thoughts on following a LibreOffice like model where theres an intermediate file format thats canonical? or just go straight from native to canvas? i'm wondering on account of if we'd want to convert to PDF and then allow things like digital signatures without bloaty flattening... but then again flattening can have its advantages :/. and disadvantages. i do think that eventually allowing for comments and Dsig... anyway maybe i'm going way too far afield here
 
 Feb 12
 No, this is exactly the right question to ask at this stage — it's an architectural load-bearing decision that's much harder to retrofit. Let me think through this rigorously because there are several distinct concerns tangled together.
@@ -280,17 +265,17 @@ Use a PDF generation library (jsPDF, pdf-lib, or the pdfkit WASM build) and walk
 typescript
 // Same IR, different render target
 function renderSlideToPdf(slide: SlideIR, pdfPage: PDFPage): void {
-  for (const element of slide.elements) {
-    switch (element.kind) {
-      case 'shape':
-        renderShapeToPdf(pdfPage, element);  // vector paths, not rasterized
-        break;
-      case 'text':
-        renderTextToPdf(pdfPage, element);   // real PDF text, searchable
-        break;
-      // ...
-    }
-  }
+for (const element of slide.elements) {
+switch (element.kind) {
+case 'shape':
+renderShapeToPdf(pdfPage, element); // vector paths, not rasterized
+break;
+case 'text':
+renderTextToPdf(pdfPage, element); // real PDF text, searchable
+break;
+// ...
+}
+}
 }
 Pros: Vector output. Text is real text (searchable, selectable). Small file size. This is what Apryse/Nutrient do internally.
 
@@ -311,36 +296,37 @@ typescript
 // Just add a PDF backend.
 
 interface RenderBackend {
-  // Paths
-  beginPath(): void;
-  moveTo(x: number, y: number): void;
-  lineTo(x: number, y: number): void;
-  bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void;
-  closePath(): void;
-  fill(): void;
-  stroke(): void;
+// Paths
+beginPath(): void;
+moveTo(x: number, y: number): void;
+lineTo(x: number, y: number): void;
+bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void;
+closePath(): void;
+fill(): void;
+stroke(): void;
 
-  // Text
-  fillText(text: string, x: number, y: number, font: ResolvedFont): void;
+// Text
+fillText(text: string, x: number, y: number, font: ResolvedFont): void;
 
-  // Images
-  drawImage(image: ImageData | Blob, dx: number, dy: number, dw: number, dh: number): void;
+// Images
+drawImage(image: ImageData | Blob, dx: number, dy: number, dw: number, dh: number): void;
 
-  // State
-  save(): void;
-  restore(): void;
-  setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
+// State
+save(): void;
+restore(): void;
+setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
 
-  // Fill/stroke style
-  setFillColor(color: ResolvedColor): void;
-  setStrokeColor(color: ResolvedColor): void;
-  setLineWidth(width: number): void;
-  setLineDash(segments: number[]): void;
+// Fill/stroke style
+setFillColor(color: ResolvedColor): void;
+setStrokeColor(color: ResolvedColor): void;
+setLineWidth(width: number): void;
+setLineDash(segments: number[]): void;
 }
 
-class Canvas2DBackend implements RenderBackend { /* wraps CanvasRenderingContext2D */ }
-class PdfBackend implements RenderBackend { /* wraps pdf-lib page */ }
-class SvgBackend implements RenderBackend { /* emits SVG elements */ }
+class Canvas2DBackend implements RenderBackend { /_ wraps CanvasRenderingContext2D _/ }
+class PdfBackend implements RenderBackend { /_ wraps pdf-lib page _/ }
+class SvgBackend implements RenderBackend { /_ emits SVG elements _/ }
+
 ```
 
 This is clean but it's a Phase 4+ concern. **Don't build it in Phase 1.** The Canvas2D renderer should be written against Canvas2D directly for now. When you add PDF export, refactor to the backend abstraction. The refactor is mechanical — you're extracting an interface from existing code, not redesigning.
@@ -381,32 +367,33 @@ The answer is: **for a reader with PDF export, produce high-quality vector PDFs 
 
 ## My Recommendation
 ```
+
 PPTX (bytes)
-    │
-    ▼
+│
+▼
 ┌──────────────┐
-│  OOXML Parser │  ← Pure TS, format-specific
+│ OOXML Parser │ ← Pure TS, format-specific
 └──────┬───────┘
-       │
-       ▼
+│
+▼
 ┌──────────────┐
-│   Slide IR    │  ← Serializable JSON, cacheable, transferable
-│   (in-memory) │     NOT a file format. NOT a normalization layer.
+│ Slide IR │ ← Serializable JSON, cacheable, transferable
+│ (in-memory) │ NOT a file format. NOT a normalization layer.
 └──────┬───────┘
-       │
-       ├──────────────────┐──────────────────┐
-       ▼                  ▼                  ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│  Canvas2D    │  │  PDF Export  │  │  SVG Export  │
-│  Renderer    │  │  (Phase 4+)  │  │  (optional)  │
-│  (Phase 1)   │  │              │  │              │
-└──────────────┘  └──────────────┘  └──────────────┘
+│
+├──────────────────┐──────────────────┐
+▼ ▼ ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│ Canvas2D │ │ PDF Export │ │ SVG Export │
+│ Renderer │ │ (Phase 4+) │ │ (optional) │
+│ (Phase 1) │ │ │ │ │
+└──────────────┘ └──────────────┘ └──────────────┘
 
 Separate concerns (all operate on PPTX package, not IR):
-┌──────────────┐  ┌──────────────┐
-│  OPC Dsig    │  │  Comments    │
-│  Verification│  │  Display     │
-└──────────────┘  └──────────────┘
+┌──────────────┐ ┌──────────────┐
+│ OPC Dsig │ │ Comments │
+│ Verification│ │ Display │
+└──────────────┘ └──────────────┘
 Phase 1-3: Render IR → Canvas2D directly. No abstraction layer, no intermediate format.
 
 Phase 4: Add RenderBackend interface, refactor Canvas2D renderer to use it, add PDF backend. This is a clean refactor because the IR already cleanly separates "what to draw" from "how to draw it."
@@ -419,7 +406,7 @@ The thing you're correctly sensing is that the IR design needs to be rich enough
 
 Does this resolve the concern? The TL;DR is: the IR is your canonical representation, it lives in memory (or IndexedDB), it's not a file format, and PDF is an export target not an intermediate step.
 
-ok i love this.  update the doc.  make sure that we can maintain 100% client side no server dependencies.
+ok i love this. update the doc. make sure that we can maintain 100% client side no server dependencies.
 
 Feb 12
 
@@ -431,7 +418,6 @@ Continue reviewing the doc
 Done
 Now let me build the comprehensive updated document incorporating everything — the IR/export architecture, 100% client-side constraint, and all the previous content refined:
 
-
 Creating the final comprehensive OpenDocKit architecture document with IR strategy, PDF export, client-side-only constraint, digital signatures, and all previous content integrated and refined
 
 Continue
@@ -441,13 +427,10 @@ Feb 12
 Check what was created so far to continue from the right point
 The previous file is the old version. The create_file call got cut off. Let me write the complete updated document in stages, building it properly.
 
-
 Ran a command, viewed a file
 OK, let me build this properly. I'll write the complete updated architecture document section by section.
 
-
 Read the SKILL.md for best practices on markdown creation
 That's the SKILL.md for docx, not what I need. Since this is a .md file, I'll just create it directly. Let me write it in chunks to handle the length.
-
 
 Ran 2 commands, created 2 files

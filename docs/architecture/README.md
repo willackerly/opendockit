@@ -2,10 +2,10 @@
 
 ## Core Documents
 
-| Doc | Description |
-|-----|-------------|
+| Doc                 | Description                                                                                                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `OOXML_RENDERER.md` | Comprehensive multi-format architecture. Covers the shared core, format-specific layers (PPTX/DOCX/XLSX), the OOXML sharing matrix, DrawingML integration points, text divergence analysis, and phased implementation plan. **Start here.** |
-| `PPTX_SLIDEKIT.md` | Detailed PPTX-specific renderer design. Covers the progressive rendering pipeline, capability registry, WASM module loading, fallback system, testing strategy, and public API surface. |
+| `PPTX_SLIDEKIT.md`  | Detailed PPTX-specific renderer design. Covers the progressive rendering pipeline, capability registry, WASM module loading, fallback system, testing strategy, and public API surface.                                                     |
 
 ## Architecture Decision Records
 
