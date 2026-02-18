@@ -1,6 +1,6 @@
 # TODO
 
-**Last synced:** 2026-02-17
+**Last synced:** 2026-02-18
 
 ## Completed
 
@@ -18,6 +18,9 @@
 - [x] Theme parser (theme1.xml -> ThemeIR)
 - [x] Color resolver (all 5 types + 13 transforms)
 - [x] Font resolver (substitution table + metrics)
+- [x] Precomputed font metrics system (12 families, 43 faces, 262KB bundle)
+- [x] Vendored TrueType/CFF parsers from pdfbox-ts for font metric extraction
+- [x] Font metrics extraction script (`scripts/extract-font-metrics.mjs`)
 
 ### Phase 1: DrawingML Pipeline
 
@@ -68,8 +71,9 @@
 
 ### Phase 3 Stragglers
 
+- [x] Style reference resolution (a:style -> theme formatting via lnRef/fillRef/effectRef/fontRef)
+- [x] Dev harness page (load PPTX, render slides, visual comparison)
 - [ ] Placeholder resolution (master -> layout -> slide inheritance cascade)
-- [ ] Style reference resolution (a:style -> theme formatting via lnRef/fillRef/effectRef/fontRef)
 - [ ] Connector routing via connection sites (shape-to-shape endpoint resolution)
 - [ ] Hyperlinks (a:hlinkClick -> click handler / URL)
 - [ ] Notes view (p:notes parsing + rendering)
@@ -77,7 +81,6 @@
 
 ### Visual Validation
 
-- [ ] Dev harness page (load PPTX, render slides, screenshot comparison)
 - [ ] Test fixture PPTX files covering major element types
 - [ ] Side-by-side comparison with LibreOffice oracle
 
@@ -102,6 +105,18 @@
 - [ ] SpreadsheetML parser
 - [ ] Grid layout engine
 - [ ] Reuses ~35% of core DrawingML
+
+## Font Metrics Gaps
+
+Fonts with no OFL metric-compatible replacement — need server-side extraction or user-supplied metrics:
+
+- [ ] Verdana (no OFL clone — widely available on systems, low priority)
+- [ ] Trebuchet MS (no OFL clone — widely available on systems, low priority)
+- [ ] Tahoma (no OFL clone — widely available on systems, low priority)
+- [ ] Aptos (new Office default — no OFL clone yet)
+- [ ] Corbel, Candara, Constantia (C-series Office fonts — no OFL clones)
+- [ ] Adopt pdf.js lineHeight/lineGap pattern for vertical metrics accuracy
+- [ ] Server-side font metrics extraction service (for users with licensed fonts)
 
 ## Code Debt
 

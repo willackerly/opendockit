@@ -1,6 +1,6 @@
 # Quick Context
 
-**Last updated:** 2026-02-17
+**Last updated:** 2026-02-18
 **Branch:** main
 **Phase:** 3 (stragglers) — Core rendering pipeline complete
 
@@ -12,9 +12,19 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer. It reads 
 
 The full rendering pipeline is implemented and working:
 
-- **1,158 tests** passing (1,112 core + 46 pptx), typecheck clean, lint clean
-- **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system, all DrawingML parsers (fill, line, effect, transform, text, picture, group, table), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector), media cache, capability registry, WASM module loader
+- **1,250 tests** passing (1,187 core + 63 pptx), typecheck clean, lint clean
+- **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (12 families, 43 faces), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector), media cache, capability registry, WASM module loader
 - **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer, SlideKit viewport API
+
+### Font Metrics System (new)
+
+Precomputed font metrics from OFL fonts for accurate text layout without actual fonts installed:
+- **12 families, 43 faces** in 262KB bundle (auto-loaded by SlideKit)
+- Vendored TrueType/CFF parsers from pdfbox-ts for extraction
+- `measureFragment()` uses metrics DB before Canvas2D fallback
+- Extraction script at `scripts/extract-font-metrics.mjs` for adding more fonts
+- Coverage: Calibri, Calibri Light, Cambria, Arial, Times New Roman, Courier New, Georgia, Segoe UI, Arial Narrow, Palatino Linotype, Bookman Old Style, Century Schoolbook
+- Gaps (no OFL replacement): Verdana, Trebuchet MS, Tahoma, Aptos, Corbel/Candara/Constantia
 
 ## What's Next
 
