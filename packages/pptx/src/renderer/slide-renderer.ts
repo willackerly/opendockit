@@ -104,15 +104,15 @@ function mergeListStyles(
 }
 
 /**
- * Find a layout placeholder whose key matches the given element.
+ * Find a placeholder in a list of elements whose key matches the given element.
  */
-function findMatchingLayoutPlaceholder(
+function findMatchingPlaceholder(
   element: SlideElementIR,
-  layoutElements: SlideElementIR[]
+  elements: SlideElementIR[]
 ): SlideElementIR | undefined {
   const key = getPlaceholderKey(element);
   if (!key) return undefined;
-  return layoutElements.find((el) => getPlaceholderKey(el) === key);
+  return elements.find((el) => getPlaceholderKey(el) === key);
 }
 
 /**
@@ -121,7 +121,8 @@ function findMatchingLayoutPlaceholder(
  * Resolution order (highest → lowest priority):
  * 1. Shape's own lstStyle (from a:lstStyle in the text body)
  * 2. Matching layout placeholder's lstStyle
- * 3. Master txStyles category (titleStyle / bodyStyle / otherStyle)
+ * 3. Matching master placeholder's lstStyle
+ * 4. Master txStyles category (titleStyle / bodyStyle / otherStyle)
  *
  * Returns undefined for non-shape elements or when no defaults exist.
  */
@@ -136,15 +137,20 @@ function buildTextDefaults(
   const category = getTextStyleCategory(element.placeholderType);
   const masterStyle = master.txStyles?.[category];
 
+  // Find matching master placeholder for its lstStyle
+  const masterPh = findMatchingPlaceholder(element, master.elements);
+  const masterPhLstStyle = masterPh?.kind === 'shape' ? masterPh.textBody?.listStyle : undefined;
+
   // Find matching layout placeholder for its lstStyle
-  const layoutPh = findMatchingLayoutPlaceholder(element, layout.elements);
+  const layoutPh = findMatchingPlaceholder(element, layout.elements);
   const layoutLstStyle = layoutPh?.kind === 'shape' ? layoutPh.textBody?.listStyle : undefined;
 
   // The shape's own lstStyle (from its text body) takes priority
   const shapeLstStyle = element.textBody?.listStyle;
 
-  // Merge: shape → layout placeholder → master txStyles
-  const layoutMerged = mergeListStyles(layoutLstStyle, masterStyle);
+  // Merge: shape → layout placeholder → master placeholder → master txStyles
+  const masterMerged = mergeListStyles(masterPhLstStyle, masterStyle);
+  const layoutMerged = mergeListStyles(layoutLstStyle, masterMerged);
   return mergeListStyles(shapeLstStyle, layoutMerged);
 }
 

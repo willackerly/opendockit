@@ -822,9 +822,14 @@ export function renderTextBody(
 
   // Phase 3: Render each paragraph.
   ctx.save();
-  ctx.beginPath();
-  ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
-  ctx.clip();
+
+  // Only clip when autoFit is 'shrink' (text already scaled to fit).
+  // Default OOXML behavior (autoFit='none') allows text to overflow visually.
+  if (body.autoFit === 'shrink') {
+    ctx.beginPath();
+    ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+    ctx.clip();
+  }
 
   let cursorY = textAreaY + verticalOffset;
 

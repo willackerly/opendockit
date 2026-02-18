@@ -261,7 +261,7 @@ describe('text with runs', () => {
 
     const t1 = runs[0].child('a:t');
     expect(t1).toBeDefined();
-    expect(t1!.text()).toBe('Hello');
+    expect(t1!.text()).toBe('Hello ');
 
     // Second run
     const rPr2 = runs[1].child('a:rPr');

@@ -519,9 +519,9 @@ describe('renderTextBody', () => {
   // Clipping
   // -------------------------------------------------------------------------
 
-  it('clips to the bounds rectangle', () => {
+  it('clips to the bounds rectangle when autoFit is shrink', () => {
     const rctx = createMockRenderContext();
-    const body = makeTextBody([makeParagraph([makeRun('Clipped')])]);
+    const body = makeTextBody([makeParagraph([makeRun('Clipped')])], { autoFit: 'shrink' });
 
     renderTextBody(body, rctx, BOUNDS);
 
@@ -535,6 +535,16 @@ describe('renderTextBody', () => {
     expect(rectCalls.length).toBeGreaterThanOrEqual(1);
     expect(clipCalls.length).toBeGreaterThanOrEqual(1);
     expect(restoreCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('does not clip when autoFit is none (allows overflow)', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([makeParagraph([makeRun('Overflow')])]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const clipCalls = filterCalls(rctx.ctx._calls, 'clip');
+    expect(clipCalls.length).toBe(0);
   });
 
   // -------------------------------------------------------------------------

@@ -66,7 +66,7 @@ const parser = new XMLParser({
   attributeNamePrefix: '@_',
   textNodeName: '#text',
   preserveOrder: true,
-  trimValues: true,
+  trimValues: false,
   // Do NOT remove namespace prefixes — we need them.
   removeNSPrefix: false,
 });
