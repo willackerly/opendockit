@@ -120,7 +120,12 @@ function resolveFontSizePt(
  * Canvas2D accepts font strings in the format:
  *   [font-style] [font-weight] font-size font-family
  *
- * We use `pt` units which Canvas2D handles natively.
+ * We use `px` units in the canvas coordinate system (device pixels).
+ * Since our canvas backing store is sized at `logicalSize * dpiScale`
+ * without a compensating `ctx.scale()`, CSS units like `pt` would
+ * render at 1x on a 2x canvas — appearing half-size on retina displays.
+ * Converting to device pixels via `ptToCanvasPx()` keeps fonts consistent
+ * with all other coordinate-space measurements.
  *
  * @param fontScale - Optional font scale factor from normAutofit (percentage).
  * @param rctx  - Optional render context for textDefaults inheritance.
@@ -136,6 +141,7 @@ function buildFontString(
   const style = props.italic ? 'italic ' : '';
   const weight = props.bold ? 'bold ' : '';
   const sizePt = resolveFontSizePt(props, fontScale, rctx, level);
+  const sizePx = ptToCanvasPx(sizePt, rctx?.dpiScale ?? 1);
   let family = props.fontFamily || props.latin;
   if (!family && rctx?.textDefaults) {
     const td = rctx.textDefaults;
@@ -147,7 +153,7 @@ function buildFontString(
   }
   family = family || 'sans-serif';
   const resolved = resolveFont(family);
-  return `${style}${weight}${sizePt}pt "${resolved}"`;
+  return `${style}${weight}${sizePx}px "${resolved}"`;
 }
 
 /**
@@ -599,7 +605,8 @@ function measureBullet(
 
   const fontFamily = bullet.font || 'sans-serif';
   const resolved = rctx.resolveFont(fontFamily);
-  const fontString = `${bulletFontSizePt}pt "${resolved}"`;
+  const bulletFontSizePx = ptToCanvasPx(bulletFontSizePt, rctx.dpiScale);
+  const fontString = `${bulletFontSizePx}px "${resolved}"`;
 
   const bulletLevel = paragraph.properties.level ?? 0;
   const fillStyle = bullet.color

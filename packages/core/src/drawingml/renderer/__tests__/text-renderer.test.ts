@@ -157,7 +157,7 @@ describe('renderTextBody', () => {
 
     const allText = allFillTexts(rctx.ctx._calls);
     expect(allText).toContain('BigText');
-    expect(rctx.ctx.font).toContain('36pt');
+    expect(rctx.ctx.font).toContain('48px'); // 36pt * 96/72 = 48px
   });
 
   // -------------------------------------------------------------------------
@@ -403,10 +403,10 @@ describe('renderTextBody', () => {
     renderTextBody(body, rctx, BOUNDS);
 
     // After rendering, the ctx.font should reflect the last run's font.
-    // The font string format is: "italic bold 24pt \"Arial\""
+    // The font string format is: "italic bold 32px \"Arial\"" (24pt * 96/72 = 32px)
     expect(rctx.ctx.font).toContain('italic');
     expect(rctx.ctx.font).toContain('bold');
-    expect(rctx.ctx.font).toContain('24pt');
+    expect(rctx.ctx.font).toContain('32px');
     expect(rctx.ctx.font).toContain('Arial');
   });
 
@@ -628,13 +628,13 @@ describe('renderTextBody', () => {
 
     renderTextBody(bodyNormal, rctx, BOUNDS);
     const normalFont = rctx.ctx.font;
-    expect(normalFont).toContain('18pt');
+    expect(normalFont).toContain('24px'); // 18pt * 96/72 = 24px
 
     rctx.ctx._calls.length = 0;
 
     renderTextBody(bodyScaled, rctx, BOUNDS);
     const scaledFont = rctx.ctx.font;
-    expect(scaledFont).toContain('9pt');
+    expect(scaledFont).toContain('12px'); // 9pt * 96/72 = 12px
   });
 
   it('does not apply font scale when autoFit is not shrink', () => {
@@ -646,8 +646,8 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    // Font should still be the full 18pt.
-    expect(rctx.ctx.font).toContain('18pt');
+    // Font should still be the full 18pt = 24px.
+    expect(rctx.ctx.font).toContain('24px');
   });
 
   it('applies line spacing reduction when autoFit is shrink', () => {
