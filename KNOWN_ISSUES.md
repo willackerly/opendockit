@@ -1,6 +1,6 @@
 # Known Issues
 
-**Last updated:** 2026-02-17
+**Last updated:** 2026-02-18
 
 ## Active Blockers
 
@@ -12,12 +12,6 @@ None.
 
 - Slide elements that reference placeholders (idx/type) should inherit text, formatting, and transforms from layout -> master
 - Without this, slides relying on master/layout templates will render with missing content
-- Tracked in TODO.md "Phase 3 Stragglers"
-
-### Style References (not yet implemented)
-
-- `a:style` elements with `lnRef`, `fillRef`, `effectRef`, `fontRef` are not yet resolved against the theme's format scheme
-- Shapes that rely on theme styles will render without formatting
 - Tracked in TODO.md "Phase 3 Stragglers"
 
 ### spAutoFit Text
@@ -37,7 +31,9 @@ None.
 ### Font Availability
 
 - Users won't have Calibri/Cambria on non-Windows systems.
-- Font substitution table is critical for cross-platform rendering.
+- Font substitution table maps common Office fonts to system alternatives.
+- Precomputed font metrics system (12 families, 43 faces, 262KB bundle) provides accurate text layout without actual fonts installed. `measureFragment()` uses the metrics DB before falling back to Canvas2D measurement.
+- Gaps remain for Verdana, Trebuchet MS, Tahoma, Aptos, and C-series Office fonts (Corbel, Candara, Constantia) — no OFL metric-compatible replacements exist.
 - Embedded fonts in PPTX are rare but must be handled.
 
 ### Canvas2D Limitations
@@ -54,4 +50,7 @@ None.
 
 ## Resolved Issues
 
-(None yet — no production bugs reported)
+### Style References (resolved 2026-02-17)
+
+- `a:style` elements with `lnRef`, `fillRef`, `effectRef`, `fontRef` are now resolved against the theme's format scheme.
+- Shapes that rely on theme styles render correctly.

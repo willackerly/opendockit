@@ -73,10 +73,10 @@
 
 - [x] Style reference resolution (a:style -> theme formatting via lnRef/fillRef/effectRef/fontRef)
 - [x] Dev harness page (load PPTX, render slides, visual comparison)
-- [ ] Placeholder resolution (master -> layout -> slide inheritance cascade)
+- [x] Placeholder resolution (master -> layout -> slide property inheritance cascade)
 - [ ] Connector routing via connection sites (shape-to-shape endpoint resolution)
-- [ ] Hyperlinks (a:hlinkClick -> click handler / URL)
-- [ ] Notes view (p:notes parsing + rendering)
+- [x] Hyperlinks (a:hlinkClick -> click handler / URL)
+- [x] Notes view (p:notes parsing + getSlideNotes() API)
 - [ ] Progressive render pipeline (immediate -> grey box -> spinner -> re-render)
 
 ### Visual Validation
@@ -115,7 +115,7 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [ ] Tahoma (no OFL clone — widely available on systems, low priority)
 - [ ] Aptos (new Office default — no OFL clone yet)
 - [ ] Corbel, Candara, Constantia (C-series Office fonts — no OFL clones)
-- [ ] Adopt pdf.js lineHeight/lineGap pattern for vertical metrics accuracy
+- [x] Adopt pdf.js lineHeight/lineGap pattern for vertical metrics accuracy
 - [ ] Server-side font metrics extraction service (for users with licensed fonts)
 
 ## Code Debt

@@ -8,7 +8,13 @@
  */
 
 import type { XmlElement } from '../../xml/index.js';
-import type { ThemeIR, RunIR, LineBreakIR, CharacterPropertiesIR } from '../../ir/index.js';
+import type {
+  ThemeIR,
+  RunIR,
+  LineBreakIR,
+  CharacterPropertiesIR,
+  HyperlinkIR,
+} from '../../ir/index.js';
 import type { ColorContext } from '../../theme/index.js';
 import { resolveColorFromParent } from '../../theme/index.js';
 import { resolveThemeFont, isThemeFontRef } from '../../theme/index.js';
@@ -35,11 +41,21 @@ export function parseRun(rElement: XmlElement, theme: ThemeIR, context?: ColorCo
   const tEl = rElement.child('a:t');
   const text = tEl ? tEl.text() : '';
 
-  return {
+  const run: RunIR = {
     kind: 'run',
     text,
     properties,
   };
+
+  // Parse hyperlink from a:hlinkClick on a:rPr
+  if (rPrEl) {
+    const hyperlink = parseHyperlink(rPrEl);
+    if (hyperlink) {
+      run.hyperlink = hyperlink;
+    }
+  }
+
+  return run;
 }
 
 /**
@@ -183,6 +199,54 @@ export function parseLineBreak(
     kind: 'lineBreak',
     properties,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Hyperlink parsing
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse an `a:hlinkClick` child element into a {@link HyperlinkIR}.
+ *
+ * The `a:hlinkClick` element appears as a child of `a:rPr` (text run
+ * hyperlinks) or `p:cNvPr` / `a:cNvPr` (shape hyperlinks).
+ *
+ * ```xml
+ * <a:hlinkClick r:id="rId2" tooltip="Visit site" action="ppaction://hlinksldjump"/>
+ * ```
+ *
+ * At parse time the relationship map is not available. The raw `r:id`
+ * value is stored in {@link HyperlinkIR.relationshipId} for deferred
+ * resolution by the viewport layer.
+ *
+ * @param parentElement - The element containing the `a:hlinkClick` child.
+ * @returns Parsed hyperlink IR, or undefined if no `a:hlinkClick` is present.
+ */
+export function parseHyperlink(parentElement: XmlElement): HyperlinkIR | undefined {
+  const hlinkEl = parentElement.child('a:hlinkClick');
+  if (!hlinkEl) return undefined;
+
+  const hyperlink: HyperlinkIR = {};
+
+  const rId = hlinkEl.attr('r:id');
+  if (rId) {
+    hyperlink.relationshipId = rId;
+  }
+
+  const tooltip = hlinkEl.attr('tooltip');
+  if (tooltip) {
+    hyperlink.tooltip = tooltip;
+  }
+
+  const action = hlinkEl.attr('action');
+  if (action) {
+    hyperlink.action = action;
+  }
+
+  // Only return if we found at least one meaningful attribute
+  if (!rId && !action) return undefined;
+
+  return hyperlink;
 }
 
 // ---------------------------------------------------------------------------

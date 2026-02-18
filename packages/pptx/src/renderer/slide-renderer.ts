@@ -14,7 +14,14 @@
  */
 
 import type { EnrichedSlideData } from '../model/index.js';
-import type { SlideElementIR, ListStyleIR, ListStyleLevelIR } from '@opendockit/core';
+import type {
+  SlideElementIR,
+  ListStyleIR,
+  ListStyleLevelIR,
+  ShapePropertiesIR,
+  BodyPropertiesIR,
+  DrawingMLShapeIR,
+} from '@opendockit/core';
 import type { RenderContext } from '@opendockit/core/drawingml/renderer';
 import { renderSlideElement } from '@opendockit/core/drawingml/renderer';
 import { renderBackground } from './background-renderer.js';
@@ -172,6 +179,124 @@ function renderElementWithDefaults(
 }
 
 // ---------------------------------------------------------------------------
+// Shape property inheritance
+// ---------------------------------------------------------------------------
+
+/**
+ * Merge two ShapePropertiesIR objects — higher-priority wins for each field.
+ *
+ * `undefined` means "not set" → inherit from lower.
+ * An explicit value (including `{ type: 'none' }` for fill) overrides.
+ * For `effects`, the higher array wins if non-empty.
+ */
+function mergeShapeProperties(
+  higher: ShapePropertiesIR,
+  lower: ShapePropertiesIR
+): ShapePropertiesIR {
+  return {
+    transform: higher.transform ?? lower.transform,
+    fill: higher.fill ?? lower.fill,
+    line: higher.line ?? lower.line,
+    effects: higher.effects.length > 0 ? higher.effects : lower.effects,
+    geometry: higher.geometry ?? lower.geometry,
+  };
+}
+
+/**
+ * Merge two BodyPropertiesIR objects — higher-priority defined values win.
+ *
+ * Uses per-field ?? so that `undefined` in higher does not clobber lower.
+ */
+function mergeBodyProperties(higher: BodyPropertiesIR, lower: BodyPropertiesIR): BodyPropertiesIR {
+  return {
+    wrap: higher.wrap ?? lower.wrap,
+    verticalAlign: higher.verticalAlign ?? lower.verticalAlign,
+    anchorCtr: higher.anchorCtr ?? lower.anchorCtr,
+    leftInset: higher.leftInset ?? lower.leftInset,
+    rightInset: higher.rightInset ?? lower.rightInset,
+    topInset: higher.topInset ?? lower.topInset,
+    bottomInset: higher.bottomInset ?? lower.bottomInset,
+    columns: higher.columns ?? lower.columns,
+    columnSpacing: higher.columnSpacing ?? lower.columnSpacing,
+    autoFit: higher.autoFit ?? lower.autoFit,
+    fontScale: higher.fontScale ?? lower.fontScale,
+    lnSpcReduction: higher.lnSpcReduction ?? lower.lnSpcReduction,
+    rotation: higher.rotation ?? lower.rotation,
+  };
+}
+
+/**
+ * Resolve inherited properties for a slide element.
+ *
+ * For placeholder shapes, looks up matching placeholders in the layout → master
+ * cascade and merges non-text visual properties (transform, fill, line, effects,
+ * geometry) and body properties (insets, wrapping, auto-fit).
+ *
+ * Resolution priority: slide > layout > master.
+ *
+ * Non-placeholder elements and non-shape elements are returned as-is.
+ */
+function resolveInheritedElement(element: SlideElementIR, data: EnrichedSlideData): SlideElementIR {
+  if (element.kind !== 'shape') return element;
+
+  const key = getPlaceholderKey(element);
+  if (!key) return element;
+
+  const { layout, master } = data;
+
+  const layoutPh = findMatchingPlaceholder(element, layout.elements);
+  const masterPh = findMatchingPlaceholder(element, master.elements);
+
+  if (!layoutPh && !masterPh) return element;
+
+  // Build base properties: master, then layout on top
+  let baseProps: ShapePropertiesIR = { effects: [] };
+  if (masterPh?.kind === 'shape') {
+    baseProps = masterPh.properties;
+  }
+  if (layoutPh?.kind === 'shape') {
+    baseProps = mergeShapeProperties(layoutPh.properties, baseProps);
+  }
+
+  // Slide's own properties on top of the inherited base
+  const mergedProps = mergeShapeProperties(element.properties, baseProps);
+
+  // Merge body properties (insets, wrapping, auto-fit)
+  let mergedTextBody = element.textBody;
+  if (mergedTextBody) {
+    let baseBodyProps: BodyPropertiesIR | undefined;
+    if (masterPh?.kind === 'shape' && masterPh.textBody) {
+      baseBodyProps = masterPh.textBody.bodyProperties;
+    }
+    if (layoutPh?.kind === 'shape' && layoutPh.textBody) {
+      baseBodyProps = baseBodyProps
+        ? mergeBodyProperties(layoutPh.textBody.bodyProperties, baseBodyProps)
+        : layoutPh.textBody.bodyProperties;
+    }
+    if (baseBodyProps) {
+      mergedTextBody = {
+        ...mergedTextBody,
+        bodyProperties: mergeBodyProperties(mergedTextBody.bodyProperties, baseBodyProps),
+      };
+    }
+  }
+
+  // Inherit style from layout/master if slide doesn't define one
+  let mergedStyle = element.style;
+  if (!mergedStyle) {
+    if (layoutPh?.kind === 'shape') mergedStyle = layoutPh.style;
+    if (!mergedStyle && masterPh?.kind === 'shape') mergedStyle = masterPh.style;
+  }
+
+  return {
+    ...element,
+    properties: mergedProps,
+    textBody: mergedTextBody,
+    style: mergedStyle,
+  } as DrawingMLShapeIR;
+}
+
+// ---------------------------------------------------------------------------
 // Placeholder filtering
 // ---------------------------------------------------------------------------
 
@@ -266,7 +391,9 @@ export function renderSlide(
   }
 
   // 4. Slide elements (front-most layer — always rendered)
+  //    Resolve inherited properties from layout/master placeholders before rendering.
   for (const element of slide.elements) {
-    renderElementWithDefaults(element, data, rctx);
+    const resolved = resolveInheritedElement(element, data);
+    renderElementWithDefaults(resolved, data, rctx);
   }
 }

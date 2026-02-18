@@ -12,7 +12,9 @@ describe('getFontSubstitution', () => {
   });
 
   it('substitutes Calibri Light', () => {
-    expect(getFontSubstitution('Calibri Light')).toBe("Carlito, 'Segoe UI Light', Arial, sans-serif");
+    expect(getFontSubstitution('Calibri Light')).toBe(
+      "Carlito, 'Segoe UI Light', Arial, sans-serif"
+    );
   });
 
   it('substitutes Segoe UI', () => {
@@ -32,7 +34,9 @@ describe('getFontSubstitution', () => {
   });
 
   it('substitutes Arial Narrow', () => {
-    expect(getFontSubstitution('Arial Narrow')).toBe("'Liberation Sans Narrow', 'Arial Narrow', sans-serif");
+    expect(getFontSubstitution('Arial Narrow')).toBe(
+      "'Liberation Sans Narrow', 'Arial Narrow', sans-serif"
+    );
   });
 
   // Serif substitutions
@@ -45,7 +49,9 @@ describe('getFontSubstitution', () => {
   });
 
   it('substitutes Book Antiqua', () => {
-    expect(getFontSubstitution('Book Antiqua')).toBe("'TeX Gyre Pagella', 'Palatino Linotype', Palatino, serif");
+    expect(getFontSubstitution('Book Antiqua')).toBe(
+      "'TeX Gyre Pagella', 'Palatino Linotype', Palatino, serif"
+    );
   });
 
   it('substitutes Garamond', () => {
@@ -57,11 +63,15 @@ describe('getFontSubstitution', () => {
   });
 
   it('substitutes Bookman Old Style', () => {
-    expect(getFontSubstitution('Bookman Old Style')).toBe("'TeX Gyre Bonum', 'Bookman Old Style', serif");
+    expect(getFontSubstitution('Bookman Old Style')).toBe(
+      "'TeX Gyre Bonum', 'Bookman Old Style', serif"
+    );
   });
 
   it('substitutes Century Schoolbook', () => {
-    expect(getFontSubstitution('Century Schoolbook')).toBe("'TeX Gyre Schola', 'Century Schoolbook', serif");
+    expect(getFontSubstitution('Century Schoolbook')).toBe(
+      "'TeX Gyre Schola', 'Century Schoolbook', serif"
+    );
   });
 
   // Monospace substitutions

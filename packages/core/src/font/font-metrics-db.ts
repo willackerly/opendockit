@@ -30,6 +30,17 @@ export interface FontFaceMetrics {
   /** Cap height in font units. */
   capHeight: number;
   /**
+   * Normalized line height: (ascender + |descender| + lineGap) / unitsPerEm.
+   * Follows the pdf.js pattern for accurate vertical positioning.
+   */
+  lineHeight?: number;
+  /**
+   * Normalized line gap: hhea.lineGap / unitsPerEm.
+   * Used with lineHeight to compute first-line height:
+   *   firstLineHeight = (lineHeight - lineGap) * fontSize
+   */
+  lineGap?: number;
+  /**
    * Per-codepoint advance widths in font units.
    * Keys are Unicode codepoints as decimal strings.
    */
@@ -124,7 +135,12 @@ export class FontMetricsDB {
   }
 
   /**
-   * Get vertical metrics (ascender, descender, capHeight) in pixels.
+   * Get vertical metrics (ascender, descender, capHeight, lineHeight, lineGap) in pixels.
+   *
+   * lineHeight and lineGap follow the pdf.js pattern:
+   *   lineHeight = (ascender + |descender| + lineGap) / unitsPerEm — pre-normalized in the bundle
+   *   lineGap = hhea.lineGap / unitsPerEm — pre-normalized in the bundle
+   *   firstLineHeight = (lineHeight - lineGap) * fontSize
    *
    * Returns `undefined` if no metrics are available for the font.
    */
@@ -133,16 +149,41 @@ export class FontMetricsDB {
     fontSizePx: number,
     bold: boolean,
     italic: boolean
-  ): { ascender: number; descender: number; capHeight: number } | undefined {
+  ):
+    | {
+        ascender: number;
+        descender: number;
+        capHeight: number;
+        lineHeight?: number;
+        lineGap?: number;
+      }
+    | undefined {
     const face = this._resolveFace(family, bold, italic);
     if (!face) return undefined;
 
     const scale = fontSizePx / face.unitsPerEm;
-    return {
+    const result: {
+      ascender: number;
+      descender: number;
+      capHeight: number;
+      lineHeight?: number;
+      lineGap?: number;
+    } = {
       ascender: face.ascender * scale,
       descender: face.descender * scale,
       capHeight: face.capHeight * scale,
     };
+
+    // lineHeight and lineGap are already normalized to em units in the bundle,
+    // so multiply by fontSizePx directly (not by scale).
+    if (face.lineHeight != null) {
+      result.lineHeight = face.lineHeight * fontSizePx;
+    }
+    if (face.lineGap != null) {
+      result.lineGap = face.lineGap * fontSizePx;
+    }
+
+    return result;
   }
 
   /**
@@ -159,7 +200,8 @@ export class FontMetricsDB {
     if (!styleMap) return undefined;
 
     // Exact match
-    const targetStyle: StyleKey = bold && italic ? 'boldItalic' : bold ? 'bold' : italic ? 'italic' : 'regular';
+    const targetStyle: StyleKey =
+      bold && italic ? 'boldItalic' : bold ? 'bold' : italic ? 'italic' : 'regular';
     const exact = styleMap.get(targetStyle);
     if (exact) return exact;
 

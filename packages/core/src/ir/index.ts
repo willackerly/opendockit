@@ -10,6 +10,8 @@ export type { RgbaColor, ResolvedColor, BoundingBox, Point, Size } from './commo
 
 // DrawingML IR types
 export type {
+  // Hyperlinks
+  HyperlinkIR,
   // Transforms
   TransformIR,
   // Fills

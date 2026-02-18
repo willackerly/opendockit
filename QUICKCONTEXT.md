@@ -12,13 +12,14 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer. It reads 
 
 The full rendering pipeline is implemented and working:
 
-- **1,250 tests** passing (1,187 core + 63 pptx), typecheck clean, lint clean
-- **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (12 families, 43 faces), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector), media cache, capability registry, WASM module loader
-- **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer, SlideKit viewport API
+- **1,284 tests** passing (1,206 core + 78 pptx), typecheck clean, lint clean
+- **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (12 families, 43 faces, lineHeight/lineGap), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector), media cache, capability registry, WASM module loader
+- **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance), SlideKit viewport API (hyperlinks, notes)
 
 ### Font Metrics System (new)
 
 Precomputed font metrics from OFL fonts for accurate text layout without actual fonts installed:
+
 - **12 families, 43 faces** in 262KB bundle (auto-loaded by SlideKit)
 - Vendored TrueType/CFF parsers from pdfbox-ts for extraction
 - `measureFragment()` uses metrics DB before Canvas2D fallback
@@ -28,13 +29,11 @@ Precomputed font metrics from OFL fonts for accurate text layout without actual 
 
 ## What's Next
 
-Phase 3 stragglers (highest impact for real-world PPTX fidelity):
+Phase 3 stragglers (remaining):
 
-1. **Placeholder resolution** — master -> layout -> slide inheritance cascade (critical for text/formatting inheritance)
-2. **Style reference resolution** — a:style -> theme formatting via lnRef/fillRef/effectRef/fontRef
-3. **Visual test harness** — dev page to load PPTX files, render slides, get screenshots
-4. **Hyperlinks, notes view** — minor features
-5. **Progressive render pipeline** — wire capability registry into SlideKit for live progressive loading
+1. **Progressive render pipeline** — wire capability registry into SlideKit for live progressive loading
+2. **Connector routing** — shape-to-shape endpoint resolution via connection sites
+3. **Visual test fixtures** — comprehensive test PPTX files + LibreOffice oracle comparison
 
 ## Key Architecture Decisions
 

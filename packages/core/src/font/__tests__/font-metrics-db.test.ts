@@ -13,6 +13,8 @@ const REGULAR_FACE: FontFaceMetrics = {
   ascender: 800,
   descender: -200,
   capHeight: 700,
+  lineHeight: 1.05, // (800 + 200 + 50) / 1000
+  lineGap: 0.05, // 50 / 1000
   widths: {
     // 'A' = 65, 'B' = 66, ' ' = 32
     '65': 600,
@@ -29,6 +31,8 @@ const BOLD_FACE: FontFaceMetrics = {
   ascender: 800,
   descender: -200,
   capHeight: 700,
+  lineHeight: 1.05,
+  lineGap: 0.05,
   widths: {
     '65': 650,
     '66': 700,
@@ -44,6 +48,8 @@ const ITALIC_FACE: FontFaceMetrics = {
   ascender: 800,
   descender: -200,
   capHeight: 700,
+  lineHeight: 1.05,
+  lineGap: 0.05,
   widths: {
     '65': 580,
     '66': 630,
@@ -162,7 +168,48 @@ describe('FontMetricsDB', () => {
     it('returns scaled vertical metrics', () => {
       // At 10px, 1000 UPM: ascender 800 → 8, descender -200 → -2, capHeight 700 → 7
       const m = db.getVerticalMetrics('TestFont', 10, false, false);
-      expect(m).toEqual({ ascender: 8, descender: -2, capHeight: 7 });
+      expect(m).toBeDefined();
+      expect(m!.ascender).toBe(8);
+      expect(m!.descender).toBe(-2);
+      expect(m!.capHeight).toBe(7);
+    });
+
+    it('returns lineHeight and lineGap scaled to font size', () => {
+      // lineHeight = 1.05 (normalized to em), at 10px → 10.5
+      // lineGap = 0.05 (normalized to em), at 10px → 0.5
+      const m = db.getVerticalMetrics('TestFont', 10, false, false);
+      expect(m).toBeDefined();
+      expect(m!.lineHeight).toBeCloseTo(10.5);
+      expect(m!.lineGap).toBeCloseTo(0.5);
+    });
+
+    it('supports first-line height calculation (lineHeight - lineGap) * fontSize pattern', () => {
+      // pdf.js pattern: firstLineHeight = (lineHeight - lineGap) * fontSize
+      // With normalized values: lineHeight=1.05, lineGap=0.05
+      // firstLineHeight = (1.05 - 0.05) * 10 = 10
+      const m = db.getVerticalMetrics('TestFont', 10, false, false);
+      expect(m).toBeDefined();
+      const firstLineHeight = m!.lineHeight! - m!.lineGap!;
+      expect(firstLineHeight).toBeCloseTo(10);
+    });
+
+    it('omits lineHeight/lineGap when face has no values', () => {
+      const noLineMetricsFace: FontFaceMetrics = {
+        family: 'NoLineMetrics',
+        style: 'regular',
+        unitsPerEm: 1000,
+        ascender: 800,
+        descender: -200,
+        capHeight: 700,
+        widths: { '65': 600 },
+        defaultWidth: 500,
+      };
+      db.loadFontMetrics(noLineMetricsFace);
+      const m = db.getVerticalMetrics('NoLineMetrics', 10, false, false);
+      expect(m).toBeDefined();
+      expect(m!.ascender).toBe(8);
+      expect(m!.lineHeight).toBeUndefined();
+      expect(m!.lineGap).toBeUndefined();
     });
   });
 
@@ -229,5 +276,54 @@ describe('metricsBundle integration', () => {
     const regular = db.measureText('Hello World', 'Calibri', 12, false, false)!;
     const bold = db.measureText('Hello World', 'Calibri', 12, true, false)!;
     expect(bold).toBeGreaterThan(regular);
+  });
+
+  it('bundle entries have lineHeight and lineGap fields', async () => {
+    const { metricsBundle } = await import('../data/metrics-bundle.js');
+    // Check that all faces in the bundle have lineHeight and lineGap
+    for (const [family, faces] of Object.entries(metricsBundle.fonts)) {
+      for (const face of faces) {
+        expect(face.lineHeight).toBeDefined();
+        expect(face.lineGap).toBeDefined();
+        expect(typeof face.lineHeight).toBe('number');
+        expect(typeof face.lineGap).toBe('number');
+        // lineHeight should be positive and reasonable (typically 0.8 to 1.5)
+        expect(face.lineHeight!).toBeGreaterThan(0);
+        expect(face.lineHeight!).toBeLessThan(2);
+        // lineGap should be non-negative
+        expect(face.lineGap!).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it('returns lineHeight and lineGap for Calibri at 12px', async () => {
+    const { metricsBundle } = await import('../data/metrics-bundle.js');
+    const db = new FontMetricsDB();
+    db.loadBundle(metricsBundle);
+
+    const m = db.getVerticalMetrics('Calibri', 12, false, false);
+    expect(m).toBeDefined();
+    expect(m!.lineHeight).toBeDefined();
+    expect(m!.lineGap).toBeDefined();
+    // Calibri lineHeight = 1.0 (Carlito has ascender+|descender| = upm, lineGap=0)
+    // So lineHeight at 12px = 12
+    expect(m!.lineHeight).toBeCloseTo(12);
+    expect(m!.lineGap).toBe(0);
+  });
+
+  it('returns non-zero lineGap for Arial', async () => {
+    const { metricsBundle } = await import('../data/metrics-bundle.js');
+    const db = new FontMetricsDB();
+    db.loadBundle(metricsBundle);
+
+    const m = db.getVerticalMetrics('Arial', 12, false, false);
+    expect(m).toBeDefined();
+    // Arial (Liberation Sans) has non-zero hhea.lineGap
+    expect(m!.lineGap).toBeDefined();
+    expect(m!.lineGap!).toBeGreaterThan(0);
+    // lineHeight should be > (ascender + |descender|) / upm * fontSize
+    // because lineGap contributes to it
+    expect(m!.lineHeight).toBeDefined();
+    expect(m!.lineHeight!).toBeGreaterThan(0);
   });
 });

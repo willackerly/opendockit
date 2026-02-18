@@ -9,4 +9,5 @@ export type {
   SlideKitOptions,
   SlideKitProgressEvent,
   LoadedPresentation,
+  HyperlinkHitRegion,
 } from './slide-viewport.js';

@@ -200,7 +200,7 @@ export function parseTrueType(bytes: Uint8Array): TrueTypeFontInfo {
   // Detect italic from OS/2 fsSelection (bit 0) or head macStyle (bit 1)
   const isItalic = !!(fsSelection & 0x01) || !!(macStyle & 0x02);
   // Detect serif from sFamilyClass: classes 1-7 are serif
-  const isSerif = (sFamilyClass >> 8) >= 1 && (sFamilyClass >> 8) <= 7;
+  const isSerif = sFamilyClass >> 8 >= 1 && sFamilyClass >> 8 <= 7;
 
   return {
     postScriptName,
@@ -277,8 +277,7 @@ function parseCmapFormat4(data: DataView, offset: number): Map<number, number> {
       if (idRangeOffset === 0) {
         glyphId = (code + idDelta) & 0xffff;
       } else {
-        const glyphIndexAddr =
-          idRangeOffsetBase + seg * 2 + idRangeOffset + (code - startCode) * 2;
+        const glyphIndexAddr = idRangeOffsetBase + seg * 2 + idRangeOffset + (code - startCode) * 2;
         glyphId = getUint16(data, glyphIndexAddr);
         if (glyphId !== 0) {
           glyphId = (glyphId + idDelta) & 0xffff;

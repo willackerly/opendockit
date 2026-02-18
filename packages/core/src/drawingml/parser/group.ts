@@ -25,6 +25,7 @@ import { parseTextBodyFromParent } from './text-body.js';
 import { parsePicture } from './picture.js';
 import { parseGroupTransform } from './transform.js';
 import { parseStyleReference } from './style-reference.js';
+import { parseHyperlink } from './run.js';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -208,6 +209,14 @@ function parseShape(
     const phIdx = parseIntAttr(ph, 'idx');
     if (phIdx !== undefined) {
       shape.placeholderIndex = phIdx;
+    }
+  }
+
+  // Shape-level hyperlink from p:cNvPr/a:hlinkClick
+  if (cNvPr) {
+    const hyperlink = parseHyperlink(cNvPr);
+    if (hyperlink) {
+      shape.hyperlink = hyperlink;
     }
   }
 

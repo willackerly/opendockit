@@ -75,8 +75,15 @@ describe('SlideKit', () => {
     expect(typeof kit.nextSlide).toBe('function');
     expect(typeof kit.previousSlide).toBe('function');
     expect(typeof kit.goToSlide).toBe('function');
+    expect(typeof kit.getSlideNotes).toBe('function');
     expect(typeof kit.dispose).toBe('function');
     expect(typeof kit.currentSlide).toBe('number');
+    kit.dispose();
+  });
+
+  it('getSlideNotes throws without loading', async () => {
+    const kit = new SlideKit({});
+    await expect(kit.getSlideNotes(0)).rejects.toThrow('No presentation loaded');
     kit.dispose();
   });
 

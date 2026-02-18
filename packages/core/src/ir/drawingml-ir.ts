@@ -15,6 +15,29 @@
 import type { BoundingBox, Point, ResolvedColor, Size } from './common.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Hyperlinks
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** A hyperlink target — external URL, internal slide jump, or action. */
+export interface HyperlinkIR {
+  /** External URL (e.g. "https://example.com"). */
+  url?: string;
+  /** Internal slide jump target (0-based slide index). */
+  slideIndex?: number;
+  /** Hover tooltip text. */
+  tooltip?: string;
+  /** Raw OOXML action string (e.g. "ppaction://hlinksldjump"). */
+  action?: string;
+  /**
+   * Raw OPC relationship ID (e.g. "rId2") for deferred resolution.
+   *
+   * At parse time the relationship map is not available. The viewport
+   * layer resolves this to a URL or slide reference after parsing.
+   */
+  relationshipId?: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Transforms
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -475,6 +498,8 @@ export interface RunIR {
   kind: 'run';
   text: string;
   properties: CharacterPropertiesIR;
+  /** Hyperlink attached to this run (from a:hlinkClick on a:rPr). */
+  hyperlink?: HyperlinkIR;
 }
 
 /** A forced line break within a paragraph. */
@@ -656,6 +681,8 @@ export interface DrawingMLShapeIR {
   placeholderType?: string;
   /** Placeholder index. */
   placeholderIndex?: number;
+  /** Shape-level hyperlink (from a:hlinkClick on p:cNvPr). */
+  hyperlink?: HyperlinkIR;
 }
 
 /** Placeholder for unsupported or unrecognized element types. */

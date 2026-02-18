@@ -8,6 +8,6 @@
 export { parsePresentation } from './presentation.js';
 export { parseSlideMaster } from './slide-master.js';
 export { parseSlideLayout } from './slide-layout.js';
-export { parseSlide } from './slide.js';
+export { parseSlide, parseNotesText, extractNotesText } from './slide.js';
 export { parseBackground } from './background.js';
 export { parseColorMap, parseColorMapOverride } from './color-map.js';

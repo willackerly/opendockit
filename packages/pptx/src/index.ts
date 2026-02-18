@@ -11,6 +11,7 @@ export type {
   SlideKitOptions,
   SlideKitProgressEvent,
   LoadedPresentation,
+  HyperlinkHitRegion,
 } from './viewport/index.js';
 
 // Model types

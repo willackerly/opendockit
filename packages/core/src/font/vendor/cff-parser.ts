@@ -190,7 +190,7 @@ export function parseCFFFont(bytes: Uint8Array): CFFParseResult {
   }
 
   const isItalic = !!(fsSelection & 0x01) || !!(macStyle & 0x02);
-  const isSerif = (sFamilyClass >> 8) >= 1 && (sFamilyClass >> 8) <= 7;
+  const isSerif = sFamilyClass >> 8 >= 1 && sFamilyClass >> 8 <= 7;
 
   return {
     postScriptName,
@@ -267,8 +267,7 @@ function parseCmapFormat4(data: DataView, offset: number): Map<number, number> {
       if (idRangeOffset === 0) {
         glyphId = (code + idDelta) & 0xffff;
       } else {
-        const glyphIndexAddr =
-          idRangeOffsetBase + seg * 2 + idRangeOffset + (code - startCode) * 2;
+        const glyphIndexAddr = idRangeOffsetBase + seg * 2 + idRangeOffset + (code - startCode) * 2;
         glyphId = getUint16(data, glyphIndexAddr);
         if (glyphId !== 0) {
           glyphId = (glyphId + idDelta) & 0xffff;

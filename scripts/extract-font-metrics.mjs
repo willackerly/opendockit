@@ -76,10 +76,7 @@ function parseCmap(dv, tableOffset) {
     const eid = getUint16(dv, so + 2);
     const off = getUint32(dv, so + 4);
 
-    if (
-      (pid === 3 && eid === 1) ||
-      (pid === 0 && (eid === 0 || eid === 1 || eid === 3))
-    ) {
+    if ((pid === 3 && eid === 1) || (pid === 0 && (eid === 0 || eid === 1 || eid === 3))) {
       const abs = tableOffset + off;
       if (getUint16(dv, abs) === 4) {
         fmt4Off = abs;
@@ -167,6 +164,7 @@ function parseFont(bytes) {
   const unitsPerEm = getUint16(dv, head.offset + 18);
   const hheaAsc = getInt16(dv, hhea.offset + 4);
   const hheaDesc = getInt16(dv, hhea.offset + 6);
+  const hheaLineGap = getInt16(dv, hhea.offset + 8);
   const numHMetrics = getUint16(dv, hhea.offset + 34);
   const numGlyphs = getUint16(dv, maxp.offset + 4);
 
@@ -204,6 +202,7 @@ function parseFont(bytes) {
     ascender,
     descender,
     capHeight,
+    hheaLineGap,
     numGlyphs,
     cmap: cmapResult,
     advanceWidths: widths,
@@ -251,7 +250,16 @@ function extractMetrics(filePath, targetFamily, style, codepointRanges) {
   const defaultWidth =
     spaceGid !== undefined ? font.advanceWidths[spaceGid] : Math.round(font.unitsPerEm * 0.25);
 
-  console.log(`    ${mappedCount} codepoints extracted, defaultWidth=${defaultWidth}`);
+  // Compute normalized lineHeight and lineGap following the pdf.js pattern:
+  //   lineHeight = (ascender + |descender| + lineGap) / unitsPerEm
+  //   lineGap = hheaLineGap / unitsPerEm
+  const lineHeight =
+    (font.ascender + Math.abs(font.descender) + font.hheaLineGap) / font.unitsPerEm;
+  const lineGapNorm = font.hheaLineGap / font.unitsPerEm;
+
+  console.log(
+    `    ${mappedCount} codepoints extracted, defaultWidth=${defaultWidth}, lineHeight=${lineHeight.toFixed(4)}, lineGap=${lineGapNorm.toFixed(4)}`
+  );
 
   return {
     family: targetFamily,
@@ -260,6 +268,8 @@ function extractMetrics(filePath, targetFamily, style, codepointRanges) {
     ascender: font.ascender,
     descender: font.descender,
     capHeight: font.capHeight,
+    lineHeight: Math.round(lineHeight * 10000) / 10000,
+    lineGap: Math.round(lineGapNorm * 10000) / 10000,
     widths,
     defaultWidth,
   };
@@ -272,18 +282,30 @@ function extractMetrics(filePath, targetFamily, style, codepointRanges) {
 // Standard codepoint ranges to extract:
 // Basic Latin + Latin-1 Supplement + Latin Extended-A/B + General Punctuation + Currency + Math
 const STANDARD_RANGES = [
-  0x0020, 0x024f, // Basic Latin through Latin Extended-B
-  0x2000, 0x206f, // General Punctuation
-  0x20a0, 0x20cf, // Currency Symbols
-  0x2100, 0x214f, // Letterlike Symbols
-  0x2190, 0x21ff, // Arrows
-  0x2200, 0x22ff, // Mathematical Operators
-  0x2300, 0x23ff, // Miscellaneous Technical
-  0x25a0, 0x25ff, // Geometric Shapes
-  0x2600, 0x26ff, // Miscellaneous Symbols
-  0xfb00, 0xfb06, // Alphabetic Presentation Forms (ligatures)
-  0xfeff, 0xfeff, // BOM / ZWNBS
-  0xfffc, 0xfffd, // Replacement characters
+  0x0020,
+  0x024f, // Basic Latin through Latin Extended-B
+  0x2000,
+  0x206f, // General Punctuation
+  0x20a0,
+  0x20cf, // Currency Symbols
+  0x2100,
+  0x214f, // Letterlike Symbols
+  0x2190,
+  0x21ff, // Arrows
+  0x2200,
+  0x22ff, // Mathematical Operators
+  0x2300,
+  0x23ff, // Miscellaneous Technical
+  0x25a0,
+  0x25ff, // Geometric Shapes
+  0x2600,
+  0x26ff, // Miscellaneous Symbols
+  0xfb00,
+  0xfb06, // Alphabetic Presentation Forms (ligatures)
+  0xfeff,
+  0xfeff, // BOM / ZWNBS
+  0xfffc,
+  0xfffd, // Replacement characters
 ];
 
 function main() {
@@ -297,7 +319,9 @@ function main() {
     } else if (args[i] === '--output' && args[i + 1]) {
       outputPath = args[++i];
     } else if (args[i] === '--help') {
-      console.log(`Usage: node extract-font-metrics.mjs --map "Family=file:style,..." --output <path>`);
+      console.log(
+        `Usage: node extract-font-metrics.mjs --map "Family=file:style,..." --output <path>`
+      );
       process.exit(0);
     }
   }
@@ -383,14 +407,11 @@ function generateTypeScript(bundle) {
   let result = lines.join('\n') + '\n';
 
   // Compress widths objects: replace multi-line widths with single-line
-  result = result.replace(
-    /"widths": \{[^}]+\}/g,
-    (match) => {
-      // Parse and re-stringify as single line
-      const obj = JSON.parse(match.replace('"widths": ', ''));
-      return `"widths": ${JSON.stringify(obj)}`;
-    }
-  );
+  result = result.replace(/"widths": \{[^}]+\}/g, (match) => {
+    // Parse and re-stringify as single line
+    const obj = JSON.parse(match.replace('"widths": ', ''));
+    return `"widths": ${JSON.stringify(obj)}`;
+  });
 
   return result;
 }

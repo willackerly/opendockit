@@ -5,6 +5,7 @@ Observations from building OpenDocKit's font metrics system that could improve p
 ## 1. Ship Precomputed Font Metrics Bundle
 
 pdfbox-ts currently parses fonts at runtime. It could ship a precomputed metrics bundle (like OpenDocKit's `metrics-bundle.ts`) for the PDF Base 14 fonts + common substitutes. This would enable:
+
 - Instant font width lookup without parsing font files
 - Accurate text layout for fonts not embedded in the PDF
 - Smaller runtime footprint (skip font parsing for known fonts)
@@ -14,6 +15,7 @@ The extraction script at `opendockit/scripts/extract-font-metrics.mjs` could be 
 ## 2. pdf.js lineHeight/lineGap Pattern
 
 pdf.js extracts `lineHeight` and `lineGap` as separate values per font face:
+
 ```
 CalibriRegularMetrics = { lineHeight: 1.2207, lineGap: 0.2207 }
 ```
@@ -39,6 +41,7 @@ Consider adding a `metricsOnly?: boolean` option to `parseCFFFont()` that skips 
 ## 5. Variable Font Support
 
 The TrueType parser rejects variable fonts (TrueType Collection, `fvar`/`gvar` tables). For metrics extraction, it would be useful to:
+
 - Parse the `fvar` table to enumerate named instances (Regular, Bold, etc.)
 - Parse `gvar`/`HVAR` tables to compute width deltas per instance
 - Return metrics for a specific named instance
@@ -48,6 +51,7 @@ This would enable extracting metrics from Google Fonts' variable font files (e.g
 ## 6. Broader cmap Format Support
 
 Both parsers only handle cmap format 4 (BMP Unicode). Many modern fonts also use:
+
 - **Format 12** (full Unicode) — needed for emoji and supplementary plane characters
 - **Format 14** (Unicode Variation Sequences) — needed for CJK variant selectors
 

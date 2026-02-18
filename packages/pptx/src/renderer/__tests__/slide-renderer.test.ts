@@ -400,6 +400,206 @@ describe('renderSlide', () => {
     expect(rctx.textDefaults).toBeUndefined();
   });
 
+  // -------------------------------------------------------------------------
+  // Placeholder property inheritance
+  // -------------------------------------------------------------------------
+
+  it('inherits transform from layout placeholder when slide has none', () => {
+    const rctx = createMockRenderContext();
+
+    const layoutTitle = makeShape({
+      placeholderType: 'title',
+      properties: makeProperties({
+        transform: makeTransform({ position: { x: 500, y: 600 } }),
+        fill: { type: 'solid', color: { r: 0, g: 255, b: 0, a: 1 } },
+      }),
+    });
+
+    // Slide title has NO transform — should inherit layout's
+    const slideTitle = makeShape({
+      placeholderType: 'title',
+      properties: makeProperties({
+        // No transform, no fill — both should come from layout
+      }),
+    });
+
+    const data = makeEnriched({ elements: [slideTitle] }, { elements: [layoutTitle] });
+
+    renderSlide(data, rctx, 960, 540);
+
+    // Should render (1 save/restore pair) — inheriting layout's transform
+    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    expect(saveCalls).toHaveLength(1);
+
+    // The translate call should use the layout's position
+    const translateCalls = rctx.ctx._calls.filter((c) => c.method === 'translate');
+    expect(translateCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('inherits fill from master placeholder when slide and layout have none', () => {
+    const rctx = createMockRenderContext();
+    const masterFill: SolidFillIR = {
+      type: 'solid',
+      color: { r: 100, g: 50, b: 25, a: 1 },
+    };
+
+    const masterTitle = makeShape({
+      placeholderType: 'title',
+      properties: makeProperties({
+        transform: makeTransform(),
+        fill: masterFill,
+      }),
+    });
+
+    // Layout has placeholder but no fill
+    const layoutTitle = makeShape({
+      placeholderType: 'title',
+      properties: makeProperties({
+        transform: makeTransform(),
+      }),
+    });
+
+    // Slide has placeholder but no fill — should inherit from master (through layout)
+    const slideTitle = makeShape({
+      placeholderType: 'title',
+      properties: makeProperties({
+        transform: makeTransform(),
+      }),
+    });
+
+    const data = makeEnriched(
+      { elements: [slideTitle] },
+      { elements: [layoutTitle] },
+      { elements: [masterTitle] }
+    );
+
+    renderSlide(data, rctx, 960, 540);
+
+    // Should render the shape — fillStyle is set as a property, not a tracked call.
+    // The fill renderer sets ctx.fillStyle = 'rgba(100, 50, 25, 1)'.
+    expect(String(rctx.ctx.fillStyle)).toContain('100');
+  });
+
+  it('slide fill overrides layout fill for same placeholder', () => {
+    const rctx = createMockRenderContext();
+
+    const layoutTitle = makeShape({
+      placeholderType: 'title',
+      properties: makeProperties({
+        transform: makeTransform(),
+        fill: { type: 'solid', color: { r: 0, g: 255, b: 0, a: 1 } },
+      }),
+    });
+
+    // Slide has explicit fill — should NOT inherit from layout
+    const slideTitle = makeShape({
+      placeholderType: 'title',
+      properties: makeProperties({
+        transform: makeTransform(),
+        fill: solidBlue,
+      }),
+    });
+
+    const data = makeEnriched({ elements: [slideTitle] }, { elements: [layoutTitle] });
+
+    renderSlide(data, rctx, 960, 540);
+
+    // Should use slide's blue fill, not layout's green.
+    // Last fillStyle set should contain blue (0, 0, 255), not green (0, 255, 0).
+    expect(String(rctx.ctx.fillStyle)).toContain('0, 0, 255');
+  });
+
+  it('does not apply inheritance to non-placeholder shapes', () => {
+    const rctx = createMockRenderContext();
+
+    // Master decorative shape (not a placeholder)
+    const masterDeco = makeShape({
+      properties: makeProperties({
+        transform: makeTransform(),
+        fill: { type: 'solid', color: { r: 255, g: 0, b: 0, a: 1 } },
+      }),
+    });
+
+    // Slide non-placeholder with no fill — should NOT inherit from master
+    const slideShape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform(),
+        // No fill
+      }),
+    });
+
+    const data = makeEnriched({ elements: [slideShape] }, {}, { elements: [masterDeco] });
+
+    renderSlide(data, rctx, 960, 540);
+
+    // Both shapes render
+    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    expect(saveCalls).toHaveLength(2);
+  });
+
+  it('inherits body properties (insets) from layout placeholder', () => {
+    const rctx = createMockRenderContext();
+
+    const layoutBody = makeShape({
+      placeholderType: 'body',
+      properties: makeProperties({ transform: makeTransform() }),
+      textBody: {
+        paragraphs: [],
+        bodyProperties: {
+          leftInset: 91440,
+          topInset: 45720,
+          wrap: 'square' as const,
+        },
+      },
+    });
+
+    const slideBody = makeShape({
+      placeholderType: 'body',
+      properties: makeProperties({ transform: makeTransform() }),
+      textBody: {
+        paragraphs: [
+          {
+            runs: [{ kind: 'run' as const, text: 'Hello', properties: {} }],
+            properties: {},
+          },
+        ],
+        bodyProperties: {
+          // No insets — should inherit from layout
+        },
+      },
+    });
+
+    const data = makeEnriched({ elements: [slideBody] }, { elements: [layoutBody] });
+
+    // Should not throw — the inherited body properties should be present
+    expect(() => renderSlide(data, rctx, 960, 540)).not.toThrow();
+  });
+
+  it('inherits style reference from layout when slide has none', () => {
+    const rctx = createMockRenderContext();
+
+    const layoutTitle = makeShape({
+      placeholderType: 'title',
+      properties: makeProperties({ transform: makeTransform() }),
+      style: {
+        fillRef: { index: 0 },
+        lineRef: { index: 0 },
+        effectRef: { index: 0 },
+        fontRef: { index: 'minor' },
+      },
+    });
+
+    const slideTitle = makeShape({
+      placeholderType: 'title',
+      properties: makeProperties({ transform: makeTransform() }),
+      // No style — should inherit from layout
+    });
+
+    const data = makeEnriched({ elements: [slideTitle] }, { elements: [layoutTitle] });
+
+    expect(() => renderSlide(data, rctx, 960, 540)).not.toThrow();
+  });
+
   it('renders master elements when layout has showMasterSp=undefined (default true)', () => {
     const rctx = createMockRenderContext();
     const masterShape = makeShape({

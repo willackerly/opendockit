@@ -22,6 +22,7 @@
 import type {
   TextBodyIR,
   ParagraphIR,
+  RunIR,
   BulletPropertiesIR,
   CharacterPropertiesIR,
   SpacingIR,
@@ -44,6 +45,9 @@ const DEFAULT_INSET_EMU = 91440;
 
 /** Default line spacing as percentage (120% = 1.2x font size). */
 const DEFAULT_LINE_SPACING_PCT = 120;
+
+/** Default hyperlink color (OOXML hlink theme color fallback). */
+const DEFAULT_HYPERLINK_COLOR = 'rgba(5, 99, 193, 1)';
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -233,7 +237,13 @@ function measureFragment(
   italic?: boolean
 ): number {
   if (rctx?.fontMetricsDB && family && fontSizePx != null) {
-    const w = rctx.fontMetricsDB.measureText(text, family, fontSizePx, bold ?? false, italic ?? false);
+    const w = rctx.fontMetricsDB.measureText(
+      text,
+      family,
+      fontSizePx,
+      bold ?? false,
+      italic ?? false
+    );
     if (w !== undefined) return w;
   }
   ctx.font = fontString;
@@ -330,6 +340,51 @@ function resolveInheritedTextColor(rctx: RenderContext, level: number): string {
     if (color) return colorToRgba(color);
   }
   return resolveDefaultTextColor(rctx);
+}
+
+/**
+ * Resolve the hyperlink color from the theme's hlink color.
+ *
+ * Falls back to a standard blue when the theme has no hlink entry.
+ */
+function resolveHyperlinkColor(rctx: RenderContext): string {
+  const scheme = rctx.theme?.colorScheme;
+  if (scheme) {
+    const hlink = (scheme as unknown as Record<string, RgbaColor | undefined>)['hlink'];
+    if (hlink) return colorToRgba(hlink);
+  }
+  return DEFAULT_HYPERLINK_COLOR;
+}
+
+/**
+ * Apply default hyperlink styling to a run's rendering properties.
+ *
+ * When a run has a hyperlink:
+ * - Color defaults to the theme's hlink color (unless explicitly set)
+ * - Underline defaults to 'single' (unless explicitly set)
+ *
+ * Returns a new CharacterPropertiesIR with hyperlink defaults applied,
+ * plus the resolved fill style for the fragment.
+ */
+function applyHyperlinkDefaults(
+  run: RunIR,
+  fillStyle: string,
+  rctx: RenderContext
+): { props: CharacterPropertiesIR; fillStyle: string } {
+  if (!run.hyperlink) {
+    return { props: run.properties, fillStyle };
+  }
+
+  // Override color only if the run has no explicit color
+  const effectiveFillStyle = run.properties.color ? fillStyle : resolveHyperlinkColor(rctx);
+
+  // Override underline only if not explicitly set
+  const effectiveProps: CharacterPropertiesIR = {
+    ...run.properties,
+    underline: run.properties.underline ?? 'single',
+  };
+
+  return { props: effectiveProps, fillStyle: effectiveFillStyle };
 }
 
 // ---------------------------------------------------------------------------
@@ -431,16 +486,23 @@ function wrapParagraph(
       paragraphLevel
     );
     const fontSizePt = resolveFontSizePt(run.properties, fontScale, rctx, paragraphLevel);
-    const fillStyle = run.properties.color
+    let fillStyle = run.properties.color
       ? colorToRgba(run.properties.color)
       : resolveInheritedTextColor(rctx, paragraphLevel);
+
+    // Apply default hyperlink styling (blue + underline) for linked runs.
+    const { props: effectiveProps, fillStyle: effectiveFillStyle } = applyHyperlinkDefaults(
+      run,
+      fillStyle,
+      rctx
+    );
+    fillStyle = effectiveFillStyle;
 
     const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing, lnSpcReduction);
     const fragmentHeightPx =
       lineSpacingPct >= 0
         ? ptToCanvasPx(fontSizePt * (lineSpacingPct / 100), dpiScale)
         : ptToCanvasPx(-lineSpacingPct, dpiScale);
-    const ascentPx = ptToCanvasPx(fontSizePt, dpiScale);
 
     // Resolve the original font family name (before substitution) for metrics lookup.
     let rawFamily = run.properties.fontFamily || run.properties.latin;
@@ -455,11 +517,37 @@ function wrapParagraph(
     rawFamily = rawFamily || 'sans-serif';
     const fontSizePx = ptToCanvasPx(fontSizePt, dpiScale);
 
+    // Compute ascent using font metrics when available (pdf.js pattern):
+    //   firstLineHeight = (lineHeight - lineGap) * fontSize
+    // This gives the glyph extent without inter-line spacing, which is
+    // more accurate for baseline positioning than assuming ascent = fontSize.
+    let ascentPx = fontSizePx; // fallback: ascent = full font size
+    if (rctx.fontMetricsDB && rawFamily) {
+      const vm = rctx.fontMetricsDB.getVerticalMetrics(
+        rawFamily,
+        fontSizePx,
+        run.properties.bold ?? false,
+        run.properties.italic ?? false
+      );
+      if (vm?.lineHeight != null && vm?.lineGap != null) {
+        ascentPx = vm.lineHeight - vm.lineGap;
+      }
+    }
+
     // Split into words, preserving spaces for accurate measurement.
     const words = run.text.split(/(?<=\s)/);
 
     for (const word of words) {
-      const wordWidth = measureFragment(ctx, word, fontString, rctx, rawFamily, fontSizePx, run.properties.bold, run.properties.italic);
+      const wordWidth = measureFragment(
+        ctx,
+        word,
+        fontString,
+        rctx,
+        rawFamily,
+        fontSizePx,
+        run.properties.bold,
+        run.properties.italic
+      );
       const lineAvail = getLineAvailableWidth();
 
       // Wrap if this word would overflow — but not if the line is empty
@@ -474,7 +562,7 @@ function wrapParagraph(
         fillStyle,
         widthPx: wordWidth,
         fontSizePt,
-        props: run.properties,
+        props: effectiveProps,
       });
       currentLineWidth += wordWidth;
       currentLineHeight = Math.max(currentLineHeight, fragmentHeightPx);
@@ -764,36 +852,28 @@ export function renderTextBody(
       rctx.textDefaults?.levels[paragraphLevel]?.paragraphProperties ??
       rctx.textDefaults?.defPPr?.paragraphProperties;
 
-    const effectiveMarginLeft =
-      paragraph.properties.marginLeft ?? inheritedPProps?.marginLeft;
+    const effectiveMarginLeft = paragraph.properties.marginLeft ?? inheritedPProps?.marginLeft;
     const effectiveIndent = paragraph.properties.indent ?? inheritedPProps?.indent;
-    const effectiveSpaceBefore =
-      paragraph.properties.spaceBefore ?? inheritedPProps?.spaceBefore;
-    const effectiveSpaceAfter =
-      paragraph.properties.spaceAfter ?? inheritedPProps?.spaceAfter;
+    const effectiveSpaceBefore = paragraph.properties.spaceBefore ?? inheritedPProps?.spaceBefore;
+    const effectiveSpaceAfter = paragraph.properties.spaceAfter ?? inheritedPProps?.spaceAfter;
 
     const spaceBeforePx = resolveSpacingPx(effectiveSpaceBefore, fontSizePt, dpiScale);
     const spaceAfterPx = resolveSpacingPx(effectiveSpaceAfter, fontSizePt, dpiScale);
 
-    const marginLeftPx = effectiveMarginLeft
-      ? emuToScaledPx(effectiveMarginLeft, rctx)
-      : 0;
-    const indentPx = effectiveIndent
-      ? emuToScaledPx(effectiveIndent, rctx)
-      : 0;
+    const marginLeftPx = effectiveMarginLeft ? emuToScaledPx(effectiveMarginLeft, rctx) : 0;
+    const indentPx = effectiveIndent ? emuToScaledPx(effectiveIndent, rctx) : 0;
 
     // Compute auto-number index if this paragraph uses autoNum bullets.
     // Only inherit bullet properties from textDefaults when the paragraph
     // has visible text. Empty placeholder paragraphs (e.g. layout/master
     // body placeholders with no content) should not render orphan bullets.
     let autoNumIndex: number | undefined;
-    const hasVisibleText = paragraph.runs.some(
-      (r) => r.kind === 'run' && r.text.length > 0
-    );
-    const bulletProps = paragraph.bulletProperties ??
+    const hasVisibleText = paragraph.runs.some((r) => r.kind === 'run' && r.text.length > 0);
+    const bulletProps =
+      paragraph.bulletProperties ??
       (hasVisibleText
-        ? rctx.textDefaults?.levels[paragraphLevel]?.bulletProperties ??
-          rctx.textDefaults?.defPPr?.bulletProperties
+        ? (rctx.textDefaults?.levels[paragraphLevel]?.bulletProperties ??
+          rctx.textDefaults?.defPPr?.bulletProperties)
         : undefined);
     if (bulletProps?.type === 'autoNum') {
       const level = paragraph.properties.level ?? 0;
@@ -837,8 +917,7 @@ export function renderTextBody(
       indentPx
     );
 
-    const alignment =
-      paragraph.properties.alignment ?? inheritedPProps?.alignment ?? 'left';
+    const alignment = paragraph.properties.alignment ?? inheritedPProps?.alignment ?? 'left';
 
     const paragraphHeight =
       (pi === 0 ? 0 : spaceBeforePx) + lines.reduce((sum, l) => sum + l.heightPx, 0) + spaceAfterPx;
@@ -901,11 +980,13 @@ export function renderTextBody(
       const isFirst = li === 0;
 
       // Compute alignment offset for this line.
-      const lineAvailableWidth = isFirst && !hangingIndent
-        ? Math.max(0, textAvailableWidth - layout.indentPx)
-        : textAvailableWidth;
+      const lineAvailableWidth =
+        isFirst && !hangingIndent
+          ? Math.max(0, textAvailableWidth - layout.indentPx)
+          : textAvailableWidth;
       let lineX = isFirst && !hangingIndent ? firstLineTextX : textBaseX;
-      const totalLineWidth = line.widthPx + (isFirst && layout.bullet && !hangingIndent ? layout.bullet.widthPx : 0);
+      const totalLineWidth =
+        line.widthPx + (isFirst && layout.bullet && !hangingIndent ? layout.bullet.widthPx : 0);
 
       if (layout.alignment === 'center') {
         lineX += (lineAvailableWidth - totalLineWidth) / 2;

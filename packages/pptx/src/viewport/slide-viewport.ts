@@ -20,8 +20,9 @@
  * ```
  */
 
-import type { ThemeIR, SlideElementIR } from '@opendockit/core';
+import type { ThemeIR, SlideElementIR, HyperlinkIR, DrawingMLShapeIR } from '@opendockit/core';
 import type { OpcPackage } from '@opendockit/core/opc';
+import type { RelationshipMap } from '@opendockit/core/opc';
 import { OpcPackageReader } from '@opendockit/core/opc';
 import { MediaCache, loadAndCacheImage } from '@opendockit/core/media';
 import type { RenderContext, DynamicRenderer } from '@opendockit/core/drawingml/renderer';
@@ -40,7 +41,7 @@ import type {
   ColorMapOverride,
 } from '../model/index.js';
 import { parsePresentation } from '../parser/presentation.js';
-import { parseSlide } from '../parser/slide.js';
+import { parseSlide, parseNotesText } from '../parser/slide.js';
 import { parseSlideLayout } from '../parser/slide-layout.js';
 import { parseSlideMaster } from '../parser/slide-master.js';
 import { renderSlide } from '../renderer/index.js';
@@ -81,6 +82,16 @@ export interface SlideKitProgressEvent {
   total: number;
   /** Optional human-readable message. */
   message?: string;
+}
+
+/** A clickable hyperlink region on a rendered slide. */
+export interface HyperlinkHitRegion {
+  /** Bounding box in EMU coordinates (slide coordinate space). */
+  bounds: { x: number; y: number; width: number; height: number };
+  /** Resolved hyperlink target. */
+  hyperlink: HyperlinkIR;
+  /** Source type: 'shape' (whole shape is clickable) or 'run' (text run only). */
+  source: 'shape' | 'run';
 }
 
 /** Summary information returned after loading a PPTX file. */
@@ -292,6 +303,28 @@ export class SlideKit {
   }
 
   /**
+   * Get the speaker notes text for a specific slide.
+   *
+   * Lazily parses the slide (and its notes) if not already cached.
+   * Returns `undefined` if the slide has no speaker notes.
+   *
+   * @param slideIndex - Zero-based slide index.
+   * @returns Plain text of the speaker notes, or `undefined` if none.
+   */
+  async getSlideNotes(slideIndex: number): Promise<string | undefined> {
+    this._assertNotDisposed();
+    this._assertLoaded();
+
+    const pres = this._presentation!;
+    if (slideIndex < 0 || slideIndex >= pres.slideCount) {
+      throw new RangeError(`Slide index ${slideIndex} is out of range (0-${pres.slideCount - 1}).`);
+    }
+
+    const enriched = await this._getOrParseSlide(slideIndex);
+    return enriched.slide.notes;
+  }
+
+  /**
    * Signal that specific slides should be re-rendered.
    *
    * Clears cached slide data for the given indices so that the next
@@ -338,6 +371,40 @@ export class SlideKit {
    */
   loadFontMetricsBundle(bundle: FontMetricsBundle): void {
     this._fontMetricsDB.loadBundle(bundle);
+  }
+
+  /**
+   * Get all hyperlinks on a given slide.
+   *
+   * Returns an array of hyperlink hit regions with resolved targets.
+   * Hyperlinks from `a:hlinkClick` on text runs and shape non-visual
+   * properties are both included.
+   *
+   * Relationship IDs are resolved against the slide's `.rels` file.
+   * External links become URLs; internal slide links are resolved to
+   * 0-based slide indices.
+   *
+   * @param slideIndex - Zero-based slide index.
+   * @returns Array of hyperlink hit regions, or empty array if none.
+   */
+  async getHyperlinks(slideIndex: number): Promise<HyperlinkHitRegion[]> {
+    this._assertNotDisposed();
+    this._assertLoaded();
+
+    const pres = this._presentation!;
+    if (slideIndex < 0 || slideIndex >= pres.slideCount) {
+      throw new RangeError(`Slide index ${slideIndex} is out of range (0-${pres.slideCount - 1}).`);
+    }
+
+    const enriched = await this._getOrParseSlide(slideIndex);
+    const ref = pres.slides[slideIndex];
+    const pkg = this._pkg!;
+    const rels = await pkg.getPartRelationships(ref.partUri);
+
+    const regions: HyperlinkHitRegion[] = [];
+    this._collectHyperlinks(enriched.slide.elements, rels, pres, regions);
+
+    return regions;
   }
 
   /**
@@ -509,7 +576,8 @@ export class SlideKit {
    *
    * Loads the slide XML from the OPC package and delegates to the
    * full `parseSlide` parser for shape tree, background, and color
-   * map override extraction.
+   * map override extraction. Also resolves speaker notes from the
+   * slide's notesSlide relationship.
    */
   private async _parseSlideXml(
     partUri: string,
@@ -519,7 +587,15 @@ export class SlideKit {
     const pkg = this._pkg!;
     const slideXml = await pkg.getPartXml(partUri);
     const theme = this._presentation!.theme;
-    return parseSlide(slideXml, partUri, layoutPartUri, masterPartUri, theme);
+    const slide = parseSlide(slideXml, partUri, layoutPartUri, masterPartUri, theme);
+
+    // Parse speaker notes (if present) from the notesSlide relationship.
+    const notes = await parseNotesText(pkg, partUri);
+    if (notes !== undefined) {
+      slide.notes = notes;
+    }
+
+    return slide;
   }
 
   /**
@@ -720,6 +796,140 @@ export class SlideKit {
         }
       })
     );
+  }
+
+  /**
+   * Recursively collect hyperlinks from slide elements.
+   *
+   * Walks shapes and groups, collecting both shape-level hyperlinks
+   * (from p:cNvPr/a:hlinkClick) and text-run hyperlinks (from
+   * a:rPr/a:hlinkClick). Resolves relationship IDs to URLs and
+   * slide indices.
+   */
+  private _collectHyperlinks(
+    elements: SlideElementIR[],
+    rels: RelationshipMap,
+    pres: PresentationIR,
+    regions: HyperlinkHitRegion[]
+  ): void {
+    for (const el of elements) {
+      if (el.kind === 'shape') {
+        this._collectShapeHyperlinks(el, rels, pres, regions);
+      } else if (el.kind === 'group') {
+        this._collectHyperlinks(el.children, rels, pres, regions);
+      }
+    }
+  }
+
+  /**
+   * Collect hyperlinks from a single shape element.
+   */
+  private _collectShapeHyperlinks(
+    shape: DrawingMLShapeIR,
+    rels: RelationshipMap,
+    pres: PresentationIR,
+    regions: HyperlinkHitRegion[]
+  ): void {
+    const transform = shape.properties.transform;
+
+    // Shape-level hyperlink (clickable entire shape)
+    if (shape.hyperlink && transform) {
+      const resolved = this._resolveHyperlink(shape.hyperlink, rels, pres);
+      if (resolved) {
+        regions.push({
+          bounds: {
+            x: transform.position.x,
+            y: transform.position.y,
+            width: transform.size.width,
+            height: transform.size.height,
+          },
+          hyperlink: resolved,
+          source: 'shape',
+        });
+      }
+    }
+
+    // Text run hyperlinks
+    if (shape.textBody && transform) {
+      for (const para of shape.textBody.paragraphs) {
+        for (const run of para.runs) {
+          if (run.kind === 'run' && run.hyperlink) {
+            const resolved = this._resolveHyperlink(run.hyperlink, rels, pres);
+            if (resolved) {
+              // Use the shape bounds as the hit region for text runs.
+              // Precise per-glyph hit testing would require layout info
+              // that is not available outside the renderer.
+              regions.push({
+                bounds: {
+                  x: transform.position.x,
+                  y: transform.position.y,
+                  width: transform.size.width,
+                  height: transform.size.height,
+                },
+                hyperlink: resolved,
+                source: 'run',
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Resolve a raw hyperlink IR by looking up its relationship ID.
+   *
+   * For external links, the relationship target is the URL.
+   * For internal slide links, the target is resolved to a 0-based
+   * slide index by matching the OPC part URI.
+   *
+   * Returns a new HyperlinkIR with resolved fields, or undefined
+   * if the hyperlink cannot be resolved.
+   */
+  private _resolveHyperlink(
+    hyperlink: HyperlinkIR,
+    rels: RelationshipMap,
+    pres: PresentationIR
+  ): HyperlinkIR | undefined {
+    const resolved: HyperlinkIR = {};
+
+    // Preserve tooltip and action
+    if (hyperlink.tooltip) resolved.tooltip = hyperlink.tooltip;
+    if (hyperlink.action) resolved.action = hyperlink.action;
+
+    // Resolve relationship ID to URL or slide reference
+    if (hyperlink.relationshipId) {
+      const rel = rels.getById(hyperlink.relationshipId);
+      if (rel) {
+        if (rel.targetMode === 'External') {
+          resolved.url = rel.target;
+        } else {
+          // Internal reference — check if it's a slide
+          const slideIndex = pres.slides.findIndex((s) => s.partUri === rel.target);
+          if (slideIndex >= 0) {
+            resolved.slideIndex = slideIndex;
+          }
+        }
+      }
+    }
+
+    // Handle slide jump actions without r:id (e.g., first/last/next/prev)
+    if (hyperlink.action && !resolved.url && resolved.slideIndex === undefined) {
+      const action = hyperlink.action;
+      if (action === 'ppaction://hlinkshowjump?jump=firstslide') {
+        resolved.slideIndex = 0;
+      } else if (action === 'ppaction://hlinkshowjump?jump=lastslide') {
+        resolved.slideIndex = pres.slideCount - 1;
+      }
+      // next/prev are relative — consumers handle those based on current slide
+    }
+
+    // Only return if we resolved something meaningful
+    if (!resolved.url && resolved.slideIndex === undefined && !resolved.action) {
+      return undefined;
+    }
+
+    return resolved;
   }
 
   /**
