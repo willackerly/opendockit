@@ -22,6 +22,7 @@
 import type {
   TextBodyIR,
   ParagraphIR,
+  BulletPropertiesIR,
   CharacterPropertiesIR,
   SpacingIR,
   ResolvedColor,
@@ -328,7 +329,8 @@ function wrapParagraph(
   availableWidth: number,
   bulletWidth: number,
   fontScale?: number,
-  lnSpcReduction?: number
+  lnSpcReduction?: number,
+  firstLineIndentPx?: number
 ): WrappedLine[] {
   const { ctx, dpiScale, resolveFont } = rctx;
   const lines: WrappedLine[] = [];
@@ -355,7 +357,18 @@ function wrapParagraph(
   }
 
   function getLineAvailableWidth(): number {
-    return isFirstLine ? availableWidth - bulletWidth : availableWidth;
+    if (isFirstLine) {
+      const indent = firstLineIndentPx ?? 0;
+      if (indent < 0) {
+        // Hanging indent: bullet hangs left of text margin.
+        // Text starts at availableWidth position (same as continuation).
+        // No width reduction — bullet is outside the text margin.
+        return availableWidth;
+      }
+      // Positive indent: first line starts further right.
+      return Math.max(0, availableWidth - indent - bulletWidth);
+    }
+    return availableWidth;
   }
 
   const paragraphLevel = paragraph.properties.level ?? 0;
@@ -565,9 +578,10 @@ function measureBullet(
   paragraph: ParagraphIR,
   rctx: RenderContext,
   fontScale?: number,
-  autoNumIndex?: number
+  autoNumIndex?: number,
+  bulletOverride?: BulletPropertiesIR
 ): { text: string; fontString: string; fillStyle: string; widthPx: number } | null {
-  const bullet = paragraph.bulletProperties;
+  const bullet = bulletOverride ?? paragraph.bulletProperties;
   if (!bullet || bullet.type === 'none') return null;
 
   let bulletChar: string;
@@ -699,19 +713,43 @@ export function renderTextBody(
     const paragraph = textBody.paragraphs[pi];
     const fontSizePt = getParagraphFontSizePt(paragraph, fontScale, rctx);
 
-    const spaceBeforePx = resolveSpacingPx(paragraph.properties.spaceBefore, fontSizePt, dpiScale);
-    const spaceAfterPx = resolveSpacingPx(paragraph.properties.spaceAfter, fontSizePt, dpiScale);
+    // Resolve paragraph properties with inheritance from textDefaults.
+    const paragraphLevel = paragraph.properties.level ?? 0;
+    const inheritedPProps =
+      rctx.textDefaults?.levels[paragraphLevel]?.paragraphProperties ??
+      rctx.textDefaults?.defPPr?.paragraphProperties;
 
-    const marginLeftPx = paragraph.properties.marginLeft
-      ? emuToScaledPx(paragraph.properties.marginLeft, rctx)
+    const effectiveMarginLeft =
+      paragraph.properties.marginLeft ?? inheritedPProps?.marginLeft;
+    const effectiveIndent = paragraph.properties.indent ?? inheritedPProps?.indent;
+    const effectiveSpaceBefore =
+      paragraph.properties.spaceBefore ?? inheritedPProps?.spaceBefore;
+    const effectiveSpaceAfter =
+      paragraph.properties.spaceAfter ?? inheritedPProps?.spaceAfter;
+
+    const spaceBeforePx = resolveSpacingPx(effectiveSpaceBefore, fontSizePt, dpiScale);
+    const spaceAfterPx = resolveSpacingPx(effectiveSpaceAfter, fontSizePt, dpiScale);
+
+    const marginLeftPx = effectiveMarginLeft
+      ? emuToScaledPx(effectiveMarginLeft, rctx)
       : 0;
-    const indentPx = paragraph.properties.indent
-      ? emuToScaledPx(paragraph.properties.indent, rctx)
+    const indentPx = effectiveIndent
+      ? emuToScaledPx(effectiveIndent, rctx)
       : 0;
 
     // Compute auto-number index if this paragraph uses autoNum bullets.
+    // Only inherit bullet properties from textDefaults when the paragraph
+    // has visible text. Empty placeholder paragraphs (e.g. layout/master
+    // body placeholders with no content) should not render orphan bullets.
     let autoNumIndex: number | undefined;
-    const bulletProps = paragraph.bulletProperties;
+    const hasVisibleText = paragraph.runs.some(
+      (r) => r.kind === 'run' && r.text.length > 0
+    );
+    const bulletProps = paragraph.bulletProperties ??
+      (hasVisibleText
+        ? rctx.textDefaults?.levels[paragraphLevel]?.bulletProperties ??
+          rctx.textDefaults?.defPPr?.bulletProperties
+        : undefined);
     if (bulletProps?.type === 'autoNum') {
       const level = paragraph.properties.level ?? 0;
       // Reset counters for any deeper levels.
@@ -740,7 +778,7 @@ export function renderTextBody(
       }
     }
 
-    const bullet = measureBullet(paragraph, rctx, fontScale, autoNumIndex);
+    const bullet = measureBullet(paragraph, rctx, fontScale, autoNumIndex, bulletProps);
     const bulletWidth = bullet ? bullet.widthPx : 0;
 
     const availableWidth = shouldWrap ? textAreaWidth - marginLeftPx : Infinity;
@@ -750,10 +788,12 @@ export function renderTextBody(
       availableWidth,
       bulletWidth,
       fontScale,
-      lnSpcReduction
+      lnSpcReduction,
+      indentPx
     );
 
-    const alignment = paragraph.properties.alignment ?? 'left';
+    const alignment =
+      paragraph.properties.alignment ?? inheritedPProps?.alignment ?? 'left';
 
     const paragraphHeight =
       (pi === 0 ? 0 : spaceBeforePx) + lines.reduce((sum, l) => sum + l.heightPx, 0) + spaceAfterPx;
@@ -796,15 +836,26 @@ export function renderTextBody(
       cursorY += layout.spaceBeforePx;
     }
 
-    const baseX = textAreaX + layout.marginLeftPx;
-    const lineAvailableWidth = textAreaWidth - layout.marginLeftPx;
+    // For hanging indent (negative indent): bullet at marginLeft+indent, text at marginLeft.
+    // For positive indent: first line text at marginLeft+indent, continuation at marginLeft.
+    const textBaseX = textAreaX + layout.marginLeftPx;
+    const hangingIndent = layout.indentPx < 0;
+    const bulletX = hangingIndent
+      ? textAreaX + Math.max(0, layout.marginLeftPx + layout.indentPx)
+      : textBaseX;
+    const firstLineTextX = hangingIndent ? textBaseX : textBaseX + layout.indentPx;
+    const textAvailableWidth = textAreaWidth - layout.marginLeftPx;
 
     for (let li = 0; li < layout.lines.length; li++) {
       const line = layout.lines[li];
+      const isFirst = li === 0;
 
       // Compute alignment offset for this line.
-      let lineX = baseX;
-      const totalLineWidth = line.widthPx + (li === 0 && layout.bullet ? layout.bullet.widthPx : 0);
+      const lineAvailableWidth = isFirst && !hangingIndent
+        ? Math.max(0, textAvailableWidth - layout.indentPx)
+        : textAvailableWidth;
+      let lineX = isFirst && !hangingIndent ? firstLineTextX : textBaseX;
+      const totalLineWidth = line.widthPx + (isFirst && layout.bullet && !hangingIndent ? layout.bullet.widthPx : 0);
 
       if (layout.alignment === 'center') {
         lineX += (lineAvailableWidth - totalLineWidth) / 2;
@@ -820,8 +871,14 @@ export function renderTextBody(
       if (li === 0 && layout.bullet) {
         ctx.font = layout.bullet.fontString;
         ctx.fillStyle = layout.bullet.fillStyle;
-        ctx.fillText(layout.bullet.text, drawX, baselineY);
-        drawX += layout.bullet.widthPx;
+        if (hangingIndent) {
+          // Hanging indent: bullet draws at bulletX, text stays at lineX.
+          ctx.fillText(layout.bullet.text, bulletX, baselineY);
+        } else {
+          // Normal: bullet drawn inline before text.
+          ctx.fillText(layout.bullet.text, drawX, baselineY);
+          drawX += layout.bullet.widthPx;
+        }
       }
 
       // Draw each text fragment in the line.

@@ -58,10 +58,9 @@ console.log('Step 1: Rasterizing PDF pages...');
 
 try {
   // pdftoppm outputs files like: prefix-01.png, prefix-02.png, etc.
-  execSync(
-    `pdftoppm -png -r 150 "${pdfPath}" "${path.join(referenceDir, 'slide')}"`,
-    { stdio: 'pipe' }
-  );
+  execSync(`pdftoppm -png -r 150 "${pdfPath}" "${path.join(referenceDir, 'slide')}"`, {
+    stdio: 'pipe',
+  });
 } catch (err) {
   console.error('pdftoppm failed. Is poppler-utils installed?');
   console.error(err.stderr?.toString());
@@ -69,8 +68,9 @@ try {
 }
 
 // Collect reference PNGs (sorted by name)
-const refFiles = fs.readdirSync(referenceDir)
-  .filter(f => f.endsWith('.png'))
+const refFiles = fs
+  .readdirSync(referenceDir)
+  .filter((f) => f.endsWith('.png'))
   .sort();
 console.log(`  → ${refFiles.length} PDF pages rasterized.`);
 
@@ -163,7 +163,8 @@ const maxSlides = Math.max(slideImgs.length, refFiles.length);
 console.log('\n  Slide  | Rendered                     | Reference');
 console.log('  -------|------------------------------|-----------------------------');
 for (let i = 0; i < maxSlides; i++) {
-  const rendered = i < slideImgs.length ? `slide-${String(i + 1).padStart(2, '0')}.png` : '(missing)';
+  const rendered =
+    i < slideImgs.length ? `slide-${String(i + 1).padStart(2, '0')}.png` : '(missing)';
   const reference = i < refFiles.length ? refFiles[i] : '(missing)';
   console.log(`  ${String(i + 1).padStart(5)} | ${rendered.padEnd(28)} | ${reference}`);
 }
