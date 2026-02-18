@@ -427,6 +427,10 @@ export class SlideKit {
 
   /**
    * Pre-load background picture images if the background uses a blipFill.
+   *
+   * Resolves the raw relationship ID to an absolute OPC part URI so that
+   * cache keys are unique across different source parts (master vs layout
+   * vs slide may each have an rId2 that refers to a different image).
    */
   private async _loadBackgroundMedia(
     background: import('../model/index.js').BackgroundIR | undefined,
@@ -434,16 +438,23 @@ export class SlideKit {
   ): Promise<void> {
     if (!background?.fill || background.fill.type !== 'picture') return;
     const rId = background.fill.imagePartUri;
-    if (!rId || this._mediaCache.get(rId)) return;
+    if (!rId) return;
 
     const pkg = this._pkg!;
     const rels = await pkg.getPartRelationships(partUri);
     const rel = rels.getById(rId);
     if (!rel || rel.targetMode === 'External') return;
 
+    const resolvedUri = rel.target; // e.g. "/ppt/media/image15.png"
+    // Update fill's imagePartUri to resolved URI so the renderer looks up the
+    // correct cache entry.
+    (background.fill as { imagePartUri: string }).imagePartUri = resolvedUri;
+
+    if (this._mediaCache.get(resolvedUri)) return;
+
     try {
-      const imageBytes = await pkg.getPart(rel.target);
-      await loadAndCacheImage(rId, imageBytes, this._mediaCache);
+      const imageBytes = await pkg.getPart(resolvedUri);
+      await loadAndCacheImage(resolvedUri, imageBytes, this._mediaCache);
     } catch {
       // Silently skip — renderer will show white fallback.
     }
@@ -593,18 +604,25 @@ export class SlideKit {
    * Pre-load all images referenced by picture elements on a slide.
    *
    * Walks the element tree (including groups), resolves each picture's
-   * relationship ID to an OPC part URI, extracts the image bytes, decodes
-   * them, and populates the media cache so the renderer can draw them.
+   * relationship ID to an absolute OPC part URI, extracts the image bytes,
+   * decodes them, and populates the media cache so the renderer can draw them.
+   *
+   * Each element's `imagePartUri` is mutated from the raw rId to the resolved
+   * absolute URI. This is critical because rIds are scoped to their source
+   * part — the same rId (e.g. "rId2") in a master and a layout may reference
+   * different images. Using the absolute OPC URI as the cache key prevents
+   * collisions.
    */
   private async _loadSlideMedia(elements: SlideElementIR[], slidePartUri: string): Promise<void> {
     const pkg = this._pkg!;
 
-    // Collect all image relationship IDs from the element tree.
-    const imageRIds: string[] = [];
+    // Collect references to all picture elements so we can mutate their
+    // imagePartUri from the raw rId to the resolved absolute OPC URI.
+    const pictureEls: Array<{ kind: 'picture'; imagePartUri: string }> = [];
     const walk = (els: SlideElementIR[]) => {
       for (const el of els) {
         if (el.kind === 'picture' && el.imagePartUri) {
-          imageRIds.push(el.imagePartUri);
+          pictureEls.push(el);
         } else if (el.kind === 'group') {
           walk(el.children);
         }
@@ -612,23 +630,29 @@ export class SlideKit {
     };
     walk(elements);
 
-    if (imageRIds.length === 0) return;
+    if (pictureEls.length === 0) return;
 
-    // Get the slide's relationship map (resolves rId → OPC part URI).
+    // Get the source part's relationship map (resolves rId → OPC part URI).
     const rels = await pkg.getPartRelationships(slidePartUri);
 
     // Load all images in parallel.
     await Promise.all(
-      imageRIds.map(async (rId) => {
-        // Skip if already cached (e.g. same image used multiple times).
-        if (this._mediaCache.get(rId)) return;
-
+      pictureEls.map(async (el) => {
+        const rId = el.imagePartUri;
         const rel = rels.getById(rId);
         if (!rel || rel.targetMode === 'External') return;
 
+        const resolvedUri = rel.target; // e.g. "/ppt/media/image15.png"
+        // Update the element's imagePartUri to the resolved URI so the
+        // renderer looks up the correct cache entry.
+        el.imagePartUri = resolvedUri;
+
+        // Skip if already cached (e.g. same image used by multiple elements).
+        if (this._mediaCache.get(resolvedUri)) return;
+
         try {
-          const imageBytes = await pkg.getPart(rel.target);
-          await loadAndCacheImage(rId, imageBytes, this._mediaCache);
+          const imageBytes = await pkg.getPart(resolvedUri);
+          await loadAndCacheImage(resolvedUri, imageBytes, this._mediaCache);
         } catch {
           // Silently skip images that fail to load — the renderer will
           // draw a placeholder instead.

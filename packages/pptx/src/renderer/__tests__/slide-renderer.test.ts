@@ -262,4 +262,64 @@ describe('renderSlide', () => {
     const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
     expect(saveCalls).toHaveLength(3);
   });
+
+  it('filters master placeholder when slide has same placeholder type', () => {
+    const rctx = createMockRenderContext();
+    const masterTitle = makeShape({
+      placeholderType: 'title',
+      properties: makeProperties({
+        transform: makeTransform({ position: { x: 0, y: 0 } }),
+        fill: { type: 'solid', color: { r: 255, g: 0, b: 0, a: 1 } },
+      }),
+    });
+    const slideTitle = makeShape({
+      placeholderType: 'title',
+      properties: makeProperties({
+        transform: makeTransform({ position: { x: 0, y: 0 } }),
+        fill: solidBlue,
+      }),
+    });
+
+    const data = makeEnriched(
+      { elements: [slideTitle] },
+      {},
+      { elements: [masterTitle] }
+    );
+
+    renderSlide(data, rctx, 960, 540);
+
+    // Only slide title renders — master title is filtered out
+    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    expect(saveCalls).toHaveLength(1);
+  });
+
+  it('renders non-placeholder master elements alongside slide placeholders', () => {
+    const rctx = createMockRenderContext();
+    const masterDecorative = makeShape({
+      // No placeholderType/Index — decorative shape, always renders
+      properties: makeProperties({
+        transform: makeTransform({ position: { x: 0, y: 0 } }),
+        fill: { type: 'solid', color: { r: 255, g: 0, b: 0, a: 1 } },
+      }),
+    });
+    const slideTitle = makeShape({
+      placeholderType: 'title',
+      properties: makeProperties({
+        transform: makeTransform({ position: { x: 0, y: 0 } }),
+        fill: solidBlue,
+      }),
+    });
+
+    const data = makeEnriched(
+      { elements: [slideTitle] },
+      {},
+      { elements: [masterDecorative] }
+    );
+
+    renderSlide(data, rctx, 960, 540);
+
+    // Both render — decorative master shape is not a placeholder
+    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    expect(saveCalls).toHaveLength(2);
+  });
 });
