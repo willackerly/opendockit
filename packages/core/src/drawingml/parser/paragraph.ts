@@ -88,7 +88,7 @@ export function parseParagraph(
  * </a:pPr>
  * ```
  */
-function parseParagraphProperties(pPrElement: XmlElement): ParagraphPropertiesIR {
+export function parseParagraphProperties(pPrElement: XmlElement): ParagraphPropertiesIR {
   const props: ParagraphPropertiesIR = {};
 
   // Alignment
@@ -162,7 +162,7 @@ function parseParagraphProperties(pPrElement: XmlElement): ParagraphPropertiesIR
  * to determine bullet type. Also parses optional `a:buFont`, `a:buSzPct`,
  * and `a:buClr` for bullet formatting.
  */
-function parseBulletProperties(
+export function parseBulletProperties(
   pPrElement: XmlElement,
   theme: ThemeIR,
   context?: ColorContext

@@ -42,11 +42,16 @@ export function parseSlideLayout(
   const clrMapOvr = layoutElement.child('p:clrMapOvr');
   const colorMap = clrMapOvr ? parseColorMapOverride(clrMapOvr) : undefined;
 
+  // Parse showMasterSp attribute (absent = true per spec default)
+  const showMasterSpAttr = layoutElement.attr('showMasterSp');
+  const showMasterSp = showMasterSpAttr === '0' || showMasterSpAttr === 'false' ? false : undefined;
+
   return {
     partUri,
     elements,
     background,
     masterPartUri,
     colorMap,
+    showMasterSp,
   };
 }

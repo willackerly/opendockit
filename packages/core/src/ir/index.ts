@@ -64,6 +64,8 @@ export type {
   RunIR,
   LineBreakIR,
   BulletPropertiesIR,
+  ListStyleLevelIR,
+  ListStyleIR,
   // Picture
   CropRect,
   TileInfo,

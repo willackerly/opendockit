@@ -359,6 +359,8 @@ export interface ShapePropertiesIR {
 export interface TextBodyIR {
   paragraphs: ParagraphIR[];
   bodyProperties: BodyPropertiesIR;
+  /** List style defaults from a:lstStyle (per-level paragraph/bullet/character defaults). */
+  listStyle?: ListStyleIR;
 }
 
 /** Body-level text properties (wrapping, margins, auto-fit). */
@@ -479,6 +481,19 @@ export interface RunIR {
 export interface LineBreakIR {
   kind: 'lineBreak';
   properties: CharacterPropertiesIR;
+}
+
+/** Per-level text style defaults from a:lstStyle or p:txStyles. */
+export interface ListStyleLevelIR {
+  paragraphProperties?: ParagraphPropertiesIR;
+  bulletProperties?: BulletPropertiesIR;
+  defaultCharacterProperties?: CharacterPropertiesIR;
+}
+
+/** List style — level-based paragraph/bullet/character defaults. */
+export interface ListStyleIR {
+  defPPr?: ListStyleLevelIR;
+  levels: Record<number, ListStyleLevelIR>; // keys 0-8 (lvl1pPr=0 ... lvl9pPr=8)
 }
 
 /** Bullet/numbering properties for a paragraph. */

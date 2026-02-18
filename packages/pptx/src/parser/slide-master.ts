@@ -8,6 +8,7 @@
  */
 
 import type { XmlElement, ThemeIR } from '@opendockit/core';
+import { parseListStyle } from '@opendockit/core/drawingml';
 import type { SlideMasterIR } from '../model/index.js';
 import { parseShapeTreeChildren } from './shape-tree.js';
 import { parseBackground } from './background.js';
@@ -40,10 +41,36 @@ export function parseSlideMaster(
   const clrMapEl = masterElement.child('p:clrMap');
   const colorMap = clrMapEl ? parseColorMap(clrMapEl) : {};
 
-  return {
+  // Parse text styles (p:txStyles) — per-placeholder-type list style defaults
+  const txStylesEl = masterElement.child('p:txStyles');
+  let txStyles: SlideMasterIR['txStyles'] | undefined;
+  if (txStylesEl) {
+    const titleStyleEl = txStylesEl.child('p:titleStyle');
+    const bodyStyleEl = txStylesEl.child('p:bodyStyle');
+    const otherStyleEl = txStylesEl.child('p:otherStyle');
+
+    const titleStyle = titleStyleEl ? parseListStyle(titleStyleEl, theme) : undefined;
+    const bodyStyle = bodyStyleEl ? parseListStyle(bodyStyleEl, theme) : undefined;
+    const otherStyle = otherStyleEl ? parseListStyle(otherStyleEl, theme) : undefined;
+
+    if (titleStyle || bodyStyle || otherStyle) {
+      txStyles = {};
+      if (titleStyle) txStyles.titleStyle = titleStyle;
+      if (bodyStyle) txStyles.bodyStyle = bodyStyle;
+      if (otherStyle) txStyles.otherStyle = otherStyle;
+    }
+  }
+
+  const result: SlideMasterIR = {
     partUri,
     elements,
     background,
     colorMap,
   };
+
+  if (txStyles) {
+    result.txStyles = txStyles;
+  }
+
+  return result;
 }

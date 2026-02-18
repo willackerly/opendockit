@@ -280,11 +280,7 @@ describe('renderSlide', () => {
       }),
     });
 
-    const data = makeEnriched(
-      { elements: [slideTitle] },
-      {},
-      { elements: [masterTitle] }
-    );
+    const data = makeEnriched({ elements: [slideTitle] }, {}, { elements: [masterTitle] });
 
     renderSlide(data, rctx, 960, 540);
 
@@ -310,15 +306,69 @@ describe('renderSlide', () => {
       }),
     });
 
-    const data = makeEnriched(
-      { elements: [slideTitle] },
-      {},
-      { elements: [masterDecorative] }
-    );
+    const data = makeEnriched({ elements: [slideTitle] }, {}, { elements: [masterDecorative] });
 
     renderSlide(data, rctx, 960, 540);
 
     // Both render — decorative master shape is not a placeholder
+    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    expect(saveCalls).toHaveLength(2);
+  });
+
+  it('skips all master elements when layout has showMasterSp=false', () => {
+    const rctx = createMockRenderContext();
+    const masterShape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform({ position: { x: 0, y: 0 } }),
+        fill: { type: 'solid', color: { r: 255, g: 0, b: 0, a: 1 } },
+      }),
+    });
+    const slideShape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform({ position: { x: 200, y: 200 } }),
+        fill: solidBlue,
+      }),
+    });
+
+    const data = makeEnriched(
+      { elements: [slideShape] },
+      { showMasterSp: false },
+      { elements: [masterShape] }
+    );
+
+    renderSlide(data, rctx, 960, 540);
+
+    // Only slide shape renders — master shape is hidden by showMasterSp=false
+    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    expect(saveCalls).toHaveLength(1);
+  });
+
+  it('renders master elements when layout has showMasterSp=undefined (default true)', () => {
+    const rctx = createMockRenderContext();
+    const masterShape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform({ position: { x: 0, y: 0 } }),
+        fill: { type: 'solid', color: { r: 255, g: 0, b: 0, a: 1 } },
+      }),
+    });
+    const slideShape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform({ position: { x: 200, y: 200 } }),
+        fill: solidBlue,
+      }),
+    });
+
+    const data = makeEnriched(
+      { elements: [slideShape] },
+      {
+        /* showMasterSp absent = default true */
+      },
+      { elements: [masterShape] }
+    );
+
+    renderSlide(data, rctx, 960, 540);
+
+    // Both master and slide shapes render
     const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
     expect(saveCalls).toHaveLength(2);
   });

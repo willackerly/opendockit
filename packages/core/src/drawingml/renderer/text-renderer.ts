@@ -83,13 +83,29 @@ function colorToRgba(c: ResolvedColor): string {
  * @param fontScale - Optional font scale factor from normAutofit (percentage,
  *                    e.g. 80 means 80%). Applied multiplicatively to the
  *                    resolved font size.
+ * @param rctx  - Optional render context for textDefaults inheritance.
+ * @param level - Optional paragraph level for textDefaults lookup.
  */
-function resolveFontSizePt(props: CharacterPropertiesIR, fontScale?: number): number {
+function resolveFontSizePt(
+  props: CharacterPropertiesIR,
+  fontScale?: number,
+  rctx?: RenderContext,
+  level?: number
+): number {
   let sizePt: number;
   if (props.fontSize != null) {
     sizePt = hundredthsPtToPt(props.fontSize);
   } else {
-    sizePt = DEFAULT_FONT_SIZE_PT;
+    // Try inherited font size from textDefaults
+    const inherited = rctx?.textDefaults;
+    const inheritedSize =
+      inherited?.levels[level ?? 0]?.defaultCharacterProperties?.fontSize ??
+      inherited?.defPPr?.defaultCharacterProperties?.fontSize;
+    if (inheritedSize != null) {
+      sizePt = hundredthsPtToPt(inheritedSize);
+    } else {
+      sizePt = DEFAULT_FONT_SIZE_PT;
+    }
   }
   if (fontScale != null) {
     sizePt = sizePt * (fontScale / 100);
@@ -106,16 +122,29 @@ function resolveFontSizePt(props: CharacterPropertiesIR, fontScale?: number): nu
  * We use `pt` units which Canvas2D handles natively.
  *
  * @param fontScale - Optional font scale factor from normAutofit (percentage).
+ * @param rctx  - Optional render context for textDefaults inheritance.
+ * @param level - Optional paragraph level for textDefaults lookup.
  */
 function buildFontString(
   props: CharacterPropertiesIR,
   resolveFont: (name: string) => string,
-  fontScale?: number
+  fontScale?: number,
+  rctx?: RenderContext,
+  level?: number
 ): string {
   const style = props.italic ? 'italic ' : '';
   const weight = props.bold ? 'bold ' : '';
-  const sizePt = resolveFontSizePt(props, fontScale);
-  const family = props.fontFamily || props.latin || 'sans-serif';
+  const sizePt = resolveFontSizePt(props, fontScale, rctx, level);
+  let family = props.fontFamily || props.latin;
+  if (!family && rctx?.textDefaults) {
+    const td = rctx.textDefaults;
+    family =
+      td.levels[level ?? 0]?.defaultCharacterProperties?.fontFamily ??
+      td.levels[level ?? 0]?.defaultCharacterProperties?.latin ??
+      td.defPPr?.defaultCharacterProperties?.fontFamily ??
+      td.defPPr?.defaultCharacterProperties?.latin;
+  }
+  family = family || 'sans-serif';
   const resolved = resolveFont(family);
   return `${style}${weight}${sizePt}pt "${resolved}"`;
 }
@@ -190,16 +219,31 @@ function measureFragment(
 
 /**
  * Get the default font size for a paragraph by inspecting its runs.
- * Falls back to DEFAULT_FONT_SIZE_PT if no runs have a font size.
+ * Falls back to inherited textDefaults, then DEFAULT_FONT_SIZE_PT.
  *
  * @param fontScale - Optional font scale factor from normAutofit (percentage).
+ * @param rctx     - Optional render context for textDefaults inheritance.
  */
-function getParagraphFontSizePt(paragraph: ParagraphIR, fontScale?: number): number {
+function getParagraphFontSizePt(
+  paragraph: ParagraphIR,
+  fontScale?: number,
+  rctx?: RenderContext
+): number {
   for (const run of paragraph.runs) {
     if (run.properties.fontSize != null) {
       const basePt = hundredthsPtToPt(run.properties.fontSize);
       return fontScale != null ? basePt * (fontScale / 100) : basePt;
     }
+  }
+  // Try inherited font size from textDefaults
+  const level = paragraph.properties.level ?? 0;
+  const inherited = rctx?.textDefaults;
+  const inheritedSize =
+    inherited?.levels[level]?.defaultCharacterProperties?.fontSize ??
+    inherited?.defPPr?.defaultCharacterProperties?.fontSize;
+  if (inheritedSize != null) {
+    const basePt = hundredthsPtToPt(inheritedSize);
+    return fontScale != null ? basePt * (fontScale / 100) : basePt;
   }
   const basePt = DEFAULT_FONT_SIZE_PT;
   return fontScale != null ? basePt * (fontScale / 100) : basePt;
@@ -242,6 +286,27 @@ function resolveDefaultTextColor(rctx: RenderContext): string {
     }
   }
   return 'rgba(0, 0, 0, 1)';
+}
+
+/**
+ * Resolve inherited text color from the textDefaults chain.
+ *
+ * Checks the textDefaults for the given paragraph level first, then falls
+ * back to defPPr, then to the standard tx1→dk1 theme color resolution.
+ *
+ * This is what makes section divider title text render white: the master's
+ * txStyles/titleStyle carries a white color default that overrides the
+ * usual tx1→dk1 fallback.
+ */
+function resolveInheritedTextColor(rctx: RenderContext, level: number): string {
+  const td = rctx.textDefaults;
+  if (td) {
+    const color =
+      td.levels[level]?.defaultCharacterProperties?.color ??
+      td.defPPr?.defaultCharacterProperties?.color;
+    if (color) return colorToRgba(color);
+  }
+  return resolveDefaultTextColor(rctx);
 }
 
 // ---------------------------------------------------------------------------
@@ -293,12 +358,14 @@ function wrapParagraph(
     return isFirstLine ? availableWidth - bulletWidth : availableWidth;
   }
 
+  const paragraphLevel = paragraph.properties.level ?? 0;
+
   for (const run of paragraph.runs) {
     if (run.kind === 'lineBreak') {
       // Force a line break. If we have no fragments, push an empty line
       // with the height of the line break's font.
       if (currentFragments.length === 0) {
-        const fontSizePt = resolveFontSizePt(run.properties, fontScale);
+        const fontSizePt = resolveFontSizePt(run.properties, fontScale, rctx, paragraphLevel);
         const lineSpacingPct = resolveLineSpacingPct(
           paragraph.properties.lineSpacing,
           lnSpcReduction
@@ -321,11 +388,17 @@ function wrapParagraph(
     }
 
     // run.kind === 'run'
-    const fontString = buildFontString(run.properties, resolveFont, fontScale);
-    const fontSizePt = resolveFontSizePt(run.properties, fontScale);
+    const fontString = buildFontString(
+      run.properties,
+      resolveFont,
+      fontScale,
+      rctx,
+      paragraphLevel
+    );
+    const fontSizePt = resolveFontSizePt(run.properties, fontScale, rctx, paragraphLevel);
     const fillStyle = run.properties.color
       ? colorToRgba(run.properties.color)
-      : resolveDefaultTextColor(rctx);
+      : resolveInheritedTextColor(rctx, paragraphLevel);
 
     const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing, lnSpcReduction);
     const fragmentHeightPx =
@@ -369,7 +442,7 @@ function wrapParagraph(
   // If there are no lines at all (empty paragraph), create a single
   // empty line with the default font height.
   if (lines.length === 0) {
-    const fontSizePt = getParagraphFontSizePt(paragraph, fontScale);
+    const fontSizePt = getParagraphFontSizePt(paragraph, fontScale, rctx);
     const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing, lnSpcReduction);
     const heightPx =
       lineSpacingPct >= 0
@@ -387,6 +460,97 @@ function wrapParagraph(
 }
 
 // ---------------------------------------------------------------------------
+// Auto-numbering helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert a 1-based index to a Roman numeral string.
+ * Handles values 1-3999.
+ */
+export function toRoman(n: number): string {
+  if (n < 1 || n > 3999) return String(n);
+  const lookup: [number, string][] = [
+    [1000, 'm'],
+    [900, 'cm'],
+    [500, 'd'],
+    [400, 'cd'],
+    [100, 'c'],
+    [90, 'xc'],
+    [50, 'l'],
+    [40, 'xl'],
+    [10, 'x'],
+    [9, 'ix'],
+    [5, 'v'],
+    [4, 'iv'],
+    [1, 'i'],
+  ];
+  let result = '';
+  let remaining = n;
+  for (const [value, numeral] of lookup) {
+    while (remaining >= value) {
+      result += numeral;
+      remaining -= value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Convert a 1-based index to an alphabetic label.
+ * 1→a, 2→b, ..., 26→z, 27→aa, 28→ab, etc.
+ */
+export function toAlpha(n: number): string {
+  if (n < 1) return String(n);
+  let result = '';
+  let remaining = n;
+  while (remaining > 0) {
+    remaining--; // Make 0-based
+    result = String.fromCharCode(97 + (remaining % 26)) + result;
+    remaining = Math.floor(remaining / 26);
+  }
+  return result;
+}
+
+/**
+ * Format an auto-number bullet based on the OOXML auto-numbering type.
+ *
+ * @param type  - The autoNumType from BulletPropertiesIR (e.g. 'arabicPeriod').
+ * @param index - The 1-based numbering index for this paragraph.
+ */
+export function formatAutoNumber(type: string | undefined, index: number): string {
+  switch (type) {
+    case 'arabicPeriod':
+      return `${index}.`;
+    case 'arabicParenR':
+      return `${index})`;
+    case 'arabicParenBoth':
+      return `(${index})`;
+    case 'romanUcPeriod':
+      return `${toRoman(index).toUpperCase()}.`;
+    case 'romanLcPeriod':
+      return `${toRoman(index)}.`;
+    case 'romanUcParenR':
+      return `${toRoman(index).toUpperCase()})`;
+    case 'romanLcParenR':
+      return `${toRoman(index)})`;
+    case 'alphaUcPeriod':
+      return `${toAlpha(index).toUpperCase()}.`;
+    case 'alphaLcPeriod':
+      return `${toAlpha(index)}.`;
+    case 'alphaLcParenR':
+      return `${toAlpha(index)})`;
+    case 'alphaUcParenR':
+      return `${toAlpha(index).toUpperCase()})`;
+    case 'alphaLcParenBoth':
+      return `(${toAlpha(index)})`;
+    case 'alphaUcParenBoth':
+      return `(${toAlpha(index).toUpperCase()})`;
+    default:
+      return `${index}.`;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Bullet rendering
 // ---------------------------------------------------------------------------
 
@@ -394,12 +558,14 @@ function wrapParagraph(
  * Measure the bullet for a paragraph and return its width in canvas pixels.
  * Returns 0 if the paragraph has no bullet.
  *
- * @param fontScale - Optional font scale from normAutofit (percentage).
+ * @param fontScale    - Optional font scale from normAutofit (percentage).
+ * @param autoNumIndex - The computed 1-based index for autoNum bullets.
  */
 function measureBullet(
   paragraph: ParagraphIR,
   rctx: RenderContext,
-  fontScale?: number
+  fontScale?: number,
+  autoNumIndex?: number
 ): { text: string; fontString: string; fillStyle: string; widthPx: number } | null {
   const bullet = paragraph.bulletProperties;
   if (!bullet || bullet.type === 'none') return null;
@@ -408,13 +574,12 @@ function measureBullet(
   if (bullet.type === 'char' && bullet.char) {
     bulletChar = bullet.char;
   } else if (bullet.type === 'autoNum') {
-    // Simplified: render "1." for auto-numbering.
-    bulletChar = '1.';
+    bulletChar = formatAutoNumber(bullet.autoNumType, autoNumIndex ?? 1);
   } else {
     return null;
   }
 
-  const paragraphFontSizePt = getParagraphFontSizePt(paragraph, fontScale);
+  const paragraphFontSizePt = getParagraphFontSizePt(paragraph, fontScale, rctx);
   const sizePercent = bullet.sizePercent ?? 100;
   const bulletFontSizePt = paragraphFontSizePt * (sizePercent / 100);
 
@@ -422,7 +587,10 @@ function measureBullet(
   const resolved = rctx.resolveFont(fontFamily);
   const fontString = `${bulletFontSizePt}pt "${resolved}"`;
 
-  const fillStyle = bullet.color ? colorToRgba(bullet.color) : resolveDefaultTextColor(rctx);
+  const bulletLevel = paragraph.properties.level ?? 0;
+  const fillStyle = bullet.color
+    ? colorToRgba(bullet.color)
+    : resolveInheritedTextColor(rctx, bulletLevel);
 
   const textWithGap = bulletChar + ' ';
   const widthPx = measureFragment(rctx.ctx, textWithGap, fontString);
@@ -521,9 +689,15 @@ export function renderTextBody(
   const paragraphLayouts: ParagraphLayout[] = [];
   let totalHeight = 0;
 
+  // Track auto-numbering counters per indent level.
+  // When a numbered paragraph appears, increment its level's counter.
+  // When a non-numbered paragraph or a shallower level appears, reset
+  // deeper-level counters so that nested lists restart correctly.
+  const autoNumCounters = new Map<number, number>(); // level → current count
+
   for (let pi = 0; pi < textBody.paragraphs.length; pi++) {
     const paragraph = textBody.paragraphs[pi];
-    const fontSizePt = getParagraphFontSizePt(paragraph, fontScale);
+    const fontSizePt = getParagraphFontSizePt(paragraph, fontScale, rctx);
 
     const spaceBeforePx = resolveSpacingPx(paragraph.properties.spaceBefore, fontSizePt, dpiScale);
     const spaceAfterPx = resolveSpacingPx(paragraph.properties.spaceAfter, fontSizePt, dpiScale);
@@ -535,7 +709,38 @@ export function renderTextBody(
       ? emuToScaledPx(paragraph.properties.indent, rctx)
       : 0;
 
-    const bullet = measureBullet(paragraph, rctx, fontScale);
+    // Compute auto-number index if this paragraph uses autoNum bullets.
+    let autoNumIndex: number | undefined;
+    const bulletProps = paragraph.bulletProperties;
+    if (bulletProps?.type === 'autoNum') {
+      const level = paragraph.properties.level ?? 0;
+      // Reset counters for any deeper levels.
+      for (const key of autoNumCounters.keys()) {
+        if (key > level) {
+          autoNumCounters.delete(key);
+        }
+      }
+      const startAt = bulletProps.startAt ?? 1;
+      const current = autoNumCounters.get(level);
+      if (current == null) {
+        // First numbered paragraph at this level — start at startAt.
+        autoNumIndex = startAt;
+      } else {
+        autoNumIndex = current + 1;
+      }
+      autoNumCounters.set(level, autoNumIndex);
+    } else {
+      // Non-numbered paragraph: reset counters at this level and deeper
+      // so that numbering restarts if it resumes later.
+      const level = paragraph.properties.level ?? 0;
+      for (const key of autoNumCounters.keys()) {
+        if (key >= level) {
+          autoNumCounters.delete(key);
+        }
+      }
+    }
+
+    const bullet = measureBullet(paragraph, rctx, fontScale, autoNumIndex);
     const bulletWidth = bullet ? bullet.widthPx : 0;
 
     const availableWidth = shouldWrap ? textAreaWidth - marginLeftPx : Infinity;

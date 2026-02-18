@@ -18,7 +18,7 @@ import type {
   SpacingIR,
   BulletPropertiesIR,
 } from '../../../ir/index.js';
-import { renderTextBody } from '../text-renderer.js';
+import { renderTextBody, toRoman, toAlpha, formatAutoNumber } from '../text-renderer.js';
 import { createMockRenderContext } from './mock-canvas.js';
 
 // ---------------------------------------------------------------------------
@@ -669,5 +669,278 @@ describe('renderTextBody', () => {
 
     // With line spacing reduction, lines should be closer together.
     expect(reducedGap).toBeLessThan(normalGap);
+  });
+
+  // -------------------------------------------------------------------------
+  // Auto-numbering
+  // -------------------------------------------------------------------------
+
+  it('renders auto-numbered bullets with sequential indices', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([
+      makeParagraph([makeRun('First')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'arabicPeriod' },
+      }),
+      makeParagraph([makeRun('Second')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'arabicPeriod' },
+      }),
+      makeParagraph([makeRun('Third')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'arabicPeriod' },
+      }),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const bulletTexts = fillTexts.map((c) => c.args[0] as string).filter((t) => /^\d+\.\s/.test(t));
+
+    expect(bulletTexts).toEqual(['1. ', '2. ', '3. ']);
+  });
+
+  it('respects startAt for auto-numbered bullets', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([
+      makeParagraph([makeRun('A')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'arabicPeriod', startAt: 5 },
+      }),
+      makeParagraph([makeRun('B')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'arabicPeriod' },
+      }),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const bulletTexts = fillTexts.map((c) => c.args[0] as string).filter((t) => /^\d+\.\s/.test(t));
+
+    expect(bulletTexts).toEqual(['5. ', '6. ']);
+  });
+
+  it('resets auto-number counters when a non-numbered paragraph intervenes', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([
+      makeParagraph([makeRun('One')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'arabicPeriod' },
+      }),
+      makeParagraph([makeRun('Two')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'arabicPeriod' },
+      }),
+      // Non-numbered paragraph breaks the sequence.
+      makeParagraph([makeRun('Break')]),
+      makeParagraph([makeRun('Restart')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'arabicPeriod' },
+      }),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const bulletTexts = fillTexts.map((c) => c.args[0] as string).filter((t) => /^\d+\.\s/.test(t));
+
+    // After the break, numbering restarts from 1.
+    expect(bulletTexts).toEqual(['1. ', '2. ', '1. ']);
+  });
+
+  it('tracks auto-number counters independently per level', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([
+      makeParagraph([makeRun('L0-1')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'arabicPeriod' },
+      }),
+      makeParagraph([makeRun('L1-1')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'arabicPeriod' },
+      }),
+      makeParagraph([makeRun('L0-2')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'arabicPeriod' },
+      }),
+    ]);
+    // Set levels: first and third at level 0, second at level 1.
+    body.paragraphs[0].properties.level = 0;
+    body.paragraphs[1].properties.level = 1;
+    body.paragraphs[2].properties.level = 0;
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const bulletTexts = fillTexts.map((c) => c.args[0] as string).filter((t) => /^\d+\.\s/.test(t));
+
+    // Level 0: 1, 2. Level 1: 1 (resets because level 0 paragraph resets deeper).
+    expect(bulletTexts).toEqual(['1. ', '1. ', '2. ']);
+  });
+
+  it('renders roman numeral auto-numbers', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([
+      makeParagraph([makeRun('A')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'romanUcPeriod' },
+      }),
+      makeParagraph([makeRun('B')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'romanUcPeriod' },
+      }),
+      makeParagraph([makeRun('C')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'romanUcPeriod' },
+      }),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const bulletTexts = fillTexts
+      .map((c) => c.args[0] as string)
+      .filter((t) => /^[IVXLCDM]+\.\s/.test(t));
+
+    expect(bulletTexts).toEqual(['I. ', 'II. ', 'III. ']);
+  });
+
+  it('renders alpha auto-numbers', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([
+      makeParagraph([makeRun('X')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'alphaLcPeriod' },
+      }),
+      makeParagraph([makeRun('Y')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'alphaLcPeriod' },
+      }),
+      makeParagraph([makeRun('Z')], 'left', {
+        bulletProperties: { type: 'autoNum', autoNumType: 'alphaLcPeriod' },
+      }),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const bulletTexts = fillTexts
+      .map((c) => c.args[0] as string)
+      .filter((t) => /^[a-z]+\.\s/.test(t));
+
+    expect(bulletTexts).toEqual(['a. ', 'b. ', 'c. ']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Auto-numbering helper unit tests
+// ---------------------------------------------------------------------------
+
+describe('toRoman', () => {
+  it('converts basic values', () => {
+    expect(toRoman(1)).toBe('i');
+    expect(toRoman(4)).toBe('iv');
+    expect(toRoman(5)).toBe('v');
+    expect(toRoman(9)).toBe('ix');
+    expect(toRoman(10)).toBe('x');
+    expect(toRoman(14)).toBe('xiv');
+    expect(toRoman(40)).toBe('xl');
+    expect(toRoman(50)).toBe('l');
+    expect(toRoman(90)).toBe('xc');
+    expect(toRoman(100)).toBe('c');
+    expect(toRoman(400)).toBe('cd');
+    expect(toRoman(500)).toBe('d');
+    expect(toRoman(900)).toBe('cm');
+    expect(toRoman(1000)).toBe('m');
+  });
+
+  it('converts complex values', () => {
+    expect(toRoman(3)).toBe('iii');
+    expect(toRoman(58)).toBe('lviii');
+    expect(toRoman(1994)).toBe('mcmxciv');
+    expect(toRoman(3999)).toBe('mmmcmxcix');
+  });
+
+  it('returns string representation for out-of-range values', () => {
+    expect(toRoman(0)).toBe('0');
+    expect(toRoman(-1)).toBe('-1');
+    expect(toRoman(4000)).toBe('4000');
+  });
+});
+
+describe('toAlpha', () => {
+  it('converts single-letter values', () => {
+    expect(toAlpha(1)).toBe('a');
+    expect(toAlpha(2)).toBe('b');
+    expect(toAlpha(26)).toBe('z');
+  });
+
+  it('converts multi-letter values', () => {
+    expect(toAlpha(27)).toBe('aa');
+    expect(toAlpha(28)).toBe('ab');
+    expect(toAlpha(52)).toBe('az');
+    expect(toAlpha(53)).toBe('ba');
+    expect(toAlpha(702)).toBe('zz');
+    expect(toAlpha(703)).toBe('aaa');
+  });
+
+  it('returns string representation for values < 1', () => {
+    expect(toAlpha(0)).toBe('0');
+    expect(toAlpha(-1)).toBe('-1');
+  });
+});
+
+describe('formatAutoNumber', () => {
+  it('formats arabicPeriod', () => {
+    expect(formatAutoNumber('arabicPeriod', 1)).toBe('1.');
+    expect(formatAutoNumber('arabicPeriod', 10)).toBe('10.');
+  });
+
+  it('formats arabicParenR', () => {
+    expect(formatAutoNumber('arabicParenR', 1)).toBe('1)');
+    expect(formatAutoNumber('arabicParenR', 5)).toBe('5)');
+  });
+
+  it('formats arabicParenBoth', () => {
+    expect(formatAutoNumber('arabicParenBoth', 3)).toBe('(3)');
+  });
+
+  it('formats romanUcPeriod', () => {
+    expect(formatAutoNumber('romanUcPeriod', 1)).toBe('I.');
+    expect(formatAutoNumber('romanUcPeriod', 4)).toBe('IV.');
+    expect(formatAutoNumber('romanUcPeriod', 14)).toBe('XIV.');
+  });
+
+  it('formats romanLcPeriod', () => {
+    expect(formatAutoNumber('romanLcPeriod', 1)).toBe('i.');
+    expect(formatAutoNumber('romanLcPeriod', 4)).toBe('iv.');
+  });
+
+  it('formats romanUcParenR', () => {
+    expect(formatAutoNumber('romanUcParenR', 3)).toBe('III)');
+  });
+
+  it('formats romanLcParenR', () => {
+    expect(formatAutoNumber('romanLcParenR', 3)).toBe('iii)');
+  });
+
+  it('formats alphaUcPeriod', () => {
+    expect(formatAutoNumber('alphaUcPeriod', 1)).toBe('A.');
+    expect(formatAutoNumber('alphaUcPeriod', 26)).toBe('Z.');
+  });
+
+  it('formats alphaLcPeriod', () => {
+    expect(formatAutoNumber('alphaLcPeriod', 1)).toBe('a.');
+    expect(formatAutoNumber('alphaLcPeriod', 3)).toBe('c.');
+  });
+
+  it('formats alphaLcParenR', () => {
+    expect(formatAutoNumber('alphaLcParenR', 1)).toBe('a)');
+  });
+
+  it('formats alphaUcParenR', () => {
+    expect(formatAutoNumber('alphaUcParenR', 2)).toBe('B)');
+  });
+
+  it('formats alphaLcParenBoth', () => {
+    expect(formatAutoNumber('alphaLcParenBoth', 3)).toBe('(c)');
+  });
+
+  it('formats alphaUcParenBoth', () => {
+    expect(formatAutoNumber('alphaUcParenBoth', 3)).toBe('(C)');
+  });
+
+  it('defaults to arabicPeriod for undefined type', () => {
+    expect(formatAutoNumber(undefined, 1)).toBe('1.');
+    expect(formatAutoNumber(undefined, 7)).toBe('7.');
+  });
+
+  it('defaults to arabicPeriod for unknown type', () => {
+    expect(formatAutoNumber('unknownType', 5)).toBe('5.');
   });
 });

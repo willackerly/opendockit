@@ -8,7 +8,7 @@
  * Reference: ECMA-376 5th Edition, Part 1 ss 13 (PresentationML)
  */
 
-import type { ThemeIR, SlideElementIR, FillIR } from '@opendockit/core';
+import type { ThemeIR, SlideElementIR, FillIR, ListStyleIR } from '@opendockit/core';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Presentation
@@ -56,6 +56,12 @@ export interface SlideMasterIR {
   background?: BackgroundIR;
   /** Color map that maps scheme roles to theme color slots. */
   colorMap: ColorMapOverride;
+  /** Text styles for placeholder text defaults (titleStyle, bodyStyle, otherStyle). */
+  txStyles?: {
+    titleStyle?: ListStyleIR;
+    bodyStyle?: ListStyleIR;
+    otherStyle?: ListStyleIR;
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -74,6 +80,8 @@ export interface SlideLayoutIR {
   masterPartUri: string;
   /** Color map override (overrides master if present). */
   colorMap?: ColorMapOverride;
+  /** Whether to show master shapes on this layout (defaults to true if absent). */
+  showMasterSp?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

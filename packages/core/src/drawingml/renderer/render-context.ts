@@ -6,7 +6,7 @@
  * threaded through every renderer call to avoid global state.
  */
 
-import type { SlideElementIR, ThemeIR } from '../../ir/index.js';
+import type { SlideElementIR, ThemeIR, ListStyleIR } from '../../ir/index.js';
 import type { MediaCache } from '../../media/index.js';
 import { emuToPx } from '../../units/index.js';
 
@@ -52,6 +52,14 @@ export interface RenderContext {
    * when no explicit color is specified on a run.
    */
   colorMap?: Record<string, string>;
+  /**
+   * Merged text style defaults for the current shape.
+   *
+   * Built from shape lstStyle → layout lstStyle → master txStyles chain.
+   * Used by text renderers to resolve inherited color/font/size/bullet
+   * when paragraphs lack explicit properties.
+   */
+  textDefaults?: ListStyleIR;
 }
 
 /**

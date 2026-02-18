@@ -14,10 +14,137 @@
  */
 
 import type { EnrichedSlideData } from '../model/index.js';
-import type { SlideElementIR } from '@opendockit/core';
+import type { SlideElementIR, ListStyleIR, ListStyleLevelIR } from '@opendockit/core';
 import type { RenderContext } from '@opendockit/core/drawingml/renderer';
 import { renderSlideElement } from '@opendockit/core/drawingml/renderer';
 import { renderBackground } from './background-renderer.js';
+
+// ---------------------------------------------------------------------------
+// Text style inheritance helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Map a placeholder type to the corresponding master txStyles category.
+ *
+ * ECMA-376 ss 19.3.1.29 (p:txStyles):
+ * - titleStyle applies to title / center-title / subtitle placeholders
+ * - bodyStyle applies to body / object / table / chart / media / clipArt placeholders
+ * - otherStyle applies to everything else (slide number, date, footer, generic shapes)
+ */
+function getTextStyleCategory(
+  placeholderType: string | undefined
+): 'titleStyle' | 'bodyStyle' | 'otherStyle' {
+  switch (placeholderType) {
+    case 'title':
+    case 'ctrTitle':
+    case 'subTitle':
+      return 'titleStyle';
+    case 'body':
+    case 'obj':
+    case 'tbl':
+    case 'chart':
+    case 'media':
+    case 'clipArt':
+      return 'bodyStyle';
+    default:
+      return 'otherStyle';
+  }
+}
+
+/**
+ * Merge two ListStyleLevelIR objects — higher-priority properties override lower.
+ */
+function mergeListStyleLevel(
+  higher: ListStyleLevelIR | undefined,
+  lower: ListStyleLevelIR | undefined
+): ListStyleLevelIR | undefined {
+  if (!higher && !lower) return undefined;
+  return {
+    defaultCharacterProperties: {
+      ...lower?.defaultCharacterProperties,
+      ...higher?.defaultCharacterProperties,
+    },
+    paragraphProperties: {
+      ...lower?.paragraphProperties,
+      ...higher?.paragraphProperties,
+    },
+    bulletProperties: higher?.bulletProperties ?? lower?.bulletProperties,
+  };
+}
+
+/**
+ * Merge two ListStyleIR objects — higher-priority levels override lower.
+ *
+ * Used to combine a shape's own lstStyle (from its text body) with the
+ * master txStyles category so that explicit shape-level overrides win
+ * while master defaults fill in the gaps.
+ */
+function mergeListStyles(
+  higher: ListStyleIR | undefined,
+  lower: ListStyleIR | undefined
+): ListStyleIR | undefined {
+  if (!higher && !lower) return undefined;
+  if (!higher) return lower;
+  if (!lower) return higher;
+
+  const levels: Record<number, ListStyleLevelIR> = {};
+  const allKeys = new Set([
+    ...Object.keys(lower.levels).map(Number),
+    ...Object.keys(higher.levels).map(Number),
+  ]);
+  for (const key of allKeys) {
+    const merged = mergeListStyleLevel(higher.levels[key], lower.levels[key]);
+    if (merged) levels[key] = merged;
+  }
+
+  return {
+    defPPr: mergeListStyleLevel(higher.defPPr, lower.defPPr),
+    levels,
+  };
+}
+
+/**
+ * Build merged text defaults for a slide element.
+ *
+ * Resolution order (highest → lowest priority):
+ * 1. Shape's own lstStyle (from a:lstStyle in the text body)
+ * 2. Master txStyles category (titleStyle / bodyStyle / otherStyle)
+ *
+ * Returns undefined for non-shape elements or when no defaults exist.
+ */
+function buildTextDefaults(
+  element: SlideElementIR,
+  data: EnrichedSlideData
+): ListStyleIR | undefined {
+  if (element.kind !== 'shape') return undefined;
+  const { master } = data;
+
+  // Determine which master txStyle category applies
+  const category = getTextStyleCategory(element.placeholderType);
+  const masterStyle = master.txStyles?.[category];
+
+  // The shape's own lstStyle (from its text body) takes priority over master txStyles
+  const shapeLstStyle = element.textBody?.listStyle;
+
+  return mergeListStyles(shapeLstStyle, masterStyle);
+}
+
+/**
+ * Render a slide element with inherited text defaults set on the context.
+ *
+ * Temporarily sets rctx.textDefaults from the element's merged list style
+ * chain, renders the element, then restores the previous value.
+ */
+function renderElementWithDefaults(
+  element: SlideElementIR,
+  data: EnrichedSlideData,
+  rctx: RenderContext
+): void {
+  const prevDefaults = rctx.textDefaults;
+  rctx.textDefaults = buildTextDefaults(element, data);
+  renderSlideElement(element, rctx);
+  rctx.textDefaults = prevDefaults;
+}
 
 // ---------------------------------------------------------------------------
 // Placeholder filtering
@@ -96,22 +223,25 @@ export function renderSlide(
   const slidePlaceholders = collectPlaceholderKeys(slide.elements);
   const layoutPlaceholders = collectPlaceholderKeys(layout.elements);
 
-  // 2. Master elements — skip placeholders claimed by layout or slide
-  for (const element of master.elements) {
-    const key = getPlaceholderKey(element);
-    if (key && (layoutPlaceholders.has(key) || slidePlaceholders.has(key))) continue;
-    renderSlideElement(element, rctx);
+  // 2. Master elements — skip if layout says showMasterSp=false
+  const showMaster = layout.showMasterSp !== false; // default true
+  if (showMaster) {
+    for (const element of master.elements) {
+      const key = getPlaceholderKey(element);
+      if (key && (layoutPlaceholders.has(key) || slidePlaceholders.has(key))) continue;
+      renderElementWithDefaults(element, data, rctx);
+    }
   }
 
   // 3. Layout elements — skip placeholders claimed by slide
   for (const element of layout.elements) {
     const key = getPlaceholderKey(element);
     if (key && slidePlaceholders.has(key)) continue;
-    renderSlideElement(element, rctx);
+    renderElementWithDefaults(element, data, rctx);
   }
 
   // 4. Slide elements (front-most layer — always rendered)
   for (const element of slide.elements) {
-    renderSlideElement(element, rctx);
+    renderElementWithDefaults(element, data, rctx);
   }
 }
