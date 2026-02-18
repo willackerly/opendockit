@@ -8,6 +8,7 @@ export type {
   SlideMasterIR,
   SlideLayoutIR,
   SlideIR,
+  EnrichedSlideData,
   BackgroundIR,
   ColorMapOverride,
 } from './presentation-ir.js';

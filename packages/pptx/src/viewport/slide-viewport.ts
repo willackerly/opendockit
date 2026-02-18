@@ -28,9 +28,18 @@ import type { RenderContext, DynamicRenderer } from '@opendockit/core/drawingml/
 import { CapabilityRegistry } from '@opendockit/core/capability';
 import { WasmModuleLoader } from '@opendockit/core/wasm';
 import { emuToPx } from '@opendockit/core';
-import type { PresentationIR, SlideIR } from '../model/index.js';
+import type {
+  PresentationIR,
+  SlideIR,
+  SlideLayoutIR,
+  SlideMasterIR,
+  EnrichedSlideData,
+  ColorMapOverride,
+} from '../model/index.js';
 import { parsePresentation } from '../parser/presentation.js';
 import { parseSlide } from '../parser/slide.js';
+import { parseSlideLayout } from '../parser/slide-layout.js';
+import { parseSlideMaster } from '../parser/slide-master.js';
 import { renderSlide } from '../renderer/index.js';
 
 // ---------------------------------------------------------------------------
@@ -104,7 +113,9 @@ export class SlideKit {
 
   private _pkg: OpcPackage | undefined;
   private _presentation: PresentationIR | undefined;
-  private _slideCache: Map<number, SlideIR> = new Map();
+  private _slideCache: Map<number, EnrichedSlideData> = new Map();
+  private _layoutCache: Map<string, SlideLayoutIR> = new Map();
+  private _masterCache: Map<string, SlideMasterIR> = new Map();
   private _mediaCache: MediaCache = new MediaCache();
   private _currentSlide = 0;
   private _disposed = false;
@@ -169,6 +180,8 @@ export class SlideKit {
 
     // Reset state
     this._slideCache.clear();
+    this._layoutCache.clear();
+    this._masterCache.clear();
     this._currentSlide = 0;
 
     return {
@@ -200,7 +213,7 @@ export class SlideKit {
 
     // Parse slide if not cached
     this._emitProgress('rendering', 0, 2, `Parsing slide ${index + 1}`);
-    const slide = await this._getOrParseSlide(index);
+    const enriched = await this._getOrParseSlide(index);
     this._emitProgress('rendering', 1, 2, `Rendering slide ${index + 1}`);
 
     // Get or create canvas and context
@@ -214,6 +227,13 @@ export class SlideKit {
     // Size the canvas for DPI scaling
     this._sizeCanvas(slideWidthPx, slideHeightPx);
 
+    // Build merged color map: master → layout → slide (later overrides earlier).
+    const colorMap: ColorMapOverride = {
+      ...enriched.master.colorMap,
+      ...(enriched.layout.colorMap ?? {}),
+      ...(enriched.slide.colorMap ?? {}),
+    };
+
     // Build render context — include dynamic renderers for progressive fidelity.
     const rctx: RenderContext = {
       ctx,
@@ -222,14 +242,15 @@ export class SlideKit {
       mediaCache: this._mediaCache,
       resolveFont: (name: string) => this._resolveFont(name),
       dynamicRenderers: this._dynamicRenderers.size > 0 ? this._dynamicRenderers : undefined,
+      colorMap,
     };
 
     // Clear and render
     ctx.clearRect(0, 0, slideWidthPx, slideHeightPx);
-    renderSlide(slide, rctx, slideWidthPx, slideHeightPx);
+    renderSlide(enriched, rctx, slideWidthPx, slideHeightPx);
 
     // Check for deferred elements and kick off WASM loading if needed.
-    this._handleDeferredElements(slide.elements, index);
+    this._handleDeferredElements(enriched.slide.elements, index);
 
     this._emitProgress('rendering', 2, 2, 'Render complete');
   }
@@ -301,6 +322,8 @@ export class SlideKit {
 
     this._disposed = true;
     this._slideCache.clear();
+    this._layoutCache.clear();
+    this._masterCache.clear();
     this._mediaCache.clear();
     this._deferredSlides.clear();
     this._dynamicRenderers.clear();
@@ -334,9 +357,12 @@ export class SlideKit {
   }
 
   /**
-   * Get a cached slide or parse it from the OPC package.
+   * Get a cached enriched slide or parse it from the OPC package.
+   *
+   * Parses the slide, layout, and master XML (with caching for shared
+   * layouts/masters) and pre-loads media from all three layers.
    */
-  private async _getOrParseSlide(index: number): Promise<SlideIR> {
+  private async _getOrParseSlide(index: number): Promise<EnrichedSlideData> {
     const cached = this._slideCache.get(index);
     if (cached) return cached;
 
@@ -347,13 +373,80 @@ export class SlideKit {
     }
 
     const slide = await this._parseSlideXml(ref.partUri, ref.layoutPartUri, ref.masterPartUri);
+    const master = await this._getOrParseMaster(ref.masterPartUri);
+    const layout = await this._getOrParseLayout(ref.layoutPartUri, ref.masterPartUri);
 
-    // Pre-load images referenced by picture elements so the media cache
-    // is populated before the renderer tries to draw them.
-    await this._loadSlideMedia(slide.elements, ref.partUri);
+    // Pre-load images referenced by picture elements on all three layers.
+    await Promise.all([
+      this._loadSlideMedia(slide.elements, ref.partUri),
+      this._loadSlideMedia(layout.elements, ref.layoutPartUri),
+      this._loadSlideMedia(master.elements, ref.masterPartUri),
+    ]);
 
-    this._slideCache.set(index, slide);
-    return slide;
+    // Also load background images from master/layout/slide
+    await this._loadBackgroundMedia(slide.background, ref.partUri);
+    await this._loadBackgroundMedia(layout.background, ref.layoutPartUri);
+    await this._loadBackgroundMedia(master.background, ref.masterPartUri);
+
+    const enriched: EnrichedSlideData = { slide, layout, master };
+    this._slideCache.set(index, enriched);
+    return enriched;
+  }
+
+  /**
+   * Get a cached slide master or parse it from the OPC package.
+   */
+  private async _getOrParseMaster(partUri: string): Promise<SlideMasterIR> {
+    const cached = this._masterCache.get(partUri);
+    if (cached) return cached;
+
+    const pkg = this._pkg!;
+    const masterXml = await pkg.getPartXml(partUri);
+    const theme = this._presentation!.theme;
+    const master = parseSlideMaster(masterXml, partUri, theme);
+
+    this._masterCache.set(partUri, master);
+    return master;
+  }
+
+  /**
+   * Get a cached slide layout or parse it from the OPC package.
+   */
+  private async _getOrParseLayout(partUri: string, masterPartUri: string): Promise<SlideLayoutIR> {
+    const cached = this._layoutCache.get(partUri);
+    if (cached) return cached;
+
+    const pkg = this._pkg!;
+    const layoutXml = await pkg.getPartXml(partUri);
+    const theme = this._presentation!.theme;
+    const layout = parseSlideLayout(layoutXml, partUri, masterPartUri, theme);
+
+    this._layoutCache.set(partUri, layout);
+    return layout;
+  }
+
+  /**
+   * Pre-load background picture images if the background uses a blipFill.
+   */
+  private async _loadBackgroundMedia(
+    background: import('../model/index.js').BackgroundIR | undefined,
+    partUri: string
+  ): Promise<void> {
+    if (!background?.fill || background.fill.type !== 'picture') return;
+    const rId = background.fill.imagePartUri;
+    if (!rId || this._mediaCache.get(rId)) return;
+
+    const pkg = this._pkg!;
+    const rels = await pkg.getPartRelationships(partUri);
+    const rel = rels.getById(rId);
+    if (!rel || rel.targetMode === 'External') return;
+
+    try {
+      const imageBytes = await pkg.getPart(rel.target);
+      await loadAndCacheImage(rId, imageBytes, this._mediaCache);
+    } catch {
+      // Silently skip — renderer will show white fallback.
+    }
   }
 
   /**

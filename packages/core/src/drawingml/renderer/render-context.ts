@@ -42,6 +42,16 @@ export interface RenderContext {
    * without modifying the core dispatch.
    */
   dynamicRenderers?: Map<string, DynamicRenderer>;
+  /**
+   * Effective color map for the current slide.
+   *
+   * Maps scheme color roles (e.g. 'tx1', 'bg1') to theme color slots
+   * (e.g. 'dk1', 'lt1'). Merged from master → layout → slide overrides.
+   *
+   * Used by text renderers to resolve default text/background colors
+   * when no explicit color is specified on a run.
+   */
+  colorMap?: Record<string, string>;
 }
 
 /**

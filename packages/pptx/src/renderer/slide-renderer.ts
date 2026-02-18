@@ -2,8 +2,10 @@
  * Slide renderer — renders a complete PPTX slide to Canvas2D.
  *
  * Orchestrates the rendering pipeline for a single slide:
- * 1. Render background (solid, gradient, or white fallback)
- * 2. Render all slide elements in z-order (document order)
+ * 1. Render background (master → layout → slide cascade)
+ * 2. Render master elements (back-most layer)
+ * 3. Render layout elements
+ * 4. Render slide elements (front-most layer)
  *
  * Element rendering is delegated entirely to the core DrawingML
  * renderers via {@link renderSlideElement}.
@@ -11,7 +13,7 @@
  * Reference: ECMA-376 5th Edition, Part 1 ss 19.3 (PresentationML)
  */
 
-import type { SlideIR } from '../model/index.js';
+import type { EnrichedSlideData } from '../model/index.js';
 import type { RenderContext } from '@opendockit/core/drawingml/renderer';
 import { renderSlideElement } from '@opendockit/core/drawingml/renderer';
 import { renderBackground } from './background-renderer.js';
@@ -19,24 +21,37 @@ import { renderBackground } from './background-renderer.js';
 /**
  * Render a complete slide to the canvas.
  *
- * Renders the background first, then all elements in z-order
- * (document order = back-to-front).
+ * Uses the master → layout → slide cascade for backgrounds and
+ * renders shape layers in z-order (master → layout → slide).
  *
- * @param slide       - The parsed slide IR.
+ * @param data        - The enriched slide data (slide + layout + master).
  * @param rctx        - The shared render context.
  * @param slideWidth  - Slide width in pixels (already scaled for DPI).
  * @param slideHeight - Slide height in pixels (already scaled for DPI).
  */
 export function renderSlide(
-  slide: SlideIR,
+  data: EnrichedSlideData,
   rctx: RenderContext,
   slideWidth: number,
   slideHeight: number
 ): void {
-  // 1. Background
-  renderBackground(slide.background, rctx, slideWidth, slideHeight);
+  const { slide, layout, master } = data;
 
-  // 2. Elements in z-order (document order = first element is furthest back)
+  // 1. Background cascade: slide > layout > master
+  const effectiveBg = slide.background ?? layout.background ?? master.background;
+  renderBackground(effectiveBg, rctx, slideWidth, slideHeight);
+
+  // 2. Master elements (back-most layer)
+  for (const element of master.elements) {
+    renderSlideElement(element, rctx);
+  }
+
+  // 3. Layout elements
+  for (const element of layout.elements) {
+    renderSlideElement(element, rctx);
+  }
+
+  // 4. Slide elements (front-most layer)
   for (const element of slide.elements) {
     renderSlideElement(element, rctx);
   }

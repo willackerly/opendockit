@@ -6,7 +6,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { SlideIR, BackgroundIR } from '../../model/index.js';
+import type {
+  SlideIR,
+  SlideLayoutIR,
+  SlideMasterIR,
+  EnrichedSlideData,
+  BackgroundIR,
+} from '../../model/index.js';
 import type {
   DrawingMLShapeIR,
   ShapePropertiesIR,
@@ -44,6 +50,18 @@ function makeShape(overrides?: Partial<DrawingMLShapeIR>): DrawingMLShapeIR {
   };
 }
 
+const emptyMaster: SlideMasterIR = {
+  partUri: '/ppt/slideMasters/slideMaster1.xml',
+  elements: [],
+  colorMap: {},
+};
+
+const emptyLayout: SlideLayoutIR = {
+  partUri: '/ppt/slideLayouts/slideLayout1.xml',
+  elements: [],
+  masterPartUri: '/ppt/slideMasters/slideMaster1.xml',
+};
+
 function makeSlide(overrides?: Partial<SlideIR>): SlideIR {
   return {
     partUri: '/ppt/slides/slide1.xml',
@@ -51,6 +69,18 @@ function makeSlide(overrides?: Partial<SlideIR>): SlideIR {
     layoutPartUri: '/ppt/slideLayouts/slideLayout1.xml',
     masterPartUri: '/ppt/slideMasters/slideMaster1.xml',
     ...overrides,
+  };
+}
+
+function makeEnriched(
+  slideOverrides?: Partial<SlideIR>,
+  layoutOverrides?: Partial<SlideLayoutIR>,
+  masterOverrides?: Partial<SlideMasterIR>
+): EnrichedSlideData {
+  return {
+    slide: makeSlide(slideOverrides),
+    layout: { ...emptyLayout, ...layoutOverrides },
+    master: { ...emptyMaster, ...masterOverrides },
   };
 }
 
@@ -66,9 +96,9 @@ const solidBlue: SolidFillIR = {
 describe('renderSlide', () => {
   it('renders white background for empty slide with no background', () => {
     const rctx = createMockRenderContext();
-    const slide = makeSlide();
+    const data = makeEnriched();
 
-    renderSlide(slide, rctx, 960, 540);
+    renderSlide(data, rctx, 960, 540);
 
     // Should set fill to white and fill the full rectangle.
     expect(rctx.ctx.fillStyle).toBe('#FFFFFF');
@@ -79,7 +109,7 @@ describe('renderSlide', () => {
 
   it('renders background before elements', () => {
     const rctx = createMockRenderContext();
-    const slide = makeSlide({
+    const data = makeEnriched({
       background: {
         fill: { type: 'solid', color: { r: 50, g: 100, b: 150, a: 1 } },
       },
@@ -93,7 +123,7 @@ describe('renderSlide', () => {
       ],
     });
 
-    renderSlide(slide, rctx, 960, 540);
+    renderSlide(data, rctx, 960, 540);
 
     const calls = rctx.ctx._calls;
 
@@ -118,8 +148,8 @@ describe('renderSlide', () => {
       }),
     });
 
-    const slide = makeSlide({ elements: [shape1, shape2] });
-    renderSlide(slide, rctx, 960, 540);
+    const data = makeEnriched({ elements: [shape1, shape2] });
+    renderSlide(data, rctx, 960, 540);
 
     // Both shapes should be rendered: we should see two save/restore pairs
     // (one pair for each shape — the background uses fillRect directly).
@@ -131,9 +161,9 @@ describe('renderSlide', () => {
 
   it('renders empty slide with no elements', () => {
     const rctx = createMockRenderContext();
-    const slide = makeSlide({ elements: [] });
+    const data = makeEnriched({ elements: [] });
 
-    renderSlide(slide, rctx, 960, 540);
+    renderSlide(data, rctx, 960, 540);
 
     // Only background rendering: one fillRect, no save/restore.
     const calls = rctx.ctx._calls;
@@ -164,8 +194,8 @@ describe('renderSlide', () => {
       fill: { type: 'solid', color: { r: 200, g: 200, b: 200, a: 1 } },
     };
 
-    const slide = makeSlide({ elements, background: bg });
-    renderSlide(slide, rctx, 960, 540);
+    const data = makeEnriched({ elements, background: bg });
+    renderSlide(data, rctx, 960, 540);
 
     // Background + shape + unsupported placeholder all rendered.
     const fillRects = rctx.ctx._calls.filter((c) => c.method === 'fillRect');
@@ -174,11 +204,62 @@ describe('renderSlide', () => {
 
   it('uses provided slide dimensions', () => {
     const rctx = createMockRenderContext();
-    const slide = makeSlide();
+    const data = makeEnriched();
 
-    renderSlide(slide, rctx, 1920, 1080);
+    renderSlide(data, rctx, 1920, 1080);
 
     const fillRects = rctx.ctx._calls.filter((c) => c.method === 'fillRect');
     expect(fillRects[0].args).toEqual([0, 0, 1920, 1080]);
+  });
+
+  it('renders master background when slide and layout have none', () => {
+    const rctx = createMockRenderContext();
+    const data = makeEnriched(
+      {}, // slide — no background
+      {}, // layout — no background
+      {
+        background: {
+          fill: { type: 'solid', color: { r: 100, g: 0, b: 0, a: 1 } },
+        },
+      }
+    );
+
+    renderSlide(data, rctx, 960, 540);
+
+    expect(rctx.ctx.fillStyle).toBe('rgba(100, 0, 0, 1)');
+  });
+
+  it('renders master and layout elements behind slide elements', () => {
+    const rctx = createMockRenderContext();
+    const masterShape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform({ position: { x: 0, y: 0 } }),
+        fill: { type: 'solid', color: { r: 255, g: 0, b: 0, a: 1 } },
+      }),
+    });
+    const layoutShape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform({ position: { x: 100, y: 100 } }),
+        fill: { type: 'solid', color: { r: 0, g: 255, b: 0, a: 1 } },
+      }),
+    });
+    const slideShape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform({ position: { x: 200, y: 200 } }),
+        fill: solidBlue,
+      }),
+    });
+
+    const data = makeEnriched(
+      { elements: [slideShape] },
+      { elements: [layoutShape] },
+      { elements: [masterShape] }
+    );
+
+    renderSlide(data, rctx, 960, 540);
+
+    // Three shapes rendered = three save/restore pairs
+    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    expect(saveCalls).toHaveLength(3);
   });
 });

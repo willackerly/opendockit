@@ -25,6 +25,7 @@ import type {
   CharacterPropertiesIR,
   SpacingIR,
   ResolvedColor,
+  RgbaColor,
 } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
@@ -204,6 +205,45 @@ function getParagraphFontSizePt(paragraph: ParagraphIR, fontScale?: number): num
   return fontScale != null ? basePt * (fontScale / 100) : basePt;
 }
 
+/**
+ * Default color map used when no explicit color map is provided.
+ *
+ * Maps scheme color roles to theme color slots, matching the OOXML default:
+ *   bg1 → lt1, tx1 → dk1, bg2 → lt2, tx2 → dk2
+ */
+const DEFAULT_COLOR_MAP: Record<string, string> = {
+  bg1: 'lt1',
+  tx1: 'dk1',
+  bg2: 'lt2',
+  tx2: 'dk2',
+};
+
+/**
+ * Resolve the default text color from the theme via the color map.
+ *
+ * When text has no explicit color, OOXML specifies that it should use the
+ * 'tx1' role, which maps (via the slide's color map) to a theme color slot
+ * — typically 'dk1'. This ensures that text on dark backgrounds resolves
+ * to white/light colors rather than always defaulting to black.
+ *
+ * Resolution chain: tx1 → colorMap['tx1'] → theme.colorScheme[slot]
+ *
+ * Falls back to black (rgba(0, 0, 0, 1)) if the theme or color map is
+ * missing the required entries.
+ */
+function resolveDefaultTextColor(rctx: RenderContext): string {
+  const colorMap = rctx.colorMap ?? DEFAULT_COLOR_MAP;
+  const themeSlot = colorMap['tx1'] ?? 'dk1';
+  const scheme = rctx.theme?.colorScheme;
+  if (scheme) {
+    const color = (scheme as unknown as Record<string, RgbaColor | undefined>)[themeSlot];
+    if (color) {
+      return colorToRgba(color);
+    }
+  }
+  return 'rgba(0, 0, 0, 1)';
+}
+
 // ---------------------------------------------------------------------------
 // Line wrapping
 // ---------------------------------------------------------------------------
@@ -283,7 +323,9 @@ function wrapParagraph(
     // run.kind === 'run'
     const fontString = buildFontString(run.properties, resolveFont, fontScale);
     const fontSizePt = resolveFontSizePt(run.properties, fontScale);
-    const fillStyle = run.properties.color ? colorToRgba(run.properties.color) : 'rgba(0, 0, 0, 1)';
+    const fillStyle = run.properties.color
+      ? colorToRgba(run.properties.color)
+      : resolveDefaultTextColor(rctx);
 
     const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing, lnSpcReduction);
     const fragmentHeightPx =
@@ -380,7 +422,7 @@ function measureBullet(
   const resolved = rctx.resolveFont(fontFamily);
   const fontString = `${bulletFontSizePt}pt "${resolved}"`;
 
-  const fillStyle = bullet.color ? colorToRgba(bullet.color) : 'rgba(0, 0, 0, 1)';
+  const fillStyle = bullet.color ? colorToRgba(bullet.color) : resolveDefaultTextColor(rctx);
 
   const textWithGap = bulletChar + ' ';
   const widthPx = measureFragment(rctx.ctx, textWithGap, fontString);

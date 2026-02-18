@@ -171,10 +171,15 @@ const DEFAULT_LINE_WIDTH_EMU = 9525;
  * If the line has no color, the function returns without stroking to match
  * OOXML behavior where an absent line color means "no outline."
  *
+ * When a `path` (Path2D) is provided, the stroke is applied to that path
+ * instead of the current context path. This is used when shapes have
+ * preset or custom geometry that was built as a Path2D.
+ *
  * @param lineIR - The line IR to apply.
  * @param rctx   - The shared render context.
+ * @param path   - Optional Path2D to stroke instead of the current context path.
  */
-export function applyLine(lineIR: LineIR, rctx: RenderContext): void {
+export function applyLine(lineIR: LineIR, rctx: RenderContext, path?: Path2D): void {
   const { ctx } = rctx;
 
   // No color means no visible line.
@@ -203,7 +208,7 @@ export function applyLine(lineIR: LineIR, rctx: RenderContext): void {
   ctx.setLineDash(dashArray(dash, widthPx));
 
   // Stroke the path.
-  ctx.stroke();
+  path ? ctx.stroke(path) : ctx.stroke();
 }
 
 /**

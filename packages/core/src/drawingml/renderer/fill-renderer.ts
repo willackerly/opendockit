@@ -61,22 +61,28 @@ function linearGradientEndpoints(
  *
  * Sets `fillStyle` and calls `fill()`. For `NoFill`, does nothing.
  *
+ * When a `path` (Path2D) is provided, the fill is applied to that path
+ * instead of the current context path. This is used when shapes have
+ * preset or custom geometry that was built as a Path2D.
+ *
  * @param fillIR - The fill IR to apply.
  * @param rctx   - The shared render context.
  * @param bounds - The bounding rectangle of the shape being filled (in
  *                 canvas pixel coordinates, already scaled).
+ * @param path   - Optional Path2D to fill instead of the current context path.
  */
 export function applyFill(
   fillIR: FillIR,
   rctx: RenderContext,
-  bounds: { x: number; y: number; width: number; height: number }
+  bounds: { x: number; y: number; width: number; height: number },
+  path?: Path2D
 ): void {
   const { ctx } = rctx;
 
   switch (fillIR.type) {
     case 'solid': {
       ctx.fillStyle = colorToRgba(fillIR.color);
-      ctx.fill();
+      path ? ctx.fill(path) : ctx.fill();
       break;
     }
 
@@ -100,7 +106,7 @@ export function applyFill(
       }
 
       ctx.fillStyle = gradient;
-      ctx.fill();
+      path ? ctx.fill(path) : ctx.fill();
       break;
     }
 
@@ -108,7 +114,7 @@ export function applyFill(
       // Simplified: fill with the foreground color. Full pattern rendering
       // (creating pattern canvases for each preset) is deferred.
       ctx.fillStyle = colorToRgba(fillIR.foreground);
-      ctx.fill();
+      path ? ctx.fill(path) : ctx.fill();
       break;
     }
 

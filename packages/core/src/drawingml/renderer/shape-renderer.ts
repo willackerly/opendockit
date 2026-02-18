@@ -27,6 +27,7 @@ import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
 import { applyFill } from './fill-renderer.js';
 import { applyLine } from './line-renderer.js';
+import { buildPresetPath, buildCustomPath } from '../geometry/path-builder.js';
 import { applyEffects } from './effect-renderer.js';
 import { renderTextBody } from './text-renderer.js';
 import { renderPicture } from './picture-renderer.js';
@@ -252,19 +253,34 @@ export function renderShape(shape: DrawingMLShapeIR, rctx: RenderContext): void 
   const effectCleanup = applyEffects(effectiveEffects, rctx, bounds);
 
   // -- Geometry path --
-  // If a path builder is available for preset geometries, use it.
-  // Otherwise, fall back to a simple rectangle path.
-  ctx.beginPath();
-  ctx.rect(0, 0, w, h);
+  // Build a Path2D from preset or custom geometry definitions.
+  // Falls back to a simple rectangle when no geometry is defined or
+  // when the path builder returns null (e.g. in Node.js without Path2D).
+  const geo = shape.properties.geometry;
+  let geometryPath: Path2D | null = null;
+
+  if (geo) {
+    if (geo.kind === 'preset') {
+      geometryPath = buildPresetPath(geo.name, w, h, geo.adjustValues);
+    } else if (geo.kind === 'custom') {
+      geometryPath = buildCustomPath(geo, w, h);
+    }
+  }
+
+  if (!geometryPath) {
+    // Fallback: define a simple rectangle as the current context path.
+    ctx.beginPath();
+    ctx.rect(0, 0, w, h);
+  }
 
   // -- Fill --
   if (effectiveFill) {
-    applyFill(effectiveFill, rctx, bounds);
+    applyFill(effectiveFill, rctx, bounds, geometryPath ?? undefined);
   }
 
   // -- Line/Stroke --
   if (effectiveLine) {
-    applyLine(effectiveLine, rctx);
+    applyLine(effectiveLine, rctx, geometryPath ?? undefined);
   }
 
   // -- Effect cleanup --

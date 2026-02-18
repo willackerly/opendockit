@@ -63,6 +63,17 @@ function parseBgFill(bgPr: XmlElement, theme: ThemeIR): FillIR | undefined {
     return parseGradientBgFill(gradFill, theme);
   }
 
+  const blipFill = bgPr.child('a:blipFill');
+  if (blipFill) {
+    const blip = blipFill.child('a:blip');
+    if (blip) {
+      const rEmbed = blip.attr('r:embed');
+      if (rEmbed) {
+        return { type: 'picture', imagePartUri: rEmbed } as FillIR;
+      }
+    }
+  }
+
   return undefined;
 }
 

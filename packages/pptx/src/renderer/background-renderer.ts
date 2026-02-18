@@ -126,11 +126,14 @@ export function renderBackground(
     }
 
     case 'picture': {
-      // Picture background fills require async image loading.
-      // Fall back to white for now; the viewport layer will handle
-      // pre-loading images and re-rendering when they become available.
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, width, height);
+      const image = rctx.mediaCache.get(fill.imagePartUri);
+      if (image && !(image instanceof Uint8Array)) {
+        ctx.drawImage(image, 0, 0, width, height);
+      } else {
+        // Image not yet loaded or raw bytes — white fallback
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+      }
       break;
     }
   }

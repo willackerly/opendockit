@@ -99,6 +99,17 @@ export interface SlideIR {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Enriched Slide (slide + layout + master chain)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** A slide bundled with its layout and master chain, ready for rendering. */
+export interface EnrichedSlideData {
+  slide: SlideIR;
+  layout: SlideLayoutIR;
+  master: SlideMasterIR;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Background
 // ═══════════════════════════════════════════════════════════════════════════
 
