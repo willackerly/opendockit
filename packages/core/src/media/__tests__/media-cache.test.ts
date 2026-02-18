@@ -212,18 +212,18 @@ describe('MediaCache LRU eviction by maxBytes', () => {
 // ---------------------------------------------------------------------------
 
 describe('MediaCache default limits', () => {
-  it('defaults to maxEntries=100 and maxBytes=50MB without options', () => {
+  it('defaults to maxEntries=1000 and maxBytes=50MB without options', () => {
     const cache = new MediaCache();
-    // We can't directly read the limits, but we can insert 100 entries
-    // without eviction, and the 101st should evict the oldest.
-    for (let i = 0; i < 100; i++) {
+    // We can't directly read the limits, but we can insert 1000 entries
+    // without eviction, and the 1001st should evict the oldest.
+    for (let i = 0; i < 1000; i++) {
       cache.set(`/img${i}`, new Uint8Array(1), 1);
     }
-    expect(cache.size).toBe(100);
+    expect(cache.size).toBe(1000);
 
-    cache.set('/img100', new Uint8Array(1), 1);
-    expect(cache.size).toBe(100);
+    cache.set('/img1000', new Uint8Array(1), 1);
+    expect(cache.size).toBe(1000);
     expect(cache.has('/img0')).toBe(false); // oldest evicted
-    expect(cache.has('/img100')).toBe(true);
+    expect(cache.has('/img1000')).toBe(true);
   });
 });

@@ -438,12 +438,28 @@ export class SlideKit {
     partUri: string
   ): Promise<void> {
     if (!background?.fill || background.fill.type !== 'picture') return;
-    const rId = background.fill.imagePartUri;
-    if (!rId) return;
+    const uri = background.fill.imagePartUri;
+    if (!uri) return;
 
     const pkg = this._pkg!;
+
+    // If already resolved to absolute OPC path (from cached layout/master),
+    // just ensure it's still in the media cache.
+    if (uri.startsWith('/')) {
+      if (!this._mediaCache.get(uri)) {
+        try {
+          const imageBytes = await pkg.getPart(uri);
+          await loadAndCacheImage(uri, imageBytes, this._mediaCache);
+        } catch {
+          // Silently skip — renderer will show white fallback.
+        }
+      }
+      return;
+    }
+
+    // Normal path: resolve raw rId to absolute OPC URI.
     const rels = await pkg.getPartRelationships(partUri);
-    const rel = rels.getById(rId);
+    const rel = rels.getById(uri);
     if (!rel || rel.targetMode === 'External') return;
 
     const resolvedUri = rel.target; // e.g. "/ppt/media/image15.png"
@@ -639,8 +655,25 @@ export class SlideKit {
     // Load all images in parallel.
     await Promise.all(
       pictureEls.map(async (el) => {
-        const rId = el.imagePartUri;
-        const rel = rels.getById(rId);
+        const uri = el.imagePartUri;
+
+        // If the URI is already an absolute OPC path (starts with "/"), it was
+        // resolved in a previous call on cached layout/master elements. Just
+        // ensure it's still in the media cache (it may have been LRU-evicted).
+        if (uri.startsWith('/')) {
+          if (!this._mediaCache.get(uri)) {
+            try {
+              const imageBytes = await pkg.getPart(uri);
+              await loadAndCacheImage(uri, imageBytes, this._mediaCache);
+            } catch {
+              // Silently skip — renderer will draw a placeholder.
+            }
+          }
+          return;
+        }
+
+        // Normal path: resolve raw rId to absolute OPC URI.
+        const rel = rels.getById(uri);
         if (!rel || rel.targetMode === 'External') return;
 
         const resolvedUri = rel.target; // e.g. "/ppt/media/image15.png"
