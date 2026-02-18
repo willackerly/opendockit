@@ -42,6 +42,10 @@
       "types": "./dist/font/index.d.ts",
       "import": "./dist/font/index.js"
     },
+    "./font/data/metrics-bundle": {
+      "types": "./dist/font/data/metrics-bundle.d.ts",
+      "import": "./dist/font/data/metrics-bundle.js"
+    },
     "./media": {
       "types": "./dist/media/index.d.ts",
       "import": "./dist/media/index.js"

@@ -8,11 +8,11 @@ import { getFontSubstitution, resolveFontName } from '../substitution-table.js';
 describe('getFontSubstitution', () => {
   // Sans-serif substitutions
   it('substitutes Calibri', () => {
-    expect(getFontSubstitution('Calibri')).toBe("'Segoe UI', Arial, sans-serif");
+    expect(getFontSubstitution('Calibri')).toBe("Carlito, 'Segoe UI', Arial, sans-serif");
   });
 
   it('substitutes Calibri Light', () => {
-    expect(getFontSubstitution('Calibri Light')).toBe("'Segoe UI Light', Arial, sans-serif");
+    expect(getFontSubstitution('Calibri Light')).toBe("Carlito, 'Segoe UI Light', Arial, sans-serif");
   });
 
   it('substitutes Segoe UI', () => {
@@ -33,11 +33,11 @@ describe('getFontSubstitution', () => {
 
   // Serif substitutions
   it('substitutes Cambria', () => {
-    expect(getFontSubstitution('Cambria')).toBe('Georgia, serif');
+    expect(getFontSubstitution('Cambria')).toBe('Caladea, Georgia, serif');
   });
 
   it('substitutes Cambria Math', () => {
-    expect(getFontSubstitution('Cambria Math')).toBe('Georgia, serif');
+    expect(getFontSubstitution('Cambria Math')).toBe('Caladea, Georgia, serif');
   });
 
   it('substitutes Book Antiqua', () => {
@@ -109,15 +109,15 @@ describe('getFontSubstitution', () => {
 
   // Case insensitivity
   it('is case-insensitive: CALIBRI', () => {
-    expect(getFontSubstitution('CALIBRI')).toBe("'Segoe UI', Arial, sans-serif");
+    expect(getFontSubstitution('CALIBRI')).toBe("Carlito, 'Segoe UI', Arial, sans-serif");
   });
 
   it('is case-insensitive: calibri', () => {
-    expect(getFontSubstitution('calibri')).toBe("'Segoe UI', Arial, sans-serif");
+    expect(getFontSubstitution('calibri')).toBe("Carlito, 'Segoe UI', Arial, sans-serif");
   });
 
   it('is case-insensitive: cAlIbRi', () => {
-    expect(getFontSubstitution('cAlIbRi')).toBe("'Segoe UI', Arial, sans-serif");
+    expect(getFontSubstitution('cAlIbRi')).toBe("Carlito, 'Segoe UI', Arial, sans-serif");
   });
 
   // Web-safe fonts need no substitution
@@ -164,7 +164,7 @@ describe('getFontSubstitution', () => {
 
   // Whitespace trimming
   it('trims whitespace from font names', () => {
-    expect(getFontSubstitution('  Calibri  ')).toBe("'Segoe UI', Arial, sans-serif");
+    expect(getFontSubstitution('  Calibri  ')).toBe("Carlito, 'Segoe UI', Arial, sans-serif");
   });
 });
 
@@ -194,11 +194,11 @@ describe('resolveFontName', () => {
   });
 
   it('returns substitution for Calibri', () => {
-    expect(resolveFontName('Calibri')).toBe("'Segoe UI', Arial, sans-serif");
+    expect(resolveFontName('Calibri')).toBe("Carlito, 'Segoe UI', Arial, sans-serif");
   });
 
   it('returns substitution for Cambria', () => {
-    expect(resolveFontName('Cambria')).toBe('Georgia, serif');
+    expect(resolveFontName('Cambria')).toBe('Caladea, Georgia, serif');
   });
 
   it('returns substitution for Consolas', () => {

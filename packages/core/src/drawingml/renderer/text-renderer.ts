@@ -213,13 +213,29 @@ function resolveLineSpacingPct(spacing: SpacingIR | undefined, lnSpcReduction?: 
 }
 
 /**
- * Measure a text fragment using the Canvas2D context.
+ * Measure a text fragment, preferring precomputed font metrics when available.
+ *
+ * When a FontMetricsDB is present on the render context and has metrics for
+ * the requested font family, uses per-character advance widths from real font
+ * files. This gives correct line-breaking even when the actual font (e.g.
+ * Calibri) is substituted with a different font for visual rendering.
+ *
+ * Falls back to Canvas2D measurement when no precomputed metrics are available.
  */
 function measureFragment(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   text: string,
-  fontString: string
+  fontString: string,
+  rctx?: RenderContext,
+  family?: string,
+  fontSizePx?: number,
+  bold?: boolean,
+  italic?: boolean
 ): number {
+  if (rctx?.fontMetricsDB && family && fontSizePx != null) {
+    const w = rctx.fontMetricsDB.measureText(text, family, fontSizePx, bold ?? false, italic ?? false);
+    if (w !== undefined) return w;
+  }
   ctx.font = fontString;
   return ctx.measureText(text).width;
 }
@@ -426,11 +442,24 @@ function wrapParagraph(
         : ptToCanvasPx(-lineSpacingPct, dpiScale);
     const ascentPx = ptToCanvasPx(fontSizePt, dpiScale);
 
+    // Resolve the original font family name (before substitution) for metrics lookup.
+    let rawFamily = run.properties.fontFamily || run.properties.latin;
+    if (!rawFamily && rctx.textDefaults) {
+      const td = rctx.textDefaults;
+      rawFamily =
+        td.levels[paragraphLevel]?.defaultCharacterProperties?.fontFamily ??
+        td.levels[paragraphLevel]?.defaultCharacterProperties?.latin ??
+        td.defPPr?.defaultCharacterProperties?.fontFamily ??
+        td.defPPr?.defaultCharacterProperties?.latin;
+    }
+    rawFamily = rawFamily || 'sans-serif';
+    const fontSizePx = ptToCanvasPx(fontSizePt, dpiScale);
+
     // Split into words, preserving spaces for accurate measurement.
     const words = run.text.split(/(?<=\s)/);
 
     for (const word of words) {
-      const wordWidth = measureFragment(ctx, word, fontString);
+      const wordWidth = measureFragment(ctx, word, fontString, rctx, rawFamily, fontSizePx, run.properties.bold, run.properties.italic);
       const lineAvail = getLineAvailableWidth();
 
       // Wrap if this word would overflow — but not if the line is empty
@@ -614,7 +643,16 @@ function measureBullet(
     : resolveInheritedTextColor(rctx, bulletLevel);
 
   const textWithGap = bulletChar + ' ';
-  const widthPx = measureFragment(rctx.ctx, textWithGap, fontString);
+  const widthPx = measureFragment(
+    rctx.ctx,
+    textWithGap,
+    fontString,
+    rctx,
+    fontFamily,
+    bulletFontSizePx,
+    false,
+    false
+  );
 
   return { text: textWithGap, fontString, fillStyle, widthPx };
 }

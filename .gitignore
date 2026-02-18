@@ -16,3 +16,6 @@ test-output/
 diff/
 actual/
 reference/
+
+# Downloaded font files (used for metrics extraction, not shipped)
+fonts/

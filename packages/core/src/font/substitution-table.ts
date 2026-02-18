@@ -17,18 +17,18 @@
  * Arial and Times New Roman are omitted.
  */
 const SUBSTITUTIONS: Record<string, string> = {
-  // Sans-serif
-  calibri: "'Segoe UI', Arial, sans-serif",
-  'calibri light': "'Segoe UI Light', Arial, sans-serif",
+  // Sans-serif — prefer metric-compatible open fonts first
+  calibri: "Carlito, 'Segoe UI', Arial, sans-serif",
+  'calibri light': "Carlito, 'Segoe UI Light', Arial, sans-serif",
   'segoe ui': 'system-ui, sans-serif',
   tahoma: 'Arial, sans-serif',
   'century gothic': "'Gill Sans', sans-serif",
   'franklin gothic': 'Arial, sans-serif',
   'franklin gothic medium': 'Arial, sans-serif',
 
-  // Serif
-  cambria: 'Georgia, serif',
-  'cambria math': 'Georgia, serif',
+  // Serif — prefer metric-compatible open fonts first
+  cambria: "Caladea, Georgia, serif",
+  'cambria math': "Caladea, Georgia, serif",
   'book antiqua': "'Palatino Linotype', Palatino, serif",
   garamond: 'Georgia, serif',
   'palatino linotype': 'Palatino, serif',

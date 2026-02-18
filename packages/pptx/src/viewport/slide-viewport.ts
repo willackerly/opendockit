@@ -28,7 +28,9 @@ import type { RenderContext, DynamicRenderer } from '@opendockit/core/drawingml/
 import { CapabilityRegistry } from '@opendockit/core/capability';
 import { WasmModuleLoader } from '@opendockit/core/wasm';
 import { emuToPx } from '@opendockit/core';
-import { resolveFontName } from '@opendockit/core/font';
+import { resolveFontName, FontMetricsDB } from '@opendockit/core/font';
+import type { FontFaceMetrics, FontMetricsBundle } from '@opendockit/core/font';
+import { metricsBundle } from '@opendockit/core/font/data/metrics-bundle';
 import type {
   PresentationIR,
   SlideIR,
@@ -109,6 +111,7 @@ export class SlideKit {
   private _canvas: HTMLCanvasElement | undefined;
   private _dpiScale: number;
   private _fontSubstitutions: Record<string, string>;
+  private _fontMetricsDB: FontMetricsDB;
   private _onProgress: ((event: SlideKitProgressEvent) => void) | undefined;
   private _onSlideInvalidated: ((slideIndices: number[]) => void) | undefined;
 
@@ -138,6 +141,10 @@ export class SlideKit {
     this._fontSubstitutions = options.fontSubstitutions ?? {};
     this._onProgress = options.onProgress;
     this._onSlideInvalidated = options.onSlideInvalidated;
+
+    // Initialize font metrics database with built-in metrics bundle.
+    this._fontMetricsDB = new FontMetricsDB();
+    this._fontMetricsDB.loadBundle(metricsBundle);
 
     // Determine DPI scale factor.
     if (options.dpiScale !== undefined) {
@@ -244,6 +251,7 @@ export class SlideKit {
       resolveFont: (name: string) => this._resolveFont(name),
       dynamicRenderers: this._dynamicRenderers.size > 0 ? this._dynamicRenderers : undefined,
       colorMap,
+      fontMetricsDB: this._fontMetricsDB,
     };
 
     // Clear and render
@@ -311,6 +319,25 @@ export class SlideKit {
    */
   registerDynamicRenderer(elementKind: string, renderer: DynamicRenderer): void {
     this._dynamicRenderers.set(elementKind, renderer);
+  }
+
+  /**
+   * Load additional font metrics for custom fonts.
+   *
+   * Use this to add metrics for fonts not included in the built-in bundle.
+   * Metrics from loaded fonts will be used for text measurement during
+   * rendering, providing accurate line-breaking even when the font is
+   * not installed on the system.
+   */
+  loadFontMetrics(metrics: FontFaceMetrics): void {
+    this._fontMetricsDB.loadFontMetrics(metrics);
+  }
+
+  /**
+   * Load an entire font metrics bundle.
+   */
+  loadFontMetricsBundle(bundle: FontMetricsBundle): void {
+    this._fontMetricsDB.loadBundle(bundle);
   }
 
   /**

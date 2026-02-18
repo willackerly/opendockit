@@ -8,6 +8,7 @@
 
 import type { SlideElementIR, ThemeIR, ListStyleIR } from '../../ir/index.js';
 import type { MediaCache } from '../../media/index.js';
+import type { FontMetricsDB } from '../../font/font-metrics-db.js';
 import { emuToPx } from '../../units/index.js';
 
 /**
@@ -60,6 +61,15 @@ export interface RenderContext {
    * when paragraphs lack explicit properties.
    */
   textDefaults?: ListStyleIR;
+  /**
+   * Precomputed font metrics database for accurate text measurement.
+   *
+   * When present, text measurement uses per-character advance widths from
+   * real font files instead of Canvas2D measurement. This gives correct
+   * line-breaking and auto-fit even when the actual font (e.g. Calibri)
+   * is substituted with a visually different font (e.g. Arial).
+   */
+  fontMetricsDB?: FontMetricsDB;
 }
 
 /**
