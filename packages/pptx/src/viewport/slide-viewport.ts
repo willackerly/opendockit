@@ -28,6 +28,7 @@ import type { RenderContext, DynamicRenderer } from '@opendockit/core/drawingml/
 import { CapabilityRegistry } from '@opendockit/core/capability';
 import { WasmModuleLoader } from '@opendockit/core/wasm';
 import { emuToPx } from '@opendockit/core';
+import { resolveFontName } from '@opendockit/core/font';
 import type {
   PresentationIR,
   SlideIR,
@@ -700,10 +701,11 @@ export class SlideKit {
   }
 
   /**
-   * Resolve a font name using substitution overrides, or return as-is.
+   * Resolve a font name using user overrides first, then the built-in
+   * substitution table for cross-platform compatibility.
    */
   private _resolveFont(fontName: string): string {
-    return this._fontSubstitutions[fontName] ?? fontName;
+    return this._fontSubstitutions[fontName] ?? resolveFontName(fontName);
   }
 
   /** Emit a progress event if a callback is registered. */
