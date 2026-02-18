@@ -20,8 +20,9 @@ const SUBSTITUTIONS: Record<string, string> = {
   // Sans-serif — prefer metric-compatible open fonts first
   calibri: "Carlito, 'Segoe UI', Arial, sans-serif",
   'calibri light': "Carlito, 'Segoe UI Light', Arial, sans-serif",
-  'segoe ui': 'system-ui, sans-serif',
+  'segoe ui': "Selawik, system-ui, sans-serif",
   tahoma: 'Arial, sans-serif',
+  'arial narrow': "'Liberation Sans Narrow', 'Arial Narrow', sans-serif",
   'century gothic': "'Gill Sans', sans-serif",
   'franklin gothic': 'Arial, sans-serif',
   'franklin gothic medium': 'Arial, sans-serif',
@@ -29,9 +30,11 @@ const SUBSTITUTIONS: Record<string, string> = {
   // Serif — prefer metric-compatible open fonts first
   cambria: "Caladea, Georgia, serif",
   'cambria math': "Caladea, Georgia, serif",
-  'book antiqua': "'Palatino Linotype', Palatino, serif",
+  'book antiqua': "'TeX Gyre Pagella', 'Palatino Linotype', Palatino, serif",
   garamond: 'Georgia, serif',
-  'palatino linotype': 'Palatino, serif',
+  'palatino linotype': "'TeX Gyre Pagella', Palatino, serif",
+  'bookman old style': "'TeX Gyre Bonum', 'Bookman Old Style', serif",
+  'century schoolbook': "'TeX Gyre Schola', 'Century Schoolbook', serif",
 
   // Monospace
   consolas: "'Courier New', monospace",

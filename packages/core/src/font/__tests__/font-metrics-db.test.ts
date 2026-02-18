@@ -193,11 +193,20 @@ describe('metricsBundle integration', () => {
     const db = new FontMetricsDB();
     db.loadBundle(metricsBundle);
 
+    // Original 6 families
     expect(db.hasMetrics('Calibri')).toBe(true);
     expect(db.hasMetrics('Arial')).toBe(true);
     expect(db.hasMetrics('Times New Roman')).toBe(true);
     expect(db.hasMetrics('Courier New')).toBe(true);
     expect(db.hasMetrics('Cambria')).toBe(true);
+
+    // Wave 2: 6 additional families
+    expect(db.hasMetrics('Georgia')).toBe(true);
+    expect(db.hasMetrics('Segoe UI')).toBe(true);
+    expect(db.hasMetrics('Arial Narrow')).toBe(true);
+    expect(db.hasMetrics('Palatino Linotype')).toBe(true);
+    expect(db.hasMetrics('Bookman Old Style')).toBe(true);
+    expect(db.hasMetrics('Century Schoolbook')).toBe(true);
   });
 
   it('measures "Hello" in Calibri to a reasonable width', async () => {
