@@ -343,6 +343,63 @@ describe('renderSlide', () => {
     expect(saveCalls).toHaveLength(1);
   });
 
+  it('inherits text defaults from layout placeholder lstStyle', () => {
+    const rctx = createMockRenderContext();
+
+    // Layout has a title placeholder with lstStyle specifying white text
+    const layoutTitle = makeShape({
+      placeholderType: 'title',
+      textBody: {
+        paragraphs: [],
+        bodyProperties: {},
+        listStyle: {
+          levels: {
+            0: {
+              defaultCharacterProperties: {
+                color: { r: 255, g: 255, b: 255, a: 1, type: 'raw' as const },
+              },
+            },
+          },
+        },
+      },
+      properties: makeProperties({ transform: makeTransform() }),
+    });
+
+    // Slide title placeholder has no lstStyle — should inherit from layout
+    const slideTitle = makeShape({
+      placeholderType: 'title',
+      properties: makeProperties({ transform: makeTransform() }),
+    });
+
+    const data = makeEnriched(
+      { elements: [slideTitle] },
+      { elements: [layoutTitle] },
+      {
+        txStyles: {
+          titleStyle: {
+            levels: {
+              0: {
+                defaultCharacterProperties: {
+                  fontSize: 4400,
+                },
+              },
+            },
+          },
+        },
+      }
+    );
+
+    renderSlide(data, rctx, 960, 540);
+
+    // textDefaults should have been set during rendering with layout lstStyle merged
+    // The slide title should have been rendered (1 save/restore pair)
+    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    expect(saveCalls).toHaveLength(1);
+
+    // Verify rctx.textDefaults was restored to undefined after rendering
+    expect(rctx.textDefaults).toBeUndefined();
+  });
+
   it('renders master elements when layout has showMasterSp=undefined (default true)', () => {
     const rctx = createMockRenderContext();
     const masterShape = makeShape({

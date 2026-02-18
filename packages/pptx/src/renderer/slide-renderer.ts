@@ -104,11 +104,24 @@ function mergeListStyles(
 }
 
 /**
+ * Find a layout placeholder whose key matches the given element.
+ */
+function findMatchingLayoutPlaceholder(
+  element: SlideElementIR,
+  layoutElements: SlideElementIR[]
+): SlideElementIR | undefined {
+  const key = getPlaceholderKey(element);
+  if (!key) return undefined;
+  return layoutElements.find((el) => getPlaceholderKey(el) === key);
+}
+
+/**
  * Build merged text defaults for a slide element.
  *
  * Resolution order (highest → lowest priority):
  * 1. Shape's own lstStyle (from a:lstStyle in the text body)
- * 2. Master txStyles category (titleStyle / bodyStyle / otherStyle)
+ * 2. Matching layout placeholder's lstStyle
+ * 3. Master txStyles category (titleStyle / bodyStyle / otherStyle)
  *
  * Returns undefined for non-shape elements or when no defaults exist.
  */
@@ -117,16 +130,22 @@ function buildTextDefaults(
   data: EnrichedSlideData
 ): ListStyleIR | undefined {
   if (element.kind !== 'shape') return undefined;
-  const { master } = data;
+  const { layout, master } = data;
 
   // Determine which master txStyle category applies
   const category = getTextStyleCategory(element.placeholderType);
   const masterStyle = master.txStyles?.[category];
 
-  // The shape's own lstStyle (from its text body) takes priority over master txStyles
+  // Find matching layout placeholder for its lstStyle
+  const layoutPh = findMatchingLayoutPlaceholder(element, layout.elements);
+  const layoutLstStyle = layoutPh?.kind === 'shape' ? layoutPh.textBody?.listStyle : undefined;
+
+  // The shape's own lstStyle (from its text body) takes priority
   const shapeLstStyle = element.textBody?.listStyle;
 
-  return mergeListStyles(shapeLstStyle, masterStyle);
+  // Merge: shape → layout placeholder → master txStyles
+  const layoutMerged = mergeListStyles(layoutLstStyle, masterStyle);
+  return mergeListStyles(shapeLstStyle, layoutMerged);
 }
 
 /**
