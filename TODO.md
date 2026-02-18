@@ -77,7 +77,7 @@
 - [ ] Connector routing via connection sites (shape-to-shape endpoint resolution)
 - [x] Hyperlinks (a:hlinkClick -> click handler / URL)
 - [x] Notes view (p:notes parsing + getSlideNotes() API)
-- [ ] Progressive render pipeline (immediate -> grey box -> spinner -> re-render)
+- [x] Progressive render pipeline (grey-box with hatch + loading indicator, deferred WASM loading, coverage report API)
 
 ### Visual Validation
 

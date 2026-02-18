@@ -27,6 +27,7 @@ import { OpcPackageReader } from '@opendockit/core/opc';
 import { MediaCache, loadAndCacheImage } from '@opendockit/core/media';
 import type { RenderContext, DynamicRenderer } from '@opendockit/core/drawingml/renderer';
 import { CapabilityRegistry } from '@opendockit/core/capability';
+import type { CoverageReport } from '@opendockit/core/capability';
 import { WasmModuleLoader } from '@opendockit/core/wasm';
 import { emuToPx } from '@opendockit/core';
 import { resolveFontName, FontMetricsDB } from '@opendockit/core/font';
@@ -145,6 +146,8 @@ export class SlideKit {
   private _deferredSlides = new Map<string, Set<number>>();
   /** Set of WASM module IDs currently being loaded (prevents duplicate fetches). */
   private _loadingModules = new Set<string>();
+  /** Maps WASM module IDs to the element kinds they provide renderers for. */
+  private _moduleKindMap = new Map<string, string[]>();
 
   constructor(options: SlideKitOptions) {
     this._container = options.container;
@@ -253,6 +256,9 @@ export class SlideKit {
       ...(enriched.slide.colorMap ?? {}),
     };
 
+    // Build the set of element kinds currently loading via WASM modules.
+    const loadingKinds = this._getLoadingKinds();
+
     // Build render context — include dynamic renderers for progressive fidelity.
     const rctx: RenderContext = {
       ctx,
@@ -263,14 +269,20 @@ export class SlideKit {
       dynamicRenderers: this._dynamicRenderers.size > 0 ? this._dynamicRenderers : undefined,
       colorMap,
       fontMetricsDB: this._fontMetricsDB,
+      loadingModuleKinds: loadingKinds.size > 0 ? loadingKinds : undefined,
     };
 
     // Clear and render
     ctx.clearRect(0, 0, slideWidthPx, slideHeightPx);
     renderSlide(enriched, rctx, slideWidthPx, slideHeightPx);
 
-    // Check for deferred elements and kick off WASM loading if needed.
-    this._handleDeferredElements(enriched.slide.elements, index);
+    // Check for deferred elements from all layers and kick off WASM loading.
+    const allElements = [
+      ...enriched.master.elements,
+      ...enriched.layout.elements,
+      ...enriched.slide.elements,
+    ];
+    this._handleDeferredElements(allElements, index);
 
     this._emitProgress('rendering', 2, 2, 'Render complete');
   }
@@ -408,6 +420,29 @@ export class SlideKit {
   }
 
   /**
+   * Get a per-element coverage report for a given slide.
+   *
+   * Returns the rendering status (immediate / deferred / unsupported)
+   * for each element on the slide, plus summary counts. Useful for
+   * dashboards and debugging progressive fidelity.
+   *
+   * @param slideIndex - Zero-based slide index.
+   * @returns Coverage report with per-element status and summary.
+   */
+  async getCoverageReport(slideIndex: number): Promise<CoverageReport> {
+    this._assertNotDisposed();
+    this._assertLoaded();
+
+    const pres = this._presentation!;
+    if (slideIndex < 0 || slideIndex >= pres.slideCount) {
+      throw new RangeError(`Slide index ${slideIndex} is out of range (0-${pres.slideCount - 1}).`);
+    }
+
+    const enriched = await this._getOrParseSlide(slideIndex);
+    return this._registry.generateCoverageReport(enriched.slide.elements);
+  }
+
+  /**
    * Clean up resources: clear caches, remove created canvas elements,
    * and mark this instance as disposed. After calling dispose(), all
    * other methods will throw.
@@ -423,6 +458,7 @@ export class SlideKit {
     this._deferredSlides.clear();
     this._dynamicRenderers.clear();
     this._loadingModules.clear();
+    this._moduleKindMap.clear();
     this._pkg = undefined;
     this._presentation = undefined;
 
@@ -625,14 +661,26 @@ export class SlideKit {
 
     // Register known deferred (WASM) capabilities at lower priority.
     // These will show grey boxes until their modules load.
-    this._registry.register({
-      id: 'wasm-chart',
-      kind: 'deferred',
-      canRender: (el) => el.kind === 'chart',
-      priority: 0,
-      moduleId: 'chart-render',
-      estimatedBytes: 500_000,
-    });
+    const deferred: Array<{
+      id: string;
+      moduleId: string;
+      kinds: string[];
+      estimatedBytes: number;
+    }> = [
+      { id: 'wasm-chart', moduleId: 'chart-render', kinds: ['chart'], estimatedBytes: 500_000 },
+    ];
+
+    for (const def of deferred) {
+      this._registry.register({
+        id: def.id,
+        kind: 'deferred',
+        canRender: (el) => def.kinds.includes(el.kind),
+        priority: 0,
+        moduleId: def.moduleId,
+        estimatedBytes: def.estimatedBytes,
+      });
+      this._moduleKindMap.set(def.moduleId, def.kinds);
+    }
   }
 
   /**
@@ -665,7 +713,8 @@ export class SlideKit {
    * Start loading a WASM module if not already loading.
    *
    * When the module loads successfully, it registers a dynamic renderer
-   * and fires `onSlideInvalidated` for all slides that need it.
+   * for all element kinds the module handles (looked up from
+   * `_moduleKindMap`) and fires `onSlideInvalidated` for affected slides.
    */
   private _loadDeferredModule(moduleId: string): void {
     if (this._loadingModules.has(moduleId)) return;
@@ -686,18 +735,20 @@ export class SlideKit {
         if (this._disposed) return;
 
         // The WASM module's exports provide a render function.
-        // Register it as a dynamic renderer so re-rendering uses it.
+        // Register it as a dynamic renderer for all element kinds this module covers.
         const renderFn = wasmModule.exports['render'];
-        if (typeof renderFn === 'function') {
-          // WASM render functions are expected to match DynamicRenderer signature.
-          this._dynamicRenderers.set('chart', renderFn as DynamicRenderer);
+        const targetKinds = this._moduleKindMap.get(moduleId) ?? [];
+        if (typeof renderFn === 'function' && targetKinds.length > 0) {
+          for (const kind of targetKinds) {
+            this._dynamicRenderers.set(kind, renderFn as DynamicRenderer);
+          }
         }
 
         // Upgrade the registry entry from deferred to immediate.
         this._registry.register({
           id: `wasm-${moduleId}`,
           kind: 'immediate',
-          canRender: (el) => el.kind === 'chart',
+          canRender: (el) => targetKinds.includes(el.kind),
           priority: 10, // Higher than the deferred registration.
         });
 
@@ -718,6 +769,23 @@ export class SlideKit {
       .finally(() => {
         this._loadingModules.delete(moduleId);
       });
+  }
+
+  /**
+   * Build the set of element kinds whose WASM modules are currently loading.
+   *
+   * Used to pass to the render context so grey-box placeholders can show
+   * a "loading..." indicator instead of a static label.
+   */
+  private _getLoadingKinds(): Set<string> {
+    const kinds = new Set<string>();
+    for (const moduleId of this._loadingModules) {
+      const moduleKinds = this._moduleKindMap.get(moduleId);
+      if (moduleKinds) {
+        for (const k of moduleKinds) kinds.add(k);
+      }
+    }
+    return kinds;
   }
 
   /**

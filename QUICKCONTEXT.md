@@ -12,7 +12,7 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer. It reads 
 
 The full rendering pipeline is implemented and working:
 
-- **1,284 tests** passing (1,206 core + 78 pptx), typecheck clean, lint clean
+- **1,290 tests** passing (1,208 core + 82 pptx), typecheck clean, lint clean
 - **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (12 families, 43 faces, lineHeight/lineGap), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector), media cache, capability registry, WASM module loader
 - **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance), SlideKit viewport API (hyperlinks, notes)
 
@@ -31,9 +31,9 @@ Precomputed font metrics from OFL fonts for accurate text layout without actual 
 
 Phase 3 stragglers (remaining):
 
-1. **Progressive render pipeline** — wire capability registry into SlideKit for live progressive loading
-2. **Connector routing** — shape-to-shape endpoint resolution via connection sites
-3. **Visual test fixtures** — comprehensive test PPTX files + LibreOffice oracle comparison
+1. **Connector routing** — shape-to-shape endpoint resolution via connection sites
+2. **Visual test fixtures** — comprehensive test PPTX files + LibreOffice oracle comparison
+3. **Charts** — WASM chart renderer module (chart-render.wasm) for bar/pie/line/scatter
 
 ## Key Architecture Decisions
 

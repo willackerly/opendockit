@@ -70,6 +70,13 @@ export interface RenderContext {
    * is substituted with a visually different font (e.g. Arial).
    */
   fontMetricsDB?: FontMetricsDB;
+  /**
+   * Element kinds whose WASM modules are currently being loaded.
+   *
+   * When present, renderers for deferred elements (chart, etc.) can show
+   * a "loading..." indicator instead of a static grey-box placeholder.
+   */
+  loadingModuleKinds?: Set<string>;
 }
 
 /**

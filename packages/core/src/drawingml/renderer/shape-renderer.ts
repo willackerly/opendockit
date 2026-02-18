@@ -35,38 +35,11 @@ import { renderGroup } from './group-renderer.js';
 import { renderTable as renderTableImpl } from './table-renderer.js';
 import { renderConnector } from './connector-renderer.js';
 import { resolveFormatStyle } from '../../theme/index.js';
+import { renderGreyBox } from '../../capability/grey-box.js';
 
 // ---------------------------------------------------------------------------
 // Placeholder rendering
 // ---------------------------------------------------------------------------
-
-/**
- * Render a grey placeholder box with a label for unsupported element types.
- *
- * Used for tables, charts, and unrecognized elements that do not yet
- * have full rendering support.
- */
-function renderPlaceholderBox(
-  rctx: RenderContext,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  label: string
-): void {
-  const { ctx } = rctx;
-  ctx.save();
-  ctx.fillStyle = '#F0F0F0';
-  ctx.strokeStyle = '#CCC';
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeRect(x, y, w, h);
-  ctx.fillStyle = '#999';
-  ctx.font = '11px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, x + w / 2, y + h / 2);
-  ctx.restore();
-}
 
 /**
  * Extract position and size in pixels from a transform, returning null
@@ -98,16 +71,26 @@ function renderTable(table: TableIR, rctx: RenderContext): void {
 }
 
 /**
- * Render a chart element as a placeholder box.
+ * Render a chart element as a grey-box placeholder.
+ *
+ * Shows "Chart (loading...)" when the chart-render WASM module is being
+ * fetched, otherwise shows "Chart" with hatched grey fill.
  */
 function renderChart(chart: ChartIR, rctx: RenderContext): void {
   const px = extractTransformPx(chart, rctx);
   if (!px) return;
-  renderPlaceholderBox(rctx, px.x, px.y, px.w, px.h, 'Chart');
+  const loading = rctx.loadingModuleKinds?.has('chart');
+  const label = loading ? 'Chart (loading\u2026)' : 'Chart';
+  renderGreyBox(
+    rctx.ctx as CanvasRenderingContext2D,
+    { x: px.x, y: px.y, width: px.w, height: px.h },
+    label,
+    rctx.dpiScale
+  );
 }
 
 /**
- * Render an unsupported element as a placeholder box.
+ * Render an unsupported element as a grey-box placeholder.
  */
 function renderUnsupported(element: UnsupportedIR, rctx: RenderContext): void {
   if (!element.bounds) return;
@@ -115,7 +98,12 @@ function renderUnsupported(element: UnsupportedIR, rctx: RenderContext): void {
   const y = emuToScaledPx(element.bounds.y, rctx);
   const w = emuToScaledPx(element.bounds.width, rctx);
   const h = emuToScaledPx(element.bounds.height, rctx);
-  renderPlaceholderBox(rctx, x, y, w, h, element.elementType);
+  renderGreyBox(
+    rctx.ctx as CanvasRenderingContext2D,
+    { x, y, width: w, height: h },
+    element.elementType,
+    rctx.dpiScale
+  );
 }
 
 // ---------------------------------------------------------------------------

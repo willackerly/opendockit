@@ -87,6 +87,33 @@ describe('SlideKit', () => {
     kit.dispose();
   });
 
+  it('exposes getCoverageReport method', () => {
+    const kit = new SlideKit({});
+    expect(typeof kit.getCoverageReport).toBe('function');
+    kit.dispose();
+  });
+
+  it('getCoverageReport throws without loading', async () => {
+    const kit = new SlideKit({});
+    await expect(kit.getCoverageReport(0)).rejects.toThrow('No presentation loaded');
+    kit.dispose();
+  });
+
+  it('exposes getHyperlinks method', () => {
+    const kit = new SlideKit({});
+    expect(typeof kit.getHyperlinks).toBe('function');
+    kit.dispose();
+  });
+
+  it('accepts onSlideInvalidated callback', () => {
+    const invalidated: number[][] = [];
+    const kit = new SlideKit({
+      onSlideInvalidated: (indices) => invalidated.push(indices),
+    });
+    expect(kit).toBeDefined();
+    kit.dispose();
+  });
+
   it('emits progress events during load', async () => {
     const events: Array<{ phase: string; current: number; total: number }> = [];
     const kit = new SlideKit({

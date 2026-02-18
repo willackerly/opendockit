@@ -475,7 +475,7 @@ describe('renderSlideElement', () => {
     expect(rctx.ctx._calls).toHaveLength(0);
   });
 
-  it('placeholder boxes use correct styling', () => {
+  it('chart grey box includes hatch lines and border', () => {
     const rctx = createMockRenderContext();
     const chart: ChartIR = {
       kind: 'chart',
@@ -487,12 +487,50 @@ describe('renderSlideElement', () => {
     renderSlideElement(chart, rctx);
 
     const methods = rctx.ctx._calls.map((c) => c.method);
-    // Should have save, fillRect (background), strokeRect (border), fillText (label), restore.
+    // renderGreyBox draws: save, fillRect, clip, hatch lines, strokeRect, fillText, restore
     expect(methods).toContain('save');
     expect(methods).toContain('fillRect');
+    expect(methods).toContain('clip');
     expect(methods).toContain('strokeRect');
     expect(methods).toContain('fillText');
     expect(methods).toContain('restore');
+    // Hatch lines produce moveTo/lineTo pairs
+    expect(methods).toContain('moveTo');
+    expect(methods).toContain('lineTo');
+  });
+
+  it('chart shows loading indicator when module is loading', () => {
+    const rctx = createMockRenderContext();
+    rctx.loadingModuleKinds = new Set(['chart']);
+    const chart: ChartIR = {
+      kind: 'chart',
+      chartType: 'bar',
+      properties: makeProperties({ transform: makeTransform() }),
+      chartPartUri: '/ppt/charts/chart1.xml',
+    };
+
+    renderSlideElement(chart, rctx);
+
+    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+    expect(fillTextCalls).toHaveLength(1);
+    expect(fillTextCalls[0].args[0]).toContain('loading');
+  });
+
+  it('chart shows static label when module is not loading', () => {
+    const rctx = createMockRenderContext();
+    // No loadingModuleKinds set
+    const chart: ChartIR = {
+      kind: 'chart',
+      chartType: 'bar',
+      properties: makeProperties({ transform: makeTransform() }),
+      chartPartUri: '/ppt/charts/chart1.xml',
+    };
+
+    renderSlideElement(chart, rctx);
+
+    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+    expect(fillTextCalls).toHaveLength(1);
+    expect(fillTextCalls[0].args[0]).toBe('Chart');
   });
 
   it('connector without transform is skipped', () => {
