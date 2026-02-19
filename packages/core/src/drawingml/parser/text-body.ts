@@ -254,6 +254,12 @@ function parseBodyProperties(bodyPrElement: XmlElement): BodyPropertiesIR {
     props.rotation = rot / 60_000;
   }
 
+  // Space before first paragraph and after last paragraph
+  const spcFirstLastParaRaw = bodyPrElement.attr('spcFirstLastPara');
+  if (spcFirstLastParaRaw !== undefined) {
+    props.spcFirstLastPara = parseBoolAttr(bodyPrElement, 'spcFirstLastPara');
+  }
+
   // Auto-fit behavior
   if (bodyPrElement.child('a:spAutoFit')) {
     props.autoFit = 'spAutoFit';

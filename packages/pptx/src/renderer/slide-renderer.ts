@@ -222,6 +222,7 @@ function mergeBodyProperties(higher: BodyPropertiesIR, lower: BodyPropertiesIR):
     fontScale: higher.fontScale ?? lower.fontScale,
     lnSpcReduction: higher.lnSpcReduction ?? lower.lnSpcReduction,
     rotation: higher.rotation ?? lower.rotation,
+    spcFirstLastPara: higher.spcFirstLastPara ?? lower.spcFirstLastPara,
   };
 }
 

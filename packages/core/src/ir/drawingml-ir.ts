@@ -414,6 +414,8 @@ export interface BodyPropertiesIR {
   lnSpcReduction?: number;
   /** Text rotation in degrees (independent of shape rotation). */
   rotation?: number;
+  /** Apply space before first paragraph and space after last paragraph. */
+  spcFirstLastPara?: boolean;
 }
 
 /** Spacing value — either in points or as a percentage of font size. */

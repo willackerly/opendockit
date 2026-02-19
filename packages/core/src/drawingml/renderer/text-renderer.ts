@@ -399,6 +399,7 @@ function applyHyperlinkDefaults(
  *
  * @param fontScale - Optional font scale from normAutofit (percentage).
  * @param lnSpcReduction - Optional line spacing reduction from normAutofit (percentage).
+ * @param effectiveLineSpacing - Resolved line spacing (with textDefaults inheritance applied).
  */
 function wrapParagraph(
   paragraph: ParagraphIR,
@@ -407,7 +408,8 @@ function wrapParagraph(
   bulletWidth: number,
   fontScale?: number,
   lnSpcReduction?: number,
-  firstLineIndentPx?: number
+  firstLineIndentPx?: number,
+  effectiveLineSpacing?: SpacingIR
 ): WrappedLine[] {
   const { ctx, dpiScale, resolveFont } = rctx;
   const lines: WrappedLine[] = [];
@@ -457,7 +459,7 @@ function wrapParagraph(
       if (currentFragments.length === 0) {
         const fontSizePt = resolveFontSizePt(run.properties, fontScale, rctx, paragraphLevel);
         const lineSpacingPct = resolveLineSpacingPct(
-          paragraph.properties.lineSpacing,
+          effectiveLineSpacing,
           lnSpcReduction
         );
         const heightPx =
@@ -498,7 +500,7 @@ function wrapParagraph(
     );
     fillStyle = effectiveFillStyle;
 
-    const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing, lnSpcReduction);
+    const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
     const fragmentHeightPx =
       lineSpacingPct >= 0
         ? ptToCanvasPx(fontSizePt * (lineSpacingPct / 100), dpiScale)
@@ -579,7 +581,7 @@ function wrapParagraph(
   // empty line with the default font height.
   if (lines.length === 0) {
     const fontSizePt = getParagraphFontSizePt(paragraph, fontScale, rctx);
-    const lineSpacingPct = resolveLineSpacingPct(paragraph.properties.lineSpacing, lnSpcReduction);
+    const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
     const heightPx =
       lineSpacingPct >= 0
         ? ptToCanvasPx(fontSizePt * (lineSpacingPct / 100), dpiScale)
@@ -856,6 +858,7 @@ export function renderTextBody(
     const effectiveIndent = paragraph.properties.indent ?? inheritedPProps?.indent;
     const effectiveSpaceBefore = paragraph.properties.spaceBefore ?? inheritedPProps?.spaceBefore;
     const effectiveSpaceAfter = paragraph.properties.spaceAfter ?? inheritedPProps?.spaceAfter;
+    const effectiveLineSpacing = paragraph.properties.lineSpacing ?? inheritedPProps?.lineSpacing;
 
     const spaceBeforePx = resolveSpacingPx(effectiveSpaceBefore, fontSizePt, dpiScale);
     const spaceAfterPx = resolveSpacingPx(effectiveSpaceAfter, fontSizePt, dpiScale);
@@ -914,13 +917,22 @@ export function renderTextBody(
       bulletWidth,
       fontScale,
       lnSpcReduction,
-      indentPx
+      indentPx,
+      effectiveLineSpacing
     );
 
     const alignment = paragraph.properties.alignment ?? inheritedPProps?.alignment ?? 'left';
 
+    const isFirstParagraph = pi === 0;
+    const isLastParagraph = pi === textBody.paragraphs.length - 1;
+    // By default, PowerPoint omits space-before on the first paragraph and
+    // space-after on the last paragraph.  The bodyPr attribute
+    // spcFirstLastPara="1" overrides this, applying spacing to all paragraphs.
+    const applyFirstLastSpacing = body.spcFirstLastPara === true;
     const paragraphHeight =
-      (pi === 0 ? 0 : spaceBeforePx) + lines.reduce((sum, l) => sum + l.heightPx, 0) + spaceAfterPx;
+      (isFirstParagraph && !applyFirstLastSpacing ? 0 : spaceBeforePx) +
+      lines.reduce((sum, l) => sum + l.heightPx, 0) +
+      (isLastParagraph && !applyFirstLastSpacing ? 0 : spaceAfterPx);
 
     totalHeight += paragraphHeight;
 
@@ -936,12 +948,17 @@ export function renderTextBody(
   }
 
   // Phase 2: Compute vertical alignment offset.
+  // Unlike horizontal alignment, OOXML vertical alignment allows text to
+  // overflow symmetrically — centered text can extend above and below the
+  // text area. We do NOT clamp to 0 here because that would silently
+  // degrade middle/bottom alignment to top when the text is taller than
+  // the available space (a common scenario with default 1.2x line spacing).
   let verticalOffset = 0;
   const verticalAlign = body.verticalAlign ?? 'top';
   if (verticalAlign === 'middle') {
-    verticalOffset = Math.max(0, (textAreaHeight - totalHeight) / 2);
+    verticalOffset = (textAreaHeight - totalHeight) / 2;
   } else if (verticalAlign === 'bottom' || verticalAlign === 'bottom4') {
-    verticalOffset = Math.max(0, textAreaHeight - totalHeight);
+    verticalOffset = textAreaHeight - totalHeight;
   }
 
   // Phase 3: Render each paragraph.
@@ -960,8 +977,9 @@ export function renderTextBody(
   for (let pi = 0; pi < paragraphLayouts.length; pi++) {
     const layout = paragraphLayouts[pi];
 
-    // Apply space before (skip for first paragraph).
-    if (pi > 0) {
+    // Apply space before (skip for first paragraph unless spcFirstLastPara).
+    const applyFirstLastSpacing = body.spcFirstLastPara === true;
+    if (pi > 0 || applyFirstLastSpacing) {
       cursorY += layout.spaceBeforePx;
     }
 
