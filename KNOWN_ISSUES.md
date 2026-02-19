@@ -1,6 +1,6 @@
 # Known Issues
 
-**Last updated:** 2026-02-18
+**Last updated:** 2026-02-19
 
 ## Active Blockers
 
@@ -8,16 +8,28 @@ None.
 
 ## Known Gaps
 
-### Placeholder Inheritance (partially implemented)
+### Connector Routing (cosmetic)
 
-- Slide elements that reference placeholders inherit text defaults, visual properties, and body properties from layout -> master cascade
-- Remaining gaps: inherited text *content* (empty slide placeholders don't show layout/master placeholder text)
+- Connectors render correctly (straight, bent, curved) but endpoints snap to shape bounding-box edges rather than OOXML connection site coordinates
+- Visual impact: connector start/end points may be a few pixels off
+- Fix requires: shape position registry + connection site geometry lookup per preset shape
 
-### spAutoFit Text
+### spAutoFit Text (rare)
 
 - `spAutoFit` (shape-auto-fit) is parsed but renders at normal size
 - True implementation requires a layout feedback loop (render text -> measure -> resize shape -> re-render)
 - `normAutofit` (shrink text to fit) works correctly with fontScale/lnSpcReduction
+
+### Placeholder Inherited Content (moderate)
+
+- Slide elements referencing placeholders inherit text defaults, visual properties, and body properties from layout -> master cascade
+- Remaining gap: inherited text *content* (empty slide placeholders don't show layout/master placeholder text)
+
+### No Diagnostic/Warning System (next priority)
+
+- Library silently falls back when features are unsupported (missing fonts, unknown elements)
+- No way for consuming apps to know what the current PPTX needs that we can't render
+- The capability registry already categorizes unsupported elements — needs to be wired into an app-facing event system
 
 ## Gotchas & Warnings
 
@@ -35,7 +47,7 @@ None.
 - Includes Google Fonts used in Slides exports: Barlow, Barlow Light, Play, Roboto Slab, Roboto Slab Light, Roboto Slab SemiBold, Lato, Lato Light, Arimo, Comfortaa, Open Sans, Noto Sans Symbols.
 - Gaps remain for Verdana, Trebuchet MS, Tahoma, Aptos, and C-series Office fonts (Corbel, Candara, Constantia) — no OFL metric-compatible replacements exist.
 - Font metrics do not include kerning pairs; text width measurement is character-by-character. This can cause line breaks at slightly different positions than the original (~1-3% width error on long text runs).
-- Embedded fonts in PPTX are rare but must be handled.
+- Embedded fonts in PPTX are rare but must be handled eventually.
 
 ### Canvas2D Limitations
 
@@ -45,9 +57,9 @@ None.
 
 ### Memory Concerns
 
-- Large PPTX files (100MB+) with embedded media need lazy extraction.
-- WASM modules (CanvasKit ~1.5MB, HarfBuzz ~800KB) should be loaded on demand.
-- Media LRU cache needs configurable size limits.
+- Large PPTX files (100MB+) with embedded media need lazy extraction (implemented via OPC reader).
+- WASM modules (CanvasKit ~1.5MB, HarfBuzz ~800KB) should be loaded on demand (implemented via WASM loader).
+- Media LRU cache currently unbounded — needs configurable size limits.
 
 ## Resolved Issues
 
