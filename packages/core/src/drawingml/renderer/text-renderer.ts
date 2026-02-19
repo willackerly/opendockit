@@ -157,7 +157,11 @@ function buildFontString(
   }
   family = family || 'sans-serif';
   const resolved = resolveFont(family);
-  return `${style}${weight}${sizePx}px "${resolved}"`;
+  // Do NOT wrap resolved in quotes — resolveFontName() already returns a
+  // properly formatted CSS font-family string (e.g. `'Barlow Light', sans-serif`
+  // or `Carlito, 'Segoe UI', Arial, sans-serif`).  Wrapping in double quotes
+  // turns the entire fallback stack into a single (invalid) family name.
+  return `${style}${weight}${sizePx}px ${resolved}`;
 }
 
 /**

@@ -133,6 +133,49 @@ await page.setViewportSize({ width: 1400, height: 900 });
 
 await page.goto(viteUrl, { waitUntil: 'networkidle' });
 
+// Inject Google Fonts so headless Chrome renders with the actual fonts.
+// This covers the most common Google Fonts found in Google Slides exports.
+console.log('  Loading Google Fonts...');
+await page.addStyleTag({
+  url: 'https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto+Slab:wght@100;200;300;400;500;600;700;800;900&family=Play:wght@400;700&family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700;1,800&family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Raleway:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap',
+});
+// Also register "Barlow Light" as an alias for Barlow weight 300 — Google Slides
+// uses "Barlow Light" as a separate family name, not Barlow with weight 300.
+await page.addStyleTag({
+  content: `
+    @font-face {
+      font-family: 'Barlow Light';
+      font-style: normal;
+      font-weight: 400;
+      src: url(https://fonts.gstatic.com/s/barlow/v13/7cHqv4kjgoGqM7E3p-kc4A.ttf) format('truetype');
+    }
+    @font-face {
+      font-family: 'Barlow Light';
+      font-style: italic;
+      font-weight: 400;
+      src: url(https://fonts.gstatic.com/s/barlow/v13/7cHsv4kjgoGqM7E_CfOQ4lop.ttf) format('truetype');
+    }
+    @font-face {
+      font-family: 'Roboto Slab Light';
+      font-style: normal;
+      font-weight: 400;
+      src: url(https://fonts.gstatic.com/s/robotoslab/v36/BngbUXZYTXPIvIBgJJSb6s3BzlRRfKOFbvjo0oSWaA.ttf) format('truetype');
+    }
+    @font-face {
+      font-family: 'Roboto Slab SemiBold';
+      font-style: normal;
+      font-weight: 400;
+      src: url(https://fonts.gstatic.com/s/robotoslab/v36/BngbUXZYTXPIvIBgJJSb6s3BzlRRfKOFbvjoUoOWaA.ttf) format('truetype');
+    }
+  `,
+});
+// Wait for all fonts to finish loading
+await page.waitForFunction(
+  () => document.fonts.ready.then(() => document.fonts.status === 'loaded'),
+  { timeout: 30_000 },
+);
+console.log('  Fonts loaded.');
+
 // Load the PPTX
 const fileInput = page.locator('#file-input');
 await fileInput.setInputFiles(pptxPath);
