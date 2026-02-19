@@ -1024,18 +1024,30 @@ export function renderTextBody(
       const isFirst = li === 0;
 
       // Compute alignment offset for this line.
+      // Use Canvas2D measurement for actual rendered widths to prevent
+      // drift between precomputed metrics (used for line-wrapping) and the
+      // browser's actual rendering font.
       const lineAvailableWidth =
         isFirst && !hangingIndent
           ? Math.max(0, textAvailableWidth - layout.indentPx)
           : textAvailableWidth;
       let lineX = isFirst && !hangingIndent ? firstLineTextX : textBaseX;
-      const totalLineWidth =
-        line.widthPx + (isFirst && layout.bullet && !hangingIndent ? layout.bullet.widthPx : 0);
+
+      // Measure actual rendered line width using Canvas2D.
+      let renderedLineWidth = 0;
+      for (const frag of line.fragments) {
+        ctx.font = frag.fontString;
+        renderedLineWidth += ctx.measureText(frag.text).width;
+      }
+      if (isFirst && layout.bullet && !hangingIndent) {
+        ctx.font = layout.bullet.fontString;
+        renderedLineWidth += ctx.measureText(layout.bullet.text).width;
+      }
 
       if (layout.alignment === 'center') {
-        lineX += (lineAvailableWidth - totalLineWidth) / 2;
+        lineX += (lineAvailableWidth - renderedLineWidth) / 2;
       } else if (layout.alignment === 'right') {
-        lineX += lineAvailableWidth - totalLineWidth;
+        lineX += lineAvailableWidth - renderedLineWidth;
       }
       // 'left': no offset. 'justify'/'distributed': handled below via word spacing.
 
@@ -1060,7 +1072,7 @@ export function renderTextBody(
           }
         }
         if (gapCount > 0) {
-          const extraSpace = lineAvailableWidth - totalLineWidth;
+          const extraSpace = lineAvailableWidth - renderedLineWidth;
           if (extraSpace > 0) {
             justifyExtraPerGap = extraSpace / gapCount;
           }
@@ -1077,7 +1089,7 @@ export function renderTextBody(
         } else {
           // Normal: bullet drawn inline before text.
           ctx.fillText(layout.bullet.text, drawX, baselineY);
-          drawX += layout.bullet.widthPx;
+          drawX += ctx.measureText(layout.bullet.text).width;
         }
       }
 
@@ -1109,13 +1121,20 @@ export function renderTextBody(
           (ctx as unknown as { letterSpacing: string }).letterSpacing = '0px';
         }
 
+        // Measure the ACTUAL rendered width using Canvas2D for draw advancement.
+        // This prevents positioning drift when precomputed font metrics (used for
+        // line-wrapping) differ from the browser's actual rendering font. Without
+        // this, text measured with e.g. Barlow metrics but rendered with Arial
+        // accumulates positioning error, causing word overlap or excessive gaps.
+        const renderedWidth = ctx.measureText(frag.text).width;
+
         // Draw underline.
         if (frag.props.underline && frag.props.underline !== 'none') {
           drawUnderline(
             ctx,
             drawX,
             baselineY + baselineShift,
-            frag.widthPx,
+            renderedWidth,
             fontSizePx,
             frag.fillStyle
           );
@@ -1127,13 +1146,13 @@ export function renderTextBody(
             ctx,
             drawX,
             baselineY + baselineShift,
-            frag.widthPx,
+            renderedWidth,
             fontSizePx,
             frag.fillStyle
           );
         }
 
-        drawX += frag.widthPx;
+        drawX += renderedWidth;
 
         // Justify: add extra space after word-ending fragments.
         if (
