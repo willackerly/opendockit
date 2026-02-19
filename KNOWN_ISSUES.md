@@ -8,11 +8,10 @@ None.
 
 ## Known Gaps
 
-### Placeholder Inheritance (not yet implemented)
+### Placeholder Inheritance (partially implemented)
 
-- Slide elements that reference placeholders (idx/type) should inherit text, formatting, and transforms from layout -> master
-- Without this, slides relying on master/layout templates will render with missing content
-- Tracked in TODO.md "Phase 3 Stragglers"
+- Slide elements that reference placeholders inherit text defaults, visual properties, and body properties from layout -> master cascade
+- Remaining gaps: inherited text *content* (empty slide placeholders don't show layout/master placeholder text)
 
 ### spAutoFit Text
 
@@ -32,8 +31,10 @@ None.
 
 - Users won't have Calibri/Cambria on non-Windows systems.
 - Font substitution table maps common Office fonts to system alternatives.
-- Precomputed font metrics system (12 families, 43 faces, 262KB bundle) provides accurate text layout without actual fonts installed. `measureFragment()` uses the metrics DB before falling back to Canvas2D measurement.
+- Precomputed font metrics system (18 families, 55 faces, 314KB bundle) provides accurate text layout without actual fonts installed. `measureFragment()` uses the metrics DB before falling back to Canvas2D measurement.
+- Includes Google Fonts used in Slides exports: Barlow, Barlow Light, Play, Roboto Slab, Roboto Slab Light, Roboto Slab SemiBold.
 - Gaps remain for Verdana, Trebuchet MS, Tahoma, Aptos, and C-series Office fonts (Corbel, Candara, Constantia) — no OFL metric-compatible replacements exist.
+- Font metrics do not include kerning pairs; text width measurement is character-by-character. This can cause line breaks at slightly different positions than the original (~1-3% width error on long text runs).
 - Embedded fonts in PPTX are rare but must be handled.
 
 ### Canvas2D Limitations
@@ -49,6 +50,12 @@ None.
 - Media LRU cache needs configurable size limits.
 
 ## Resolved Issues
+
+### Font String Quoting Bug (resolved 2026-02-18)
+
+- `buildFontString()` wrapped the resolved font name in double quotes, turning CSS fallback stacks like `'Barlow Light', sans-serif` into a single invalid family name `"'Barlow Light', sans-serif"`.
+- This broke ALL non-system fonts. Fixed by removing the outer quotes.
+- Visual regression: 41/54 slides improved, median RMSE dropped from 0.17 to 0.13.
 
 ### Style References (resolved 2026-02-17)
 
