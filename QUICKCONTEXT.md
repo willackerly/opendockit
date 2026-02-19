@@ -13,27 +13,31 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer. It reads 
 The full PPTX rendering pipeline is implemented, tested, and visually validated:
 
 - **1,290 tests** passing (1,208 core + 82 pptx), typecheck clean, lint clean
-- **Visual regression**: 54-slide real-world PPTX, median RMSE 0.128 vs LibreOffice reference
-- **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (24 families, 68 faces), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation, media cache, capability registry, WASM module loader
-- **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance), SlideKit viewport API (hyperlinks, notes)
+- **Visual regression**: 54-slide real-world PPTX with per-slide RMSE baselines and regression guard (`pnpm test:visual`)
+- **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (42 families, 130 faces) + bundled WOFF2 fonts (42 families, ~5MB, 100% offline), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation, media cache, capability registry, WASM module loader
+- **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance + table textDefaults), SlideKit viewport API (hyperlinks, notes)
 
-### Font Metrics System
+### Font System
 
-Precomputed font metrics from OFL fonts for accurate text layout without actual fonts installed:
+5-tier font loading (highest priority first):
+1. **User-supplied fonts** — app provides ArrayBuffer/URL
+2. **PPTX embedded fonts** — EOT parser extracts from the file
+3. **Bundled WOFF2 fonts** — 42 families shipped in the npm package (~5MB base64 TS modules, tree-shakeable)
+4. **OFL CDN fallback** — metrically compatible open fonts
+5. **Google Fonts CDN fallback** — for Google Slides fonts
 
-- **24 families, 68 faces** in 409KB bundle (auto-loaded by SlideKit)
-- Vendored TrueType/CFF parsers from pdfbox-ts for extraction
-- `measureFragment()` uses metrics DB before Canvas2D fallback
-- Extraction script at `scripts/extract-font-metrics.mjs` for adding more fonts
-- Coverage: Calibri, Calibri Light, Cambria, Arial, Times New Roman, Courier New, Georgia, Segoe UI, Arial Narrow, Palatino Linotype, Bookman Old Style, Century Schoolbook, Barlow, Barlow Light, Roboto Slab, Roboto Slab Light, Roboto Slab SemiBold, Play, Lato, Lato Light, Arimo, Comfortaa, Open Sans, Noto Sans Symbols
+Precomputed font metrics for accurate text layout without actual fonts installed:
+- **42 families, 130 faces** in ~750KB metrics bundle (auto-loaded by SlideKit)
+- Coverage: all major Office fonts (via OFL substitutes), Google Fonts families, and common presentation fonts
 - Gaps (no OFL replacement): Verdana, Trebuchet MS, Tahoma, Aptos, Corbel/Candara/Constantia
+- Extraction: `scripts/extract-font-metrics.mjs` | Bundling: `scripts/bundle-woff2-fonts.py`
 
 ### Visual Regression Pipeline
 
-- Script: `scripts/visual-compare.mjs` — Playwright + ImageMagick RMSE comparison
-- Reference oracle: LibreOffice PDF export at 960x540
-- Baselines: 54 slides with per-slide RMSE values (3-decimal precision)
-- Results directory: `../pptx-pdf-comparisons/comparison-output/`
+- Script: `pnpm test:visual` (or `node scripts/visual-compare.mjs`)
+- Renders 54-slide PPTX via headless Chromium, compares against PDF reference PNGs using ImageMagick RMSE
+- Per-slide baselines with regression guard: fails on RMSE increase > 0.008 threshold
+- `--update-baselines` flag to lock in improvements after intentional changes
 
 ## What's Next
 
@@ -45,16 +49,17 @@ Precomputed font metrics from OFL fonts for accurate text layout without actual 
 
 2. **Connector routing** — shape-to-shape endpoint resolution via connection sites (current: connectors render but endpoints are edge-of-bounding-box, not snapped to connection site geometry)
 3. **spAutoFit text** — shape resize to fit text (current: parsed but renders at normal size; needs layout feedback loop)
-4. **Placeholder inherited content** — empty slide placeholders don't show layout/master placeholder text (properties already inherit correctly)
-5. **Broader visual test corpus** — more PPTX files covering edge cases
+4. **Table row auto-height** — OOXML row heights are minimums; rows should expand for content. Currently text overflows small rows.
+5. **Placeholder inherited content** — empty slide placeholders don't show layout/master placeholder text (properties already inherit correctly)
+6. **Broader visual test corpus** — more PPTX files covering edge cases
 
 ### Phase 4: Charts + Export (future)
 
-6. **ChartML** parser and renderer
-7. **CanvasKit** WASM integration (3D effects, reflections, advanced filters)
-8. **Slide transitions**
-9. **PDF export** via RenderBackend abstraction
-10. **SVG export**
+7. **ChartML** parser and renderer
+8. **CanvasKit** WASM integration (3D effects, reflections, advanced filters)
+9. **Slide transitions**
+10. **PDF export** via RenderBackend abstraction
+11. **SVG export**
 
 ## Key Architecture Decisions
 

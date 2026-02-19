@@ -12,7 +12,13 @@
     "format": "prettier --write .",
     "typecheck": "pnpm -r typecheck",
     "dev:viewer": "pnpm --filter @opendockit/viewer dev",
-    "clean": "pnpm -r clean && rm -rf node_modules"
+    "clean": "pnpm -r clean && rm -rf node_modules",
+    "test:visual": "node scripts/visual-compare.mjs",
+    "fonts:download": "bash scripts/download-google-fonts.sh",
+    "fonts:metrics": "bash scripts/regenerate-metrics.sh",
+    "fonts:woff2": "python3 scripts/bundle-woff2-fonts.py",
+    "fonts:bundle": "pnpm fonts:metrics && pnpm fonts:woff2",
+    "fonts:rebuild": "pnpm fonts:download && pnpm fonts:bundle"
   },
   "devDependencies": {
     "playwright": "^1.58.2",

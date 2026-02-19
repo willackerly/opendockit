@@ -23,7 +23,7 @@ None.
 ### Placeholder Inherited Content (moderate)
 
 - Slide elements referencing placeholders inherit text defaults, visual properties, and body properties from layout -> master cascade
-- Remaining gap: inherited text *content* (empty slide placeholders don't show layout/master placeholder text)
+- Remaining gap: inherited text _content_ (empty slide placeholders don't show layout/master placeholder text)
 
 ### No Diagnostic/Warning System (next priority)
 
@@ -43,11 +43,16 @@ None.
 
 - Users won't have Calibri/Cambria on non-Windows systems.
 - Font substitution table maps common Office fonts to system alternatives.
-- Precomputed font metrics system (24 families, 68 faces, 409KB bundle) provides accurate text layout without actual fonts installed. `measureFragment()` uses the metrics DB before falling back to Canvas2D measurement.
-- Includes Google Fonts used in Slides exports: Barlow, Barlow Light, Play, Roboto Slab, Roboto Slab Light, Roboto Slab SemiBold, Lato, Lato Light, Arimo, Comfortaa, Open Sans, Noto Sans Symbols.
+- **42 families, 130 faces** in ~750KB metrics bundle + ~5MB bundled WOFF2 fonts (100% offline).
+- 5-tier font loading: user-supplied → PPTX embedded (EOT) → bundled WOFF2 → OFL CDN → Google Fonts CDN.
 - Gaps remain for Verdana, Trebuchet MS, Tahoma, Aptos, and C-series Office fonts (Corbel, Candara, Constantia) — no OFL metric-compatible replacements exist.
-- Font metrics do not include kerning pairs; text width measurement is character-by-character. This can cause line breaks at slightly different positions than the original (~1-3% width error on long text runs).
-- Embedded fonts in PPTX are rare but must be handled eventually.
+- Font metrics do not include kerning pairs; text width measurement is character-by-character (~1-3% width error on long text runs).
+
+### Table Row Auto-Height (cosmetic)
+
+- OOXML table row heights are minimums — rows should expand to fit content text.
+- Currently rows render at the declared height; text that is taller than the row overflows visually.
+- Impact: small-row tables show text overlapping rather than expanding.
 
 ### Canvas2D Limitations
 

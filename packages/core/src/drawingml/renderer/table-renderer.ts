@@ -81,8 +81,8 @@ export function renderTable(table: TableIR, rctx: RenderContext): void {
 
   const tableX = emuToScaledPx(transform.position.x, rctx);
   const tableY = emuToScaledPx(transform.position.y, rctx);
-  const tableW = emuToScaledPx(transform.size.width, rctx);
-  const tableH = emuToScaledPx(transform.size.height, rctx);
+  const frameW = emuToScaledPx(transform.size.width, rctx);
+  const frameH = emuToScaledPx(transform.size.height, rctx);
 
   if (table.rows.length === 0) return;
 
@@ -91,28 +91,31 @@ export function renderTable(table: TableIR, rctx: RenderContext): void {
   if (numCols === 0) return;
 
   // Compute column widths in pixels.
+  // Use tblGrid column widths directly (EMU → px) when available.
+  // The graphicFrame extent is unreliable — Google Slides exports often set
+  // a default placeholder (e.g. 3000000×3000000) that is smaller than the
+  // actual table grid. The tblGrid widths are the authoritative source.
   let colWidthsPx: number[];
   if (table.columnWidths && table.columnWidths.length > 0) {
     const totalGridEmu = table.columnWidths.reduce((s, w) => s + w, 0);
     if (totalGridEmu > 0) {
-      // Scale column widths proportionally to fit the table's actual width.
-      colWidthsPx = table.columnWidths.map((w) => (w / totalGridEmu) * tableW);
+      colWidthsPx = table.columnWidths.map((w) => emuToScaledPx(w, rctx));
     } else {
-      colWidthsPx = Array(numCols).fill(tableW / numCols) as number[];
+      colWidthsPx = Array(numCols).fill(frameW / numCols) as number[];
     }
   } else {
-    colWidthsPx = Array(numCols).fill(tableW / numCols) as number[];
+    colWidthsPx = Array(numCols).fill(frameW / numCols) as number[];
   }
 
   // Compute row heights in pixels.
+  // Use row heights directly (EMU → px) when available.
   const totalRowHeightEmu = table.rows.reduce((s, r) => s + r.height, 0);
   let rowHeightsPx: number[];
   if (totalRowHeightEmu > 0) {
-    // Scale row heights proportionally to fit the table's actual height.
-    rowHeightsPx = table.rows.map((r) => (r.height / totalRowHeightEmu) * tableH);
+    rowHeightsPx = table.rows.map((r) => emuToScaledPx(r.height, rctx));
   } else {
     const numRows = table.rows.length;
-    rowHeightsPx = Array(numRows).fill(tableH / numRows) as number[];
+    rowHeightsPx = Array(numRows).fill(frameH / numRows) as number[];
   }
 
   // Precompute cumulative X offsets for columns.
@@ -199,8 +202,24 @@ export function renderTable(table: TableIR, rctx: RenderContext): void {
       }
 
       // Render text body.
+      // Table cells use <a:tcPr> margins (marL/marR/marT/marB), NOT the
+      // large default shape body insets (91440 EMU = 0.1in).  When the cell's
+      // <a:bodyPr> omits inset attributes, the text renderer would apply the
+      // shape default, which consumes rows that are only ~93k EMU tall.
+      // Override undefined insets to 0 so text actually renders.
       if (cell.textBody) {
-        renderTextBody(cell.textBody, rctx, {
+        const bp = cell.textBody.bodyProperties;
+        const cellTextBody = {
+          ...cell.textBody,
+          bodyProperties: {
+            ...bp,
+            leftInset: bp.leftInset ?? 0,
+            rightInset: bp.rightInset ?? 0,
+            topInset: bp.topInset ?? 0,
+            bottomInset: bp.bottomInset ?? 0,
+          },
+        };
+        renderTextBody(cellTextBody, rctx, {
           x: cellX,
           y: cellY,
           width: cellW,

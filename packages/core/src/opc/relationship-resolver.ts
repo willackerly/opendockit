@@ -42,6 +42,7 @@ export const REL_VIEW_PROPS =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/viewProps';
 export const REL_TABLE_STYLES =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles';
+export const REL_FONT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/font';
 
 // ---------------------------------------------------------------------------
 // Public interfaces

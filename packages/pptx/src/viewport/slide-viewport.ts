@@ -30,7 +30,18 @@ import { CapabilityRegistry } from '@opendockit/core/capability';
 import type { CoverageReport } from '@opendockit/core/capability';
 import { WasmModuleLoader } from '@opendockit/core/wasm';
 import { emuToPx } from '@opendockit/core';
-import { resolveFontName, FontMetricsDB } from '@opendockit/core/font';
+import {
+  resolveFontName,
+  FontMetricsDB,
+  loadFont,
+  extractFontFromEot,
+  isGoogleFont,
+  loadGoogleFonts,
+  loadOflSubstitutes,
+  hasOflSubstitute,
+  hasBundledFont,
+  loadBundledFonts,
+} from '@opendockit/core/font';
 import type { FontFaceMetrics, FontMetricsBundle } from '@opendockit/core/font';
 import { metricsBundle } from '@opendockit/core/font/data/metrics-bundle';
 import type {
@@ -61,6 +72,21 @@ export interface SlideKitOptions {
   dpiScale?: number;
   /** Font name substitution overrides (source font -> replacement font). */
   fontSubstitutions?: Record<string, string>;
+  /**
+   * User-supplied font data. Keys are CSS font-family names.
+   * Values can be a single ArrayBuffer (registered as regular weight)
+   * or an object with variants.
+   */
+  fonts?: Record<
+    string,
+    | ArrayBuffer
+    | {
+        regular?: ArrayBuffer;
+        bold?: ArrayBuffer;
+        italic?: ArrayBuffer;
+        boldItalic?: ArrayBuffer;
+      }
+  >;
   /** Progress callback for loading and rendering phases. */
   onProgress?: (event: SlideKitProgressEvent) => void;
   /**
@@ -123,7 +149,10 @@ export class SlideKit {
   private _canvas: HTMLCanvasElement | undefined;
   private _dpiScale: number;
   private _fontSubstitutions: Record<string, string>;
+  private _userFonts: SlideKitOptions['fonts'];
   private _fontMetricsDB: FontMetricsDB;
+  /** Set of font families successfully loaded at runtime. */
+  private _loadedFonts = new Set<string>();
   private _onProgress: ((event: SlideKitProgressEvent) => void) | undefined;
   private _onSlideInvalidated: ((slideIndices: number[]) => void) | undefined;
 
@@ -153,6 +182,7 @@ export class SlideKit {
     this._container = options.container;
     this._canvas = options.canvas;
     this._fontSubstitutions = options.fontSubstitutions ?? {};
+    this._userFonts = options.fonts;
     this._onProgress = options.onProgress;
     this._onSlideInvalidated = options.onSlideInvalidated;
 
@@ -205,6 +235,9 @@ export class SlideKit {
     this._layoutCache.clear();
     this._masterCache.clear();
     this._currentSlide = 0;
+
+    // Phase 3: Load fonts (user-supplied → embedded → OFL substitutes → Google Fonts)
+    await this._loadFonts(this._pkg, this._presentation);
 
     return {
       slideCount: this._presentation.slideCount,
@@ -459,6 +492,7 @@ export class SlideKit {
     this._dynamicRenderers.clear();
     this._loadingModules.clear();
     this._moduleKindMap.clear();
+    this._loadedFonts.clear();
     this._pkg = undefined;
     this._presentation = undefined;
 
@@ -1039,11 +1073,187 @@ export class SlideKit {
   }
 
   /**
-   * Resolve a font name using user overrides first, then the built-in
-   * substitution table for cross-platform compatibility.
+   * Load fonts using all available strategies in priority order.
+   *
+   * Priority: user-supplied → PPTX embedded → OFL substitutes → Google Fonts.
+   * Each strategy marks loaded fonts in `_loadedFonts` so that `_resolveFont()`
+   * can bypass the static substitution table.
+   */
+  private async _loadFonts(pkg: OpcPackage, pres: PresentationIR): Promise<void> {
+    this._emitProgress('loading', 0, 5, 'Loading fonts');
+
+    // Strategy 1: User-supplied fonts (highest priority)
+    await this._loadUserSuppliedFonts();
+    this._emitProgress('loading', 1, 5, 'User fonts loaded');
+
+    // Strategy 2: PPTX embedded fonts
+    await this._loadEmbeddedFonts(pkg, pres);
+    this._emitProgress('loading', 2, 5, 'Embedded fonts loaded');
+
+    // Collect font families still needed (not already loaded).
+    const neededFamilies = this._collectNeededFontFamilies(pres);
+
+    // Strategy 3: Bundled WOFF2 fonts (offline-capable, no network)
+    const bundledFamilies = neededFamilies.filter(
+      (f) => hasBundledFont(f) && !this._loadedFonts.has(f)
+    );
+    if (bundledFamilies.length > 0) {
+      const bundledResults = await loadBundledFonts(bundledFamilies);
+      for (const [family, ok] of bundledResults) {
+        if (ok) this._loadedFonts.add(family);
+      }
+    }
+    this._emitProgress('loading', 3, 5, 'Bundled fonts loaded');
+
+    // Strategy 4: OFL substitutes CDN (fallback for unbundled fonts)
+    const oflFamilies = neededFamilies.filter(
+      (f) => hasOflSubstitute(f) && !this._loadedFonts.has(f)
+    );
+    if (oflFamilies.length > 0) {
+      const oflResults = await loadOflSubstitutes(oflFamilies);
+      for (const [family, ok] of oflResults) {
+        if (ok) this._loadedFonts.add(family);
+      }
+    }
+    this._emitProgress('loading', 4, 5, 'OFL substitutes loaded');
+
+    // Strategy 5: Google Fonts CDN (fallback for unbundled fonts)
+    const googleFamilies = neededFamilies.filter(
+      (f) => isGoogleFont(f) && !this._loadedFonts.has(f)
+    );
+    if (googleFamilies.length > 0) {
+      const gfResults = await loadGoogleFonts(googleFamilies);
+      for (const [family, ok] of gfResults) {
+        if (ok) this._loadedFonts.add(family);
+      }
+    }
+    this._emitProgress('loading', 5, 5, 'All fonts loaded');
+  }
+
+  /**
+   * Load user-supplied font data from SlideKitOptions.fonts.
+   */
+  private async _loadUserSuppliedFonts(): Promise<void> {
+    if (!this._userFonts) return;
+
+    const promises: Promise<void>[] = [];
+    for (const [family, data] of Object.entries(this._userFonts)) {
+      if (data instanceof ArrayBuffer) {
+        promises.push(
+          loadFont(family, data).then((ok) => {
+            if (ok) this._loadedFonts.add(family);
+          })
+        );
+      } else {
+        // Object with variant keys
+        const variants: Array<{
+          buf: ArrayBuffer;
+          desc: FontFaceDescriptors;
+        }> = [];
+        if (data.regular) variants.push({ buf: data.regular, desc: {} });
+        if (data.bold) variants.push({ buf: data.bold, desc: { weight: 'bold' } });
+        if (data.italic) variants.push({ buf: data.italic, desc: { style: 'italic' } });
+        if (data.boldItalic)
+          variants.push({ buf: data.boldItalic, desc: { weight: 'bold', style: 'italic' } });
+
+        for (const v of variants) {
+          promises.push(
+            loadFont(family, v.buf, v.desc).then((ok) => {
+              if (ok) this._loadedFonts.add(family);
+            })
+          );
+        }
+      }
+    }
+    await Promise.all(promises);
+  }
+
+  /**
+   * Load fonts embedded in the PPTX package (from p:embeddedFontLst).
+   *
+   * Extracts the raw OpenType data from EOT containers and registers
+   * each variant via the FontFace API.
+   */
+  private async _loadEmbeddedFonts(pkg: OpcPackage, pres: PresentationIR): Promise<void> {
+    if (!pres.embeddedFonts || pres.embeddedFonts.length === 0) return;
+
+    const promises: Promise<void>[] = [];
+
+    for (const ref of pres.embeddedFonts) {
+      // Skip if already loaded by user-supplied fonts.
+      if (this._loadedFonts.has(ref.typeface)) continue;
+
+      const variants: Array<{
+        partUri: string;
+        desc: FontFaceDescriptors;
+      }> = [];
+      if (ref.regular) variants.push({ partUri: ref.regular, desc: {} });
+      if (ref.bold) variants.push({ partUri: ref.bold, desc: { weight: 'bold' } });
+      if (ref.italic) variants.push({ partUri: ref.italic, desc: { style: 'italic' } });
+      if (ref.boldItalic)
+        variants.push({ partUri: ref.boldItalic, desc: { weight: 'bold', style: 'italic' } });
+
+      for (const v of variants) {
+        promises.push(
+          (async () => {
+            try {
+              const rawBytes = await pkg.getPart(v.partUri);
+              const fontData = extractFontFromEot(new Uint8Array(rawBytes));
+              const ok = await loadFont(ref.typeface, fontData.buffer as ArrayBuffer, v.desc);
+              if (ok) this._loadedFonts.add(ref.typeface);
+            } catch {
+              // Skip fonts that fail to extract or load.
+            }
+          })()
+        );
+      }
+    }
+
+    await Promise.all(promises);
+  }
+
+  /**
+   * Collect font families referenced in the presentation that are not yet loaded.
+   *
+   * Checks the theme font scheme and embedded font list for family names.
+   */
+  private _collectNeededFontFamilies(pres: PresentationIR): string[] {
+    const families = new Set<string>();
+
+    // Theme fonts
+    if (pres.theme.fontScheme) {
+      families.add(pres.theme.fontScheme.majorLatin);
+      families.add(pres.theme.fontScheme.minorLatin);
+    }
+
+    // Embedded font typefaces (may need OFL/Google fallback if embed failed)
+    if (pres.embeddedFonts) {
+      for (const ref of pres.embeddedFonts) {
+        families.add(ref.typeface);
+      }
+    }
+
+    // Filter out already-loaded fonts.
+    return [...families].filter((f) => !this._loadedFonts.has(f));
+  }
+
+  /**
+   * Resolve a font name through the priority chain:
+   * 1. User-provided substitution overrides
+   * 2. Runtime-loaded fonts (embedded, CDN, user-supplied) — use original name
+   * 3. Static substitution table (cross-platform CSS font stacks)
    */
   private _resolveFont(fontName: string): string {
-    return this._fontSubstitutions[fontName] ?? resolveFontName(fontName);
+    // User substitution overrides always win.
+    if (this._fontSubstitutions[fontName]) {
+      return this._fontSubstitutions[fontName];
+    }
+    // If we loaded this font at runtime, use it directly.
+    if (this._loadedFonts.has(fontName)) {
+      return `'${fontName}', sans-serif`;
+    }
+    // Fall back to the static substitution table.
+    return resolveFontName(fontName);
   }
 
   /** Emit a progress event if a callback is registered. */

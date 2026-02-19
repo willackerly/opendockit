@@ -27,6 +27,13 @@ pnpm lint                   # prettier + typecheck
 pnpm format                 # prettier --write
 pnpm typecheck              # type checking
 pnpm clean                  # nuke node_modules
+
+# Font pipeline (requires fonts/ dir — run fonts:download first on new clone)
+pnpm fonts:download         # download Google Fonts TTFs to fonts/ (needs internet + python3 fontTools)
+pnpm fonts:metrics          # regenerate metrics-bundle.ts from fonts/
+pnpm fonts:woff2            # regenerate WOFF2 TS bundles from fonts/ (needs python3 fontTools)
+pnpm fonts:bundle           # regenerate both metrics + WOFF2
+pnpm fonts:rebuild          # full pipeline: download + metrics + WOFF2
 ```
 
 ## Structure

@@ -14,6 +14,20 @@ import type { ThemeIR, SlideElementIR, FillIR, ListStyleIR } from '@opendockit/c
 // Presentation
 // ═══════════════════════════════════════════════════════════════════════════
 
+/** Reference to an embedded font in the PPTX package. */
+export interface EmbeddedFontRef {
+  /** Font family name (from p:font typeface). */
+  typeface: string;
+  /** OPC part URI for the regular variant. */
+  regular?: string;
+  /** OPC part URI for the bold variant. */
+  bold?: string;
+  /** OPC part URI for the italic variant. */
+  italic?: string;
+  /** OPC part URI for the bold-italic variant. */
+  boldItalic?: string;
+}
+
 /** Top-level presentation IR produced by parsing a PPTX file. */
 export interface PresentationIR {
   /** Slide width in EMU. */
@@ -26,6 +40,8 @@ export interface PresentationIR {
   slides: SlideReference[];
   /** Presentation theme (from the first/primary theme part). */
   theme: ThemeIR;
+  /** Embedded fonts from the PPTX package (from p:embeddedFontLst). */
+  embeddedFonts?: EmbeddedFontRef[];
 }
 
 /** Reference to a slide and its associated layout/master chain. */

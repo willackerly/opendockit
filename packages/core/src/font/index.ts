@@ -16,3 +16,20 @@ export { isFontAvailable, loadFont, ensureFontLoaded } from './font-loader.js';
 
 export { FontMetricsDB } from './font-metrics-db.js';
 export type { FontFaceMetrics, FontMetricsBundle } from './font-metrics-db.js';
+
+export { extractFontFromEot, deobfuscateOdttf } from './eot-parser.js';
+
+export { isGoogleFont, loadGoogleFont, loadGoogleFonts } from './google-fonts-loader.js';
+
+export {
+  hasOflSubstitute,
+  getOflSubstituteFamily,
+  loadOflSubstitute,
+  loadOflSubstitutes,
+} from './font-cdn-loader.js';
+
+export {
+  hasBundledFont,
+  loadBundledFont,
+  loadBundledFonts,
+} from './bundled-font-loader.js';

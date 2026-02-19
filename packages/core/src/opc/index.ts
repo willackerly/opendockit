@@ -30,6 +30,7 @@ export {
   REL_PRES_PROPS,
   REL_VIEW_PROPS,
   REL_TABLE_STYLES,
+  REL_FONT,
 } from './relationship-resolver.js';
 export type { Relationship, RelationshipMap } from './relationship-resolver.js';
 

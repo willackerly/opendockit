@@ -137,6 +137,11 @@ function buildTextDefaults(
   element: SlideElementIR,
   data: EnrichedSlideData
 ): ListStyleIR | undefined {
+  // Tables (graphicFrames) need master otherStyle for font defaults.
+  // They aren't placeholders so skip the layout/master placeholder chain.
+  if (element.kind === 'table') {
+    return data.master.txStyles?.otherStyle;
+  }
   if (element.kind !== 'shape') return undefined;
   const { layout, master } = data;
 

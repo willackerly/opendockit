@@ -18,10 +18,13 @@
 - [x] Theme parser (theme1.xml -> ThemeIR)
 - [x] Color resolver (all 5 types + 13 transforms)
 - [x] Font resolver (substitution table + metrics)
-- [x] Precomputed font metrics system (24 families, 68 faces, 409KB bundle)
+- [x] Precomputed font metrics system (42 families, 130 faces, ~750KB bundle)
 - [x] Vendored TrueType/CFF parsers from pdfbox-ts for font metric extraction
 - [x] Font metrics extraction script (`scripts/extract-font-metrics.mjs`)
 - [x] Font metrics for Google Fonts: Lato, Lato Light, Arimo, Comfortaa, Open Sans, Noto Sans Symbols
+- [x] Bundled WOFF2 fonts (42 families, ~5MB, 100% offline rendering)
+- [x] 5-tier font loading: user-supplied → embedded EOT → bundled WOFF2 → OFL CDN → Google Fonts CDN
+- [x] EOT embedded font parser
 
 ### Phase 1: DrawingML Pipeline
 
@@ -73,7 +76,7 @@
 - [x] Hyperlinks (a:hlinkClick -> click handler / URL)
 - [x] Notes view (p:notes parsing + getSlideNotes() API)
 - [x] Progressive render pipeline (grey-box with hatch + loading indicator, deferred WASM loading, coverage report API)
-- [x] Visual regression pipeline (Playwright + ImageMagick RMSE, 54-slide baseline at median 0.128)
+- [x] Visual regression pipeline (Playwright + ImageMagick RMSE, 54-slide baseline with regression guard, `pnpm test:visual`)
 
 ## Next Up
 
@@ -106,16 +109,23 @@ These are known gaps. They can be tackled opportunistically or when a real-world
 - Impact: shapes with spAutoFit may clip text or have excess whitespace
 - Rare in real-world PPTX files
 
+### Table Row Auto-Height
+
+- OOXML table row heights are minimums — rows should expand to fit content
+- Currently rows render at the declared height; text taller than the row overflows visually
+- Fix requires: measure cell text content height, expand row to max across cells
+- Impact: small-row tables show text overlapping rather than cleanly expanding
+
 ### Placeholder Inherited Content
 
 - Slide elements referencing placeholders correctly inherit text defaults, visual properties, and body properties from layout -> master cascade
-- Remaining gap: inherited text *content* — empty slide placeholders don't show layout/master placeholder text
+- Remaining gap: inherited text _content_ — empty slide placeholders don't show layout/master placeholder text
 - Impact: slides with intentionally-empty placeholders (expecting to show layout title/subtitle) render blank
 - Common in template-heavy presentations
 
 ### Broader Visual Test Corpus
 
-- Current: 1 real-world PPTX (54 slides), median RMSE 0.128
+- Current: 1 real-world PPTX (54 slides), per-slide RMSE baselines with regression guard
 - Want: 5-10 PPTX files covering edge cases (charts, SmartArt, heavy animation, CJK text, RTL, complex tables)
 - Want: synthetic fixture PPTX files targeting specific features in isolation
 
@@ -159,4 +169,5 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 
 - [ ] Connector routing via connection sites (deferred - needs shape registry for endpoint lookup)
 - [ ] spAutoFit text (shape resize to fit text - needs layout feedback loop)
+- [ ] Table row auto-height (rows should expand to fit content text)
 - [ ] Media LRU cache size limits (currently unbounded)

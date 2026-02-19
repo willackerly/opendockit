@@ -8,8 +8,8 @@
  * Reference: ECMA-376 5th Edition, Part 1 ss 13.3.6 (Presentation)
  */
 
-import type { ThemeIR } from '@opendockit/core';
-import type { OpcPackage } from '@opendockit/core/opc';
+import type { ThemeIR, XmlElement } from '@opendockit/core';
+import type { OpcPackage, RelationshipMap } from '@opendockit/core/opc';
 import {
   REL_OFFICE_DOCUMENT,
   REL_SLIDE,
@@ -18,7 +18,7 @@ import {
   REL_THEME,
 } from '@opendockit/core/opc';
 import { parseTheme } from '@opendockit/core/theme';
-import type { PresentationIR, SlideReference } from '../model/index.js';
+import type { PresentationIR, SlideReference, EmbeddedFontRef } from '../model/index.js';
 
 /** Default slide width: 10 inches in EMU (standard 10:7.5 slide). */
 const DEFAULT_SLIDE_WIDTH = 9144000;
@@ -99,13 +99,20 @@ export async function parsePresentation(pkg: OpcPackage): Promise<PresentationIR
     theme = defaultTheme();
   }
 
-  return {
+  // 7. Parse embedded font list
+  const embeddedFonts = parseEmbeddedFontList(presXml, presRels);
+
+  const result: PresentationIR = {
     slideWidth,
     slideHeight,
     slideCount: slides.length,
     slides,
     theme,
   };
+  if (embeddedFonts.length > 0) {
+    result.embeddedFonts = embeddedFonts;
+  }
+  return result;
 }
 
 /**
@@ -137,6 +144,48 @@ async function resolveSlideChain(
   }
 
   return { layoutPartUri, masterPartUri };
+}
+
+/**
+ * Parse `<p:embeddedFontLst>` from presentation.xml.
+ *
+ * Each `<p:embeddedFont>` contains a `<p:font>` with the typeface name
+ * and optional `<p:regular>`, `<p:bold>`, `<p:italic>`, `<p:boldItalic>`
+ * children whose `r:id` attributes point to font parts (typically .fntdata).
+ */
+function parseEmbeddedFontList(presXml: XmlElement, presRels: RelationshipMap): EmbeddedFontRef[] {
+  const fontLst = presXml.child('p:embeddedFontLst');
+  if (!fontLst) return [];
+
+  const result: EmbeddedFontRef[] = [];
+  for (const embFont of fontLst.allChildren('p:embeddedFont')) {
+    const fontEl = embFont.child('p:font');
+    const typeface = fontEl?.attr('typeface');
+    if (!typeface) continue;
+
+    const ref: EmbeddedFontRef = { typeface };
+
+    const variants: Array<[keyof EmbeddedFontRef, string]> = [
+      ['regular', 'p:regular'],
+      ['bold', 'p:bold'],
+      ['italic', 'p:italic'],
+      ['boldItalic', 'p:boldItalic'],
+    ];
+
+    for (const [key, tag] of variants) {
+      const variantEl = embFont.child(tag);
+      const rId = variantEl?.attr('r:id');
+      if (rId) {
+        const rel = presRels.getById(rId);
+        if (rel) {
+          ref[key] = rel.target;
+        }
+      }
+    }
+
+    result.push(ref);
+  }
+  return result;
 }
 
 /** Minimal default theme when no theme part is found. */

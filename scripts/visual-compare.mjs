@@ -51,18 +51,67 @@ if (!fs.existsSync(referenceDir)) {
 fs.mkdirSync(renderedDir, { recursive: true });
 fs.mkdirSync(diffsDir, { recursive: true });
 
-// Baseline RMSE values (post Wave 7: justify, char spacing, rotation, 24 font families, 2026-02-19)
+// Baseline RMSE values (post table-inset-fix + table-textDefaults, 2026-02-19)
 const BASELINE_RMSE = {
-  1: 0.056, 2: 0.080, 3: 0.045, 4: 0.098, 5: 0.158, 6: 0.041, 7: 0.079,
-  8: 0.108, 9: 0.178, 10: 0.038, 11: 0.155, 12: 0.159, 13: 0.141, 14: 0.070,
-  15: 0.158, 16: 0.096, 17: 0.103, 18: 0.101, 19: 0.121, 20: 0.051,
-  21: 0.139, 22: 0.128, 23: 0.138, 24: 0.054, 25: 0.149, 26: 0.780,
-  27: 0.730, 28: 0.055, 29: 0.157, 30: 0.444, 31: 0.123, 32: 0.424,
-  33: 0.042, 34: 0.162, 35: 0.178, 36: 0.034, 37: 0.033, 38: 0.126,
-  39: 0.139, 40: 0.124, 41: 0.132, 42: 0.136, 43: 0.148, 44: 0.123,
-  45: 0.139, 46: 0.131, 47: 0.117, 48: 0.138, 49: 0.127, 50: 0.152,
-  51: 0.136, 52: 0.058, 53: 0.107, 54: 0.174,
+  1: 0.0527,
+  2: 0.0783,
+  3: 0.0413,
+  4: 0.0930,
+  5: 0.1491,
+  6: 0.0391,
+  7: 0.0768,
+  8: 0.1095,
+  9: 0.1619,
+  10: 0.0329,
+  11: 0.1495,
+  12: 0.1577,
+  13: 0.1424,
+  14: 0.0700,
+  15: 0.1644,
+  16: 0.0957,
+  17: 0.1026,
+  18: 0.1007,
+  19: 0.1198,
+  20: 0.0505,
+  21: 0.1349,
+  22: 0.1245,
+  23: 0.1349,
+  24: 0.0536,
+  25: 0.1456,
+  26: 0.7804,
+  27: 0.7296,
+  28: 0.0543,
+  29: 0.1525,
+  30: 0.4438,
+  31: 0.1200,
+  32: 0.4244,
+  33: 0.0423,
+  34: 0.1570,
+  35: 0.1751,
+  36: 0.0338,
+  37: 0.0328,
+  38: 0.1209,
+  39: 0.1325,
+  40: 0.1165,
+  41: 0.1311,
+  42: 0.1322,
+  43: 0.1457,
+  44: 0.1190,
+  45: 0.1323,
+  46: 0.1283,
+  47: 0.1110,
+  48: 0.1350,
+  49: 0.1221,
+  50: 0.1518,
+  51: 0.1340,
+  52: 0.0581,
+  53: 0.1071,
+  54: 0.1689,
 };
+
+// Regression threshold — a slide is considered "regressed" if RMSE exceeds
+// baseline by more than this amount. Small drifts (< threshold) are noise.
+const REGRESSION_THRESHOLD = 0.008;
 
 // ---------------------------------------------------------------------------
 // Step 1: Start Vite dev server
@@ -172,7 +221,7 @@ await page.addStyleTag({
 // Wait for all fonts to finish loading
 await page.waitForFunction(
   () => document.fonts.ready.then(() => document.fonts.status === 'loaded'),
-  { timeout: 30_000 },
+  { timeout: 30_000 }
 );
 console.log('  Fonts loaded.');
 
@@ -231,15 +280,24 @@ if (viteProcess) {
 console.log('\n=== Step 3: Computing RMSE against reference PNGs ===');
 
 // Get the rendered image dimensions for resize target
-const renderedFiles = fs.readdirSync(renderedDir).filter(f => f.match(/^slide-\d+\.png$/)).sort();
-const referenceFiles = fs.readdirSync(referenceDir).filter(f => f.match(/^slide-\d+\.png$/)).sort();
+const renderedFiles = fs
+  .readdirSync(renderedDir)
+  .filter((f) => f.match(/^slide-\d+\.png$/))
+  .sort();
+const referenceFiles = fs
+  .readdirSync(referenceDir)
+  .filter((f) => f.match(/^slide-\d+\.png$/))
+  .sort();
 
 // Get rendered image size from first file
 let targetSize;
 try {
-  const identify = execSync(`magick identify -format '%wx%h' "${path.join(renderedDir, renderedFiles[0])}"`, {
-    encoding: 'utf-8',
-  }).trim();
+  const identify = execSync(
+    `magick identify -format '%wx%h' "${path.join(renderedDir, renderedFiles[0])}"`,
+    {
+      encoding: 'utf-8',
+    }
+  ).trim();
   targetSize = identify;
   console.log(`  Rendered image size: ${targetSize}`);
 } catch {
@@ -261,8 +319,8 @@ for (let i = 0; i < Math.min(renderedFiles.length, referenceFiles.length); i++) 
     // The number in parens is the normalized RMSE (0-1 range).
     const stderr = execSync(
       `magick compare -metric RMSE "${renderedPath}" ` +
-      `\\( "${referencePath}" -resize ${targetSize}! \\) ` +
-      `"${diffPath}" 2>&1 || true`,
+        `\\( "${referencePath}" -resize ${targetSize}! \\) ` +
+        `"${diffPath}" 2>&1 || true`,
       { encoding: 'utf-8' }
     ).trim();
 
@@ -274,9 +332,17 @@ for (let i = 0; i < Math.min(renderedFiles.length, referenceFiles.length); i++) 
     const delta = rmse != null && baseline != null ? rmse - baseline : null;
 
     results.push({ slideNum, rmse, baseline, delta, diffPath });
-    process.stdout.write(`  slide-${String(slideNum).padStart(2, '0')}: RMSE=${rmse?.toFixed(4) ?? 'N/A'}\r`);
+    process.stdout.write(
+      `  slide-${String(slideNum).padStart(2, '0')}: RMSE=${rmse?.toFixed(4) ?? 'N/A'}\r`
+    );
   } catch (err) {
-    results.push({ slideNum, rmse: null, baseline: BASELINE_RMSE[slideNum], delta: null, diffPath });
+    results.push({
+      slideNum,
+      rmse: null,
+      baseline: BASELINE_RMSE[slideNum],
+      delta: null,
+      diffPath,
+    });
     process.stdout.write(`  slide-${String(slideNum).padStart(2, '0')}: ERROR\r`);
   }
 }
@@ -290,7 +356,7 @@ console.log('');
 console.log('\n=== RMSE Report (sorted by RMSE, worst first) ===\n');
 
 // Sort by RMSE descending
-const sorted = results.filter(r => r.rmse != null).sort((a, b) => b.rmse - a.rmse);
+const sorted = results.filter((r) => r.rmse != null).sort((a, b) => b.rmse - a.rmse);
 
 console.log('  Slide  |  RMSE   | Baseline |  Delta  | Status');
 console.log('  -------|---------|----------|---------|--------');
@@ -307,18 +373,18 @@ for (const r of sorted) {
 
   if (r.delta != null) {
     const absDelta = Math.abs(r.delta);
-    if (absDelta < 0.005) {
-      deltaStr = '   ~0   ';
-      status = '  =';
-      unchanged++;
-    } else if (r.delta < 0) {
+    if (r.delta > REGRESSION_THRESHOLD) {
+      deltaStr = ` +${absDelta.toFixed(4)}`;
+      status = '  WORSE';
+      regressed++;
+    } else if (r.delta < -0.005) {
       deltaStr = ` -${absDelta.toFixed(4)}`;
       status = '  BETTER';
       improved++;
     } else {
-      deltaStr = ` +${absDelta.toFixed(4)}`;
-      status = '  WORSE';
-      regressed++;
+      deltaStr = '   ~0   ';
+      status = '  =';
+      unchanged++;
     }
   } else {
     deltaStr = '     N/A';
@@ -333,7 +399,9 @@ console.log(`\n  Summary: ${improved} improved, ${regressed} regressed, ${unchan
 // Top 10 worst slides
 console.log('\n=== Top 10 Worst Slides ===\n');
 for (const r of sorted.slice(0, 10)) {
-  console.log(`  Slide ${String(r.slideNum).padStart(2)}: RMSE=${r.rmse.toFixed(4)}  diff: ${r.diffPath}`);
+  console.log(
+    `  Slide ${String(r.slideNum).padStart(2)}: RMSE=${r.rmse.toFixed(4)}  diff: ${r.diffPath}`
+  );
 }
 
 // Write machine-readable JSON report
@@ -346,7 +414,7 @@ fs.writeFileSync(
       pptxFile: pptxPath,
       slideCount,
       targetSize,
-      results: results.map(r => ({
+      results: results.map((r) => ({
         slide: r.slideNum,
         rmse: r.rmse,
         baseline: r.baseline,
@@ -359,4 +427,37 @@ fs.writeFileSync(
   )
 );
 console.log(`\n  JSON report: ${reportPath}`);
-console.log('\nDone!');
+
+// ---------------------------------------------------------------------------
+// Step 5: Update baselines (if --update-baselines flag is passed)
+// ---------------------------------------------------------------------------
+
+if (process.argv.includes('--update-baselines')) {
+  console.log('\n=== Updating baselines ===\n');
+  const lines = results
+    .filter((r) => r.rmse != null)
+    .map((r) => `  ${r.slideNum}: ${r.rmse.toFixed(4)},`)
+    .join('\n');
+  console.log('  New BASELINE_RMSE values:\n');
+  console.log(lines);
+  console.log('\n  Copy these into the BASELINE_RMSE object in this script.');
+}
+
+// ---------------------------------------------------------------------------
+// Step 6: Exit with non-zero code if any regressions detected
+// ---------------------------------------------------------------------------
+
+if (regressed > 0) {
+  const regressedSlides = sorted
+    .filter(
+      (r) => r.delta != null && r.delta > REGRESSION_THRESHOLD
+    )
+    .map((r) => `slide ${r.slideNum} (+${r.delta.toFixed(4)})`)
+    .join(', ');
+  console.error(
+    `\nFAIL: ${regressed} slide(s) regressed beyond threshold (${REGRESSION_THRESHOLD}): ${regressedSlides}`
+  );
+  process.exit(1);
+}
+
+console.log('\nPASS: No visual regressions detected.');

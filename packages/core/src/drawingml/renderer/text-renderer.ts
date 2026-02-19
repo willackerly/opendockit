@@ -462,10 +462,7 @@ function wrapParagraph(
       // with the height of the line break's font.
       if (currentFragments.length === 0) {
         const fontSizePt = resolveFontSizePt(run.properties, fontScale, rctx, paragraphLevel);
-        const lineSpacingPct = resolveLineSpacingPct(
-          effectiveLineSpacing,
-          lnSpcReduction
-        );
+        const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
         const heightPx =
           lineSpacingPct >= 0
             ? ptToCanvasPx(fontSizePt * (lineSpacingPct / 100), dpiScale)
@@ -1116,17 +1113,15 @@ export function renderTextBody(
 
         ctx.fillText(frag.text, drawX, baselineY + baselineShift);
 
-        // Reset letterSpacing after drawing.
+        // Measure the ACTUAL rendered width using Canvas2D for draw advancement.
+        // Must be done BEFORE resetting letterSpacing so the measurement includes
+        // the same spacing that was used during fillText.
+        const renderedWidth = ctx.measureText(frag.text).width;
+
+        // Reset letterSpacing after drawing AND measuring.
         if (fragSpacing != null && fragSpacing !== 0 && 'letterSpacing' in ctx) {
           (ctx as unknown as { letterSpacing: string }).letterSpacing = '0px';
         }
-
-        // Measure the ACTUAL rendered width using Canvas2D for draw advancement.
-        // This prevents positioning drift when precomputed font metrics (used for
-        // line-wrapping) differ from the browser's actual rendering font. Without
-        // this, text measured with e.g. Barlow metrics but rendered with Arial
-        // accumulates positioning error, causing word overlap or excessive gaps.
-        const renderedWidth = ctx.measureText(frag.text).width;
 
         // Draw underline.
         if (frag.props.underline && frag.props.underline !== 'none') {

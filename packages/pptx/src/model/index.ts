@@ -5,6 +5,7 @@
 export type {
   PresentationIR,
   SlideReference,
+  EmbeddedFontRef,
   SlideMasterIR,
   SlideLayoutIR,
   SlideIR,
