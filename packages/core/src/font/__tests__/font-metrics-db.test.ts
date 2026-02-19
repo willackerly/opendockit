@@ -287,9 +287,10 @@ describe('metricsBundle integration', () => {
         expect(face.lineGap).toBeDefined();
         expect(typeof face.lineHeight).toBe('number');
         expect(typeof face.lineGap).toBe('number');
-        // lineHeight should be positive and reasonable (typically 0.8 to 1.5)
+        // lineHeight should be positive and reasonable (typically 0.8 to 1.5,
+        // but symbol fonts like Noto Sans Symbols can reach ~2.05)
         expect(face.lineHeight!).toBeGreaterThan(0);
-        expect(face.lineHeight!).toBeLessThan(2);
+        expect(face.lineHeight!).toBeLessThan(3);
         // lineGap should be non-negative
         expect(face.lineGap!).toBeGreaterThanOrEqual(0);
       }

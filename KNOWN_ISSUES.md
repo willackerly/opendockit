@@ -31,8 +31,8 @@ None.
 
 - Users won't have Calibri/Cambria on non-Windows systems.
 - Font substitution table maps common Office fonts to system alternatives.
-- Precomputed font metrics system (18 families, 55 faces, 314KB bundle) provides accurate text layout without actual fonts installed. `measureFragment()` uses the metrics DB before falling back to Canvas2D measurement.
-- Includes Google Fonts used in Slides exports: Barlow, Barlow Light, Play, Roboto Slab, Roboto Slab Light, Roboto Slab SemiBold.
+- Precomputed font metrics system (24 families, 68 faces, 409KB bundle) provides accurate text layout without actual fonts installed. `measureFragment()` uses the metrics DB before falling back to Canvas2D measurement.
+- Includes Google Fonts used in Slides exports: Barlow, Barlow Light, Play, Roboto Slab, Roboto Slab Light, Roboto Slab SemiBold, Lato, Lato Light, Arimo, Comfortaa, Open Sans, Noto Sans Symbols.
 - Gaps remain for Verdana, Trebuchet MS, Tahoma, Aptos, and C-series Office fonts (Corbel, Candara, Constantia) — no OFL metric-compatible replacements exist.
 - Font metrics do not include kerning pairs; text width measurement is character-by-character. This can cause line breaks at slightly different positions than the original (~1-3% width error on long text runs).
 - Embedded fonts in PPTX are rare but must be handled.

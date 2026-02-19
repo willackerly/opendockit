@@ -57,6 +57,14 @@ const SUBSTITUTIONS: Record<string, string> = {
   batang: 'serif',
   gulim: 'sans-serif',
 
+  // Google Fonts — pass through with generic fallbacks
+  lato: 'Lato, sans-serif',
+  'lato light': "'Lato Light', Lato, sans-serif",
+  arimo: 'Arimo, Arial, sans-serif',
+  comfortaa: 'Comfortaa, cursive',
+  'open sans': "'Open Sans', sans-serif",
+  'noto sans symbols': "'Noto Sans Symbols', sans-serif",
+
   // Decorative / Other
   impact: "'Arial Black', sans-serif",
   'comic sans ms': 'cursive',

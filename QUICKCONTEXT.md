@@ -13,18 +13,18 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer. It reads 
 The full rendering pipeline is implemented and working:
 
 - **1,290 tests** passing (1,208 core + 82 pptx), typecheck clean, lint clean
-- **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (12 families, 43 faces, lineHeight/lineGap), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector), media cache, capability registry, WASM module loader
+- **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (24 families, 68 faces, lineHeight/lineGap), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation, media cache, capability registry, WASM module loader
 - **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance), SlideKit viewport API (hyperlinks, notes)
 
 ### Font Metrics System (new)
 
 Precomputed font metrics from OFL fonts for accurate text layout without actual fonts installed:
 
-- **12 families, 43 faces** in 262KB bundle (auto-loaded by SlideKit)
+- **24 families, 68 faces** in 409KB bundle (auto-loaded by SlideKit)
 - Vendored TrueType/CFF parsers from pdfbox-ts for extraction
 - `measureFragment()` uses metrics DB before Canvas2D fallback
 - Extraction script at `scripts/extract-font-metrics.mjs` for adding more fonts
-- Coverage: Calibri, Calibri Light, Cambria, Arial, Times New Roman, Courier New, Georgia, Segoe UI, Arial Narrow, Palatino Linotype, Bookman Old Style, Century Schoolbook
+- Coverage: Calibri, Calibri Light, Cambria, Arial, Times New Roman, Courier New, Georgia, Segoe UI, Arial Narrow, Palatino Linotype, Bookman Old Style, Century Schoolbook, Barlow, Barlow Light, Roboto Slab, Roboto Slab Light, Roboto Slab SemiBold, Play, Lato, Lato Light, Arimo, Comfortaa, Open Sans, Noto Sans Symbols
 - Gaps (no OFL replacement): Verdana, Trebuchet MS, Tahoma, Aptos, Corbel/Candara/Constantia
 
 ## What's Next

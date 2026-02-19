@@ -485,7 +485,7 @@ export interface CharacterPropertiesIR {
   highlight?: ResolvedColor;
   /** Superscript/subscript baseline offset percentage (-100 to +100). */
   baseline?: number;
-  /** Letter spacing in EMU. */
+  /** Letter spacing in hundredths of a point (e.g. 100 = 1pt). */
   spacing?: number;
   /** Latin font typeface name. */
   latin?: string;

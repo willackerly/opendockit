@@ -18,9 +18,10 @@
 - [x] Theme parser (theme1.xml -> ThemeIR)
 - [x] Color resolver (all 5 types + 13 transforms)
 - [x] Font resolver (substitution table + metrics)
-- [x] Precomputed font metrics system (12 families, 43 faces, 262KB bundle)
+- [x] Precomputed font metrics system (24 families, 68 faces, 409KB bundle)
 - [x] Vendored TrueType/CFF parsers from pdfbox-ts for font metric extraction
 - [x] Font metrics extraction script (`scripts/extract-font-metrics.mjs`)
+- [x] Font metrics for Google Fonts: Lato, Lato Light, Arimo, Comfortaa, Open Sans, Noto Sans Symbols
 
 ### Phase 1: DrawingML Pipeline
 
@@ -39,7 +40,7 @@
 - [x] Fill renderer (solid, gradient -> Canvas2D)
 - [x] Line renderer (stroke, dash, arrows)
 - [x] Effect renderer (drop shadow via Canvas2D)
-- [x] Text renderer (wrapping, alignment, font size, auto-fit)
+- [x] Text renderer (wrapping, alignment, font size, auto-fit, justify/distributed, character spacing, text body rotation)
 - [x] Picture renderer (drawImage + crop/transforms)
 - [x] Group renderer (recursive with save/restore)
 - [x] Media cache (lazy image extraction + LRU)

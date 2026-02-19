@@ -543,8 +543,15 @@ function wrapParagraph(
     // Split into words, preserving spaces for accurate measurement.
     const words = run.text.split(/(?<=\s)/);
 
+    // Character spacing: extra width per character from `spc` attribute.
+    const charSpacing = run.properties.spacing;
+    const charSpacingPx =
+      charSpacing != null && charSpacing !== 0
+        ? ptToCanvasPx(hundredthsPtToPt(charSpacing), dpiScale)
+        : 0;
+
     for (const word of words) {
-      const wordWidth = measureFragment(
+      let wordWidth = measureFragment(
         ctx,
         word,
         fontString,
@@ -554,6 +561,10 @@ function wrapParagraph(
         run.properties.bold,
         run.properties.italic
       );
+      // Add character spacing to measured width.
+      if (charSpacingPx !== 0 && word.length > 0) {
+        wordWidth += charSpacingPx * word.length;
+      }
       const lineAvail = getLineAvailableWidth();
 
       // Wrap if this word would overflow — but not if the line is empty
@@ -976,6 +987,17 @@ export function renderTextBody(
     ctx.clip();
   }
 
+  // Apply text body rotation (independent of shape rotation).
+  // Rotates the text within the text box around its center.
+  const bodyRotation = body.rotation;
+  if (bodyRotation != null && bodyRotation !== 0) {
+    const cx = bounds.x + bounds.width / 2;
+    const cy = bounds.y + bounds.height / 2;
+    ctx.translate(cx, cy);
+    ctx.rotate((bodyRotation * Math.PI) / 180);
+    ctx.translate(-cx, -cy);
+  }
+
   let cursorY = textAreaY + verticalOffset;
 
   for (let pi = 0; pi < paragraphLayouts.length; pi++) {
@@ -1015,10 +1037,35 @@ export function renderTextBody(
       } else if (layout.alignment === 'right') {
         lineX += lineAvailableWidth - totalLineWidth;
       }
-      // 'left', 'justify', 'distributed': no offset (justify is phase 4)
+      // 'left': no offset. 'justify'/'distributed': handled below via word spacing.
 
       let drawX = lineX;
       const baselineY = cursorY + line.ascentPx;
+
+      // Justify/distributed: distribute extra horizontal space between words.
+      // Last line of paragraph renders left-aligned (standard justify behavior).
+      let justifyExtraPerGap = 0;
+      const isLastLine = li === layout.lines.length - 1;
+      if (
+        (layout.alignment === 'justify' || layout.alignment === 'distributed') &&
+        !isLastLine &&
+        line.fragments.length > 1
+      ) {
+        // Count word gaps: fragments ending with whitespace (excluding the last fragment).
+        let gapCount = 0;
+        for (let fi = 0; fi < line.fragments.length - 1; fi++) {
+          const t = line.fragments[fi].text;
+          if (t.length > 0 && /\s$/.test(t)) {
+            gapCount++;
+          }
+        }
+        if (gapCount > 0) {
+          const extraSpace = lineAvailableWidth - totalLineWidth;
+          if (extraSpace > 0) {
+            justifyExtraPerGap = extraSpace / gapCount;
+          }
+        }
+      }
 
       // Draw bullet on the first line of the paragraph.
       if (li === 0 && layout.bullet) {
@@ -1035,11 +1082,19 @@ export function renderTextBody(
       }
 
       // Draw each text fragment in the line.
-      for (const frag of line.fragments) {
+      for (let fi = 0; fi < line.fragments.length; fi++) {
+        const frag = line.fragments[fi];
         ctx.font = frag.fontString;
         ctx.fillStyle = frag.fillStyle;
 
         const fontSizePx = ptToCanvasPx(frag.fontSizePt, dpiScale);
+
+        // Character spacing: apply via Canvas letterSpacing when available.
+        const fragSpacing = frag.props.spacing;
+        if (fragSpacing != null && fragSpacing !== 0 && 'letterSpacing' in ctx) {
+          const spacingPx = ptToCanvasPx(hundredthsPtToPt(fragSpacing), dpiScale);
+          (ctx as unknown as { letterSpacing: string }).letterSpacing = `${spacingPx}px`;
+        }
 
         // Baseline shift for superscript/subscript.
         let baselineShift = 0;
@@ -1048,6 +1103,11 @@ export function renderTextBody(
         }
 
         ctx.fillText(frag.text, drawX, baselineY + baselineShift);
+
+        // Reset letterSpacing after drawing.
+        if (fragSpacing != null && fragSpacing !== 0 && 'letterSpacing' in ctx) {
+          (ctx as unknown as { letterSpacing: string }).letterSpacing = '0px';
+        }
 
         // Draw underline.
         if (frag.props.underline && frag.props.underline !== 'none') {
@@ -1074,6 +1134,16 @@ export function renderTextBody(
         }
 
         drawX += frag.widthPx;
+
+        // Justify: add extra space after word-ending fragments.
+        if (
+          justifyExtraPerGap > 0 &&
+          fi < line.fragments.length - 1 &&
+          frag.text.length > 0 &&
+          /\s$/.test(frag.text)
+        ) {
+          drawX += justifyExtraPerGap;
+        }
       }
 
       cursorY += line.heightPx;
