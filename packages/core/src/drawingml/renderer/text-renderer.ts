@@ -259,6 +259,32 @@ function measureFragment(
 }
 
 /**
+ * Get the font's normalized line height multiplier from the metrics DB.
+ *
+ * In OOXML, percentage-based line spacing (spcPct) is relative to the font's
+ * "single spacing" — the font's declared line height (ascender + |descender| +
+ * lineGap) / unitsPerEm. So 100% line spacing for Barlow (lineHeight=1.2) means
+ * 120% of the point size, not 100%.
+ *
+ * Returns 1.0 as fallback when metrics are unavailable.
+ */
+function getFontLineHeightMultiplier(
+  rctx: RenderContext,
+  rawFamily: string,
+  fontSizePx: number,
+  bold: boolean,
+  italic: boolean
+): number {
+  if (rctx.fontMetricsDB) {
+    const vm = rctx.fontMetricsDB.getVerticalMetrics(rawFamily, fontSizePx, bold, italic);
+    if (vm?.lineHeight != null && fontSizePx > 0) {
+      return vm.lineHeight / fontSizePx;
+    }
+  }
+  return 1;
+}
+
+/**
  * Get the default font size for a paragraph by inspecting its runs.
  * Falls back to inherited textDefaults, then DEFAULT_FONT_SIZE_PT.
  *
@@ -466,16 +492,20 @@ function wrapParagraph(
       // with the height of the line break's font.
       if (currentFragments.length === 0) {
         const fontSizePt = resolveFontSizePt(run.properties, fontScale, rctx, paragraphLevel);
+        const fontSizePxBr = ptToCanvasPx(fontSizePt, dpiScale);
+        const brLhMul = getFontLineHeightMultiplier(
+          rctx, 'sans-serif', fontSizePxBr, false, false
+        );
         const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
         const heightPx =
           lineSpacingPct >= 0
-            ? ptToCanvasPx(fontSizePt * (lineSpacingPct / 100), dpiScale)
+            ? ptToCanvasPx(fontSizePt * brLhMul * (lineSpacingPct / 100), dpiScale)
             : ptToCanvasPx(-lineSpacingPct, dpiScale);
         lines.push({
           fragments: [],
           widthPx: 0,
           heightPx,
-          ascentPx: ptToCanvasPx(fontSizePt, dpiScale),
+          ascentPx: fontSizePxBr,
         });
         isFirstLine = false;
       } else {
@@ -505,12 +535,6 @@ function wrapParagraph(
     );
     fillStyle = effectiveFillStyle;
 
-    const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
-    const fragmentHeightPx =
-      lineSpacingPct >= 0
-        ? ptToCanvasPx(fontSizePt * (lineSpacingPct / 100), dpiScale)
-        : ptToCanvasPx(-lineSpacingPct, dpiScale);
-
     // Resolve the original font family name (before substitution) for metrics lookup.
     let rawFamily = run.properties.fontFamily || run.properties.latin;
     if (!rawFamily && rctx.textDefaults) {
@@ -524,19 +548,22 @@ function wrapParagraph(
     rawFamily = rawFamily || 'sans-serif';
     const fontSizePx = ptToCanvasPx(fontSizePt, dpiScale);
 
+    // Compute line height using the font's natural line height multiplier.
+    // In OOXML, percentage line spacing is relative to the font's "single spacing"
+    // (ascender + |descender| + lineGap) / upm, NOT just the point size.
+    const bold = run.properties.bold ?? false;
+    const italic = run.properties.italic ?? false;
+    const fontLhMul = getFontLineHeightMultiplier(rctx, rawFamily, fontSizePx, bold, italic);
+    const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
+    const fragmentHeightPx =
+      lineSpacingPct >= 0
+        ? ptToCanvasPx(fontSizePt * fontLhMul * (lineSpacingPct / 100), dpiScale)
+        : ptToCanvasPx(-lineSpacingPct, dpiScale);
+
     // Compute ascent using font metrics when available.
-    // The ascender value gives the distance from the baseline to the top of
-    // the tallest glyph, which is exactly what we need for baseline positioning.
-    // Previously this used (lineHeight - lineGap) which equals (ascender + |descender|),
-    // the full glyph extent — pushing text down by the descent amount.
     let ascentPx = fontSizePx; // fallback: ascent = full font size
-    if (rctx.fontMetricsDB && rawFamily) {
-      const vm = rctx.fontMetricsDB.getVerticalMetrics(
-        rawFamily,
-        fontSizePx,
-        run.properties.bold ?? false,
-        run.properties.italic ?? false
-      );
+    if (rctx.fontMetricsDB) {
+      const vm = rctx.fontMetricsDB.getVerticalMetrics(rawFamily, fontSizePx, bold, italic);
       if (vm?.ascender != null) {
         ascentPx = vm.ascender;
       }
@@ -598,16 +625,20 @@ function wrapParagraph(
   // empty line with the default font height.
   if (lines.length === 0) {
     const fontSizePt = getParagraphFontSizePt(paragraph, fontScale, rctx);
+    const fontSizePxEmpty = ptToCanvasPx(fontSizePt, dpiScale);
+    const emptyLhMul = getFontLineHeightMultiplier(
+      rctx, 'sans-serif', fontSizePxEmpty, false, false
+    );
     const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
     const heightPx =
       lineSpacingPct >= 0
-        ? ptToCanvasPx(fontSizePt * (lineSpacingPct / 100), dpiScale)
+        ? ptToCanvasPx(fontSizePt * emptyLhMul * (lineSpacingPct / 100), dpiScale)
         : ptToCanvasPx(-lineSpacingPct, dpiScale);
     lines.push({
       fragments: [],
       widthPx: 0,
       heightPx,
-      ascentPx: ptToCanvasPx(fontSizePt, dpiScale),
+      ascentPx: fontSizePxEmpty,
     });
   }
 
