@@ -25,6 +25,15 @@ None.
 - Slide elements referencing placeholders inherit text defaults, visual properties, and body properties from layout -> master cascade
 - Remaining gap: inherited text _content_ (empty slide placeholders don't show layout/master placeholder text)
 
+### Text Property Gaps (from XML audit)
+
+- `<a:buSzPts>` (absolute bullet size) not parsed — latent bug, currently inherits run font size which coincidentally matches in most decks
+- `anchorCtr` parsed into IR but not consumed by text renderer
+- `vert` (text direction) not parsed — vertical/rotated text renders horizontal
+- `marR` (right paragraph margin) not parsed
+- `cap` (capitalization) not parsed
+- Space-after on last paragraph always applied (spec says it should be omitted)
+
 ### No Diagnostic/Warning System (next priority)
 
 - Library silently falls back when features are unsupported (missing fonts, unknown elements)

@@ -1,6 +1,6 @@
 # TODO
 
-**Last synced:** 2026-02-19
+**Last synced:** 2026-02-23
 
 ## Completed
 
@@ -43,7 +43,8 @@
 - [x] Fill renderer (solid, gradient -> Canvas2D)
 - [x] Line renderer (stroke, dash, arrows)
 - [x] Effect renderer (drop shadow via Canvas2D)
-- [x] Text renderer (wrapping, alignment, font size, auto-fit, justify/distributed, character spacing, text body rotation)
+- [x] Text renderer (wrapping, alignment, font size, auto-fit, justify/distributed, character spacing, text body rotation, font-metric line height, ascender baseline)
+- [x] Field code parser (a:fld — slide numbers, dates rendered as text runs)
 - [x] Picture renderer (drawImage + crop/transforms)
 - [x] Group renderer (recursive with save/restore)
 - [x] Media cache (lazy image extraction + LRU)
@@ -123,6 +124,17 @@ These are known gaps. They can be tackled opportunistically or when a real-world
 - Impact: slides with intentionally-empty placeholders (expecting to show layout title/subtitle) render blank
 - Common in template-heavy presentations
 
+### Text Property Gaps (from XML audit 2026-02-23)
+
+These were found by a property-by-property audit of real-world PPTX XML vs what the parser/renderer handles.
+
+- [ ] `<a:buSzPts>` — absolute bullet size not parsed (CRITICAL latent bug: currently bullets inherit run font size, which happens to match in most decks but will be wrong when bullet size differs from run size)
+- [ ] `anchorCtr` — text body anchor-center parsed into IR (`TextBodyPropertiesIR.anchorCenter`) but not consumed by text renderer (MODERATE: horizontally centered text in vertically-anchored shapes may be slightly off)
+- [ ] `vert` — text direction attribute (`<a:bodyPr vert="vert270">`) not parsed (MODERATE: vertical/rotated text in East Asian layouts renders horizontal)
+- [ ] `marR` — right paragraph margin not parsed (MODERATE: only matters when text approaches right edge of shape)
+- [ ] `cap` — capitalization attribute (`<a:rPr cap="all">`) not parsed (LOW: affects few real-world presentations)
+- [ ] Space-after not conditionally omitted for last paragraph (LOW: OOXML spec says space-after on the last paragraph in a text body should be ignored; currently always applied; only affects middle/bottom vertical alignment)
+
 ### Broader Visual Test Corpus
 
 - Current: 1 real-world PPTX (54 slides), per-slide RMSE baselines with regression guard
@@ -171,3 +183,9 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [ ] spAutoFit text (shape resize to fit text - needs layout feedback loop)
 - [ ] Table row auto-height (rows should expand to fit content text)
 - [ ] Media LRU cache size limits (currently unbounded)
+- [ ] Absolute bullet size (`<a:buSzPts>`) not parsed — latent bug, see Deferred section
+- [ ] Text body `anchorCtr` not consumed by renderer
+- [ ] Text direction `vert` attribute not parsed
+- [ ] Right paragraph margin `marR` not parsed
+- [ ] Capitalization `cap` attribute not parsed
+- [ ] Space-after on last paragraph should be omitted per OOXML spec
