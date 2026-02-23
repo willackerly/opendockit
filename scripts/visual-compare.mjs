@@ -19,6 +19,7 @@ import { chromium } from 'playwright';
 import { execSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // ---------------------------------------------------------------------------
 // Config
@@ -51,62 +52,62 @@ if (!fs.existsSync(referenceDir)) {
 fs.mkdirSync(renderedDir, { recursive: true });
 fs.mkdirSync(diffsDir, { recursive: true });
 
-// Baseline RMSE values (post table-inset-fix + table-textDefaults, 2026-02-19)
+// Baseline RMSE values (post video-placeholder + bundled-fonts + line-spacing fix, 2026-02-23)
 const BASELINE_RMSE = {
-  1: 0.0527,
-  2: 0.0783,
-  3: 0.0413,
-  4: 0.0930,
-  5: 0.1491,
-  6: 0.0391,
-  7: 0.0768,
-  8: 0.1095,
-  9: 0.1619,
+  1: 0.0505,
+  2: 0.0771,
+  3: 0.0409,
+  4: 0.0911,
+  5: 0.1489,
+  6: 0.0390,
+  7: 0.0753,
+  8: 0.1040,
+  9: 0.1624,
   10: 0.0329,
-  11: 0.1495,
-  12: 0.1577,
-  13: 0.1424,
-  14: 0.0700,
-  15: 0.1644,
-  16: 0.0957,
-  17: 0.1026,
+  11: 0.1489,
+  12: 0.1581,
+  13: 0.1428,
+  14: 0.0701,
+  15: 0.1591,
+  16: 0.0966,
+  17: 0.1032,
   18: 0.1007,
-  19: 0.1198,
+  19: 0.1168,
   20: 0.0505,
-  21: 0.1349,
-  22: 0.1245,
-  23: 0.1349,
-  24: 0.0536,
-  25: 0.1456,
-  26: 0.7804,
-  27: 0.7296,
-  28: 0.0543,
-  29: 0.1525,
-  30: 0.4438,
-  31: 0.1200,
-  32: 0.4244,
+  21: 0.1392,
+  22: 0.1265,
+  23: 0.1392,
+  24: 0.0535,
+  25: 0.1496,
+  26: 0.0535,
+  27: 0.0497,
+  28: 0.0551,
+  29: 0.1573,
+  30: 0.0558,
+  31: 0.1234,
+  32: 0.0491,
   33: 0.0423,
-  34: 0.1570,
-  35: 0.1751,
-  36: 0.0338,
-  37: 0.0328,
-  38: 0.1209,
-  39: 0.1325,
-  40: 0.1165,
-  41: 0.1311,
-  42: 0.1322,
-  43: 0.1457,
-  44: 0.1190,
-  45: 0.1323,
-  46: 0.1283,
-  47: 0.1110,
-  48: 0.1350,
-  49: 0.1221,
-  50: 0.1518,
-  51: 0.1340,
-  52: 0.0581,
-  53: 0.1071,
-  54: 0.1689,
+  34: 0.1621,
+  35: 0.1787,
+  36: 0.0339,
+  37: 0.0329,
+  38: 0.1274,
+  39: 0.1404,
+  40: 0.1244,
+  41: 0.1325,
+  42: 0.1362,
+  43: 0.1482,
+  44: 0.1227,
+  45: 0.1401,
+  46: 0.1322,
+  47: 0.1173,
+  48: 0.1390,
+  49: 0.1276,
+  50: 0.1520,
+  51: 0.1363,
+  52: 0.0590,
+  53: 0.1070,
+  54: 0.1746,
 };
 
 // Regression threshold — a slide is considered "regressed" if RMSE exceeds
@@ -182,48 +183,87 @@ await page.setViewportSize({ width: 1400, height: 900 });
 
 await page.goto(viteUrl, { waitUntil: 'networkidle' });
 
-// Inject Google Fonts so headless Chrome renders with the actual fonts.
-// This covers the most common Google Fonts found in Google Slides exports.
-console.log('  Loading Google Fonts...');
-await page.addStyleTag({
-  url: 'https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto+Slab:wght@100;200;300;400;500;600;700;800;900&family=Play:wght@400;700&family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700;1,800&family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Raleway:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap',
-});
-// Also register "Barlow Light" as an alias for Barlow weight 300 — Google Slides
-// uses "Barlow Light" as a separate family name, not Barlow with weight 300.
-await page.addStyleTag({
-  content: `
-    @font-face {
-      font-family: 'Barlow Light';
-      font-style: normal;
-      font-weight: 400;
-      src: url(https://fonts.gstatic.com/s/barlow/v13/7cHqv4kjgoGqM7E3p-kc4A.ttf) format('truetype');
+// Load bundled WOFF2 fonts — the exact same fonts SlideKit uses in production.
+// This eliminates measurement-vs-rendering drift from Google Fonts CDN differences.
+console.log('  Loading bundled WOFF2 fonts...');
+
+const VARIANT_DESCRIPTORS = {
+  regular: {},
+  bold: { weight: 'bold' },
+  italic: { style: 'italic' },
+  boldItalic: { weight: 'bold', style: 'italic' },
+};
+
+// Import the manifest from built core package
+const manifestPath = pathToFileURL(
+  path.join(projectRoot, 'packages/core/dist/font/data/woff2/manifest.js')
+).href;
+const { BUNDLED_FONTS } = await import(manifestPath);
+
+// Deduplicate module paths — multiple entries may share the same module
+// (e.g., "carlito" and "calibri" both point to ./carlito.js)
+const moduleCache = new Map();
+const woff2Dir = path.join(projectRoot, 'packages/core/dist/font/data/woff2');
+
+// Build font registration data: { registerAs, variants: { name, b64, descriptors }[] }[]
+const fontEntries = [];
+for (const [, entry] of Object.entries(BUNDLED_FONTS)) {
+  const modulePath = path.resolve(woff2Dir, entry.module);
+  const moduleUrl = pathToFileURL(modulePath).href;
+
+  let mod = moduleCache.get(moduleUrl);
+  if (!mod) {
+    mod = await import(moduleUrl);
+    moduleCache.set(moduleUrl, mod);
+  }
+
+  const variants = [];
+  for (const variant of entry.variants) {
+    const b64 = mod[variant];
+    if (!b64) continue;
+    const descriptors = VARIANT_DESCRIPTORS[variant] ?? {};
+    variants.push({ variant, b64, descriptors });
+  }
+
+  if (variants.length > 0) {
+    fontEntries.push({
+      registerAs: entry.registerAs,
+      variants,
+    });
+  }
+}
+
+console.log(`  Prepared ${fontEntries.length} font families for injection...`);
+
+// Inject all fonts into the browser via FontFace API.
+// We batch into chunks to avoid hitting the page.evaluate serialization limit.
+const CHUNK_SIZE = 4;
+for (let i = 0; i < fontEntries.length; i += CHUNK_SIZE) {
+  const chunk = fontEntries.slice(i, i + CHUNK_SIZE);
+  await page.evaluate(async (families) => {
+    const promises = [];
+    for (const family of families) {
+      for (const v of family.variants) {
+        const dataUrl = `data:font/woff2;base64,${v.b64}`;
+        const face = new FontFace(family.registerAs, `url(${dataUrl})`, v.descriptors);
+        promises.push(
+          face.load().then(
+            (loaded) => { document.fonts.add(loaded); },
+            () => { /* ignore load failures */ }
+          )
+        );
+      }
     }
-    @font-face {
-      font-family: 'Barlow Light';
-      font-style: italic;
-      font-weight: 400;
-      src: url(https://fonts.gstatic.com/s/barlow/v13/7cHsv4kjgoGqM7E_CfOQ4lop.ttf) format('truetype');
-    }
-    @font-face {
-      font-family: 'Roboto Slab Light';
-      font-style: normal;
-      font-weight: 400;
-      src: url(https://fonts.gstatic.com/s/robotoslab/v36/BngbUXZYTXPIvIBgJJSb6s3BzlRRfKOFbvjo0oSWaA.ttf) format('truetype');
-    }
-    @font-face {
-      font-family: 'Roboto Slab SemiBold';
-      font-style: normal;
-      font-weight: 400;
-      src: url(https://fonts.gstatic.com/s/robotoslab/v36/BngbUXZYTXPIvIBgJJSb6s3BzlRRfKOFbvjoUoOWaA.ttf) format('truetype');
-    }
-  `,
-});
+    await Promise.all(promises);
+  }, chunk);
+}
+
 // Wait for all fonts to finish loading
 await page.waitForFunction(
   () => document.fonts.ready.then(() => document.fonts.status === 'loaded'),
   { timeout: 30_000 }
 );
-console.log('  Fonts loaded.');
+console.log(`  ${fontEntries.length} bundled font families loaded.`);
 
 // Load the PPTX
 const fileInput = page.locator('#file-input');

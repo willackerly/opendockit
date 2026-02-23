@@ -652,14 +652,18 @@ describe('renderTextBody', () => {
 
   it('applies line spacing reduction when autoFit is shrink', () => {
     const rctx = createMockRenderContext();
-    // Two paragraphs: measure the gap between them.
-    // Default line spacing is 120%. With 20% reduction it becomes 100%.
+    // Two paragraphs with explicit 120% line spacing: measure the gap.
+    // With 20% reduction it becomes 100% (clamped at minimum 100%).
+    const lnSpc120: SpacingIR = { value: 120, unit: 'pct' };
     const bodyNormal = makeTextBody([
-      makeParagraph([makeRun('First')]),
-      makeParagraph([makeRun('Second')]),
+      makeParagraph([makeRun('First')], undefined, { lineSpacing: lnSpc120 }),
+      makeParagraph([makeRun('Second')], undefined, { lineSpacing: lnSpc120 }),
     ]);
     const bodyReduced = makeTextBody(
-      [makeParagraph([makeRun('First')]), makeParagraph([makeRun('Second')])],
+      [
+        makeParagraph([makeRun('First')], undefined, { lineSpacing: lnSpc120 }),
+        makeParagraph([makeRun('Second')], undefined, { lineSpacing: lnSpc120 }),
+      ],
       { autoFit: 'shrink', lnSpcReduction: 20 }
     );
 

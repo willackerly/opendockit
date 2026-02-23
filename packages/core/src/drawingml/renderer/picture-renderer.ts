@@ -78,8 +78,22 @@ export function renderPicture(pictureIR: PictureIR, rctx: RenderContext): void {
   const media = mediaCache.get(pictureIR.imagePartUri);
 
   if (!media || !isDrawableImage(media)) {
+    // Skip video poster frames when no image is available (or degenerate).
+    if (pictureIR.isVideoPlaceholder) return;
     drawPlaceholder(ctx, dx, dy, dw, dh);
     return;
+  }
+
+  // Skip video poster frames with degenerate images — small placeholder
+  // thumbnails (e.g., 240x240 solid-black PNGs from Google Slides video
+  // exports) stretched to fill large slide areas. Real poster frames with
+  // meaningful screenshots (e.g., full-resolution images) are rendered normally.
+  if (pictureIR.isVideoPlaceholder) {
+    const img = media as { width: number; height: number };
+    // Skip if the poster image is tiny compared to the target area.
+    // A real screenshot will have resolution close to the slide dimensions;
+    // a degenerate placeholder will be much smaller (e.g., 240x240).
+    if (img.width < 480 && img.height < 480) return;
   }
 
   const image = media as CanvasImageSource & {

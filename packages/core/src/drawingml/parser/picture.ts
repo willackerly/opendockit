@@ -5,6 +5,7 @@
  * - Non-visual properties (name, description, hidden)
  * - Blip fill (image reference, crop, stretch, tile)
  * - Shape properties (transform, geometry)
+ * - Video placeholder detection (poster frames for embedded/linked videos)
  *
  * Reference: ECMA-376 5th Edition, Part 1 ss 19.3.1.37 (p:pic)
  */
@@ -60,6 +61,9 @@ export function parsePicture(
   // --- Non-visual properties ---
   const nonVisualProperties = parseNonVisualProperties(picElement);
 
+  // --- Video placeholder detection ---
+  const isVideoPlaceholder = detectVideoPlaceholder(picElement) || undefined;
+
   // --- Blip fill ---
   const blipFillEl = picElement.child('p:blipFill');
   const imagePartUri = extractImagePartUri(blipFillEl);
@@ -75,6 +79,7 @@ export function parsePicture(
     properties,
     blipFill,
     nonVisualProperties,
+    isVideoPlaceholder,
   };
 }
 
@@ -100,6 +105,70 @@ function parseNonVisualProperties(picElement: XmlElement): PictureIR['nonVisualP
     description,
     hidden: hidden || undefined,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Video placeholder detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Common video file extensions used to detect poster frames from the
+ * `title` attribute on `<p:cNvPr>`. Google Slides sets the title to
+ * the original video filename when exporting to PPTX.
+ */
+const VIDEO_EXTENSIONS_RE = /\.(mp4|avi|mov|webm|mkv|wmv|flv|m4v|mpg|mpeg|3gp|ogv)$/i;
+
+/**
+ * Detect whether a picture element is a video poster frame.
+ *
+ * Checks three patterns used by different OOXML producers:
+ *
+ * 1. **Google Slides exports**: `<p:cNvPr title="filename.mp4">` — the title
+ *    attribute contains the original video filename with a video extension,
+ *    and the picture has an `<a:hlinkClick>` pointing to the external video URL.
+ *
+ * 2. **Standard OOXML `<a:videoFile>`**: `<p:nvPr>` contains an
+ *    `<a:videoFile r:link="rIdN"/>` child element referencing the video
+ *    relationship.
+ *
+ * 3. **PowerPoint media action**: `<a:hlinkClick>` on `<p:cNvPr>` has
+ *    `action="ppaction://media"`, indicating a media playback action.
+ */
+function detectVideoPlaceholder(picElement: XmlElement): boolean {
+  const nvPicPr = picElement.child('p:nvPicPr');
+  if (!nvPicPr) return false;
+
+  const cNvPr = nvPicPr.child('p:cNvPr');
+  const nvPr = nvPicPr.child('p:nvPr');
+
+  // Pattern 1: Google Slides — title attribute matches a video filename
+  if (cNvPr) {
+    const title = cNvPr.attr('title');
+    if (title && VIDEO_EXTENSIONS_RE.test(title)) {
+      return true;
+    }
+  }
+
+  // Pattern 2: Standard OOXML — <a:videoFile> inside <p:nvPr>
+  if (nvPr) {
+    const videoFile = nvPr.child('a:videoFile');
+    if (videoFile) {
+      return true;
+    }
+  }
+
+  // Pattern 3: PowerPoint media action — <a:hlinkClick action="ppaction://media">
+  if (cNvPr) {
+    const hlinkClick = cNvPr.child('a:hlinkClick');
+    if (hlinkClick) {
+      const action = hlinkClick.attr('action');
+      if (action && action.includes('ppaction://media')) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 // ---------------------------------------------------------------------------

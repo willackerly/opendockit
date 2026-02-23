@@ -442,6 +442,191 @@ describe('parsePicture', () => {
   });
 
   // -----------------------------------------------------------------------
+  // Video placeholder detection
+  // -----------------------------------------------------------------------
+  describe('video placeholder detection', () => {
+    it('detects Google Slides video by title with .mp4 extension', () => {
+      const xml = parseXml(`
+        <p:pic ${NS}>
+          <p:nvPicPr>
+            <p:cNvPr id="749" name="Google Shape;749;p77" title="COP - Secure Object Proxy Demo.mp4">
+              <a:hlinkClick r:id="rId3"/>
+            </p:cNvPr>
+            <p:cNvPicPr preferRelativeResize="0"/>
+            <p:nvPr/>
+          </p:nvPicPr>
+          <p:blipFill>
+            <a:blip r:embed="rId4"/>
+            <a:stretch><a:fillRect/></a:stretch>
+          </p:blipFill>
+          <p:spPr>
+            <a:xfrm>
+              <a:off x="0" y="0"/>
+              <a:ext cx="7478650" cy="5608975"/>
+            </a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          </p:spPr>
+        </p:pic>
+      `);
+
+      const pic = parsePicture(xml, theme);
+      expect(pic.isVideoPlaceholder).toBe(true);
+    });
+
+    it('detects video by title with .mov extension', () => {
+      const xml = parseXml(`
+        <p:pic ${NS}>
+          <p:nvPicPr>
+            <p:cNvPr id="10" name="Video" title="recording.MOV"/>
+            <p:cNvPicPr/>
+            <p:nvPr/>
+          </p:nvPicPr>
+          <p:blipFill>
+            <a:blip r:embed="rId2"/>
+            <a:stretch><a:fillRect/></a:stretch>
+          </p:blipFill>
+          <p:spPr/>
+        </p:pic>
+      `);
+
+      const pic = parsePicture(xml, theme);
+      expect(pic.isVideoPlaceholder).toBe(true);
+    });
+
+    it('detects video by title with .webm extension', () => {
+      const xml = parseXml(`
+        <p:pic ${NS}>
+          <p:nvPicPr>
+            <p:cNvPr id="10" name="Video" title="clip.webm"/>
+            <p:cNvPicPr/>
+            <p:nvPr/>
+          </p:nvPicPr>
+          <p:blipFill>
+            <a:blip r:embed="rId2"/>
+            <a:stretch><a:fillRect/></a:stretch>
+          </p:blipFill>
+          <p:spPr/>
+        </p:pic>
+      `);
+
+      const pic = parsePicture(xml, theme);
+      expect(pic.isVideoPlaceholder).toBe(true);
+    });
+
+    it('detects standard OOXML video by a:videoFile in nvPr', () => {
+      const xml = parseXml(`
+        <p:pic ${NS}>
+          <p:nvPicPr>
+            <p:cNvPr id="20" name="Video Frame"/>
+            <p:cNvPicPr/>
+            <p:nvPr>
+              <a:videoFile r:link="rId5"/>
+            </p:nvPr>
+          </p:nvPicPr>
+          <p:blipFill>
+            <a:blip r:embed="rId6"/>
+            <a:stretch><a:fillRect/></a:stretch>
+          </p:blipFill>
+          <p:spPr/>
+        </p:pic>
+      `);
+
+      const pic = parsePicture(xml, theme);
+      expect(pic.isVideoPlaceholder).toBe(true);
+    });
+
+    it('detects PowerPoint media action via ppaction://media', () => {
+      const xml = parseXml(`
+        <p:pic ${NS}>
+          <p:nvPicPr>
+            <p:cNvPr id="30" name="Media Pic">
+              <a:hlinkClick r:id="rId7" action="ppaction://media"/>
+            </p:cNvPr>
+            <p:cNvPicPr/>
+            <p:nvPr/>
+          </p:nvPicPr>
+          <p:blipFill>
+            <a:blip r:embed="rId8"/>
+            <a:stretch><a:fillRect/></a:stretch>
+          </p:blipFill>
+          <p:spPr/>
+        </p:pic>
+      `);
+
+      const pic = parsePicture(xml, theme);
+      expect(pic.isVideoPlaceholder).toBe(true);
+    });
+
+    it('does not flag regular pictures as video placeholders', () => {
+      const xml = parseXml(`
+        <p:pic ${NS}>
+          <p:nvPicPr>
+            <p:cNvPr id="4" name="Picture 3" descr="A photo"/>
+            <p:cNvPicPr/>
+            <p:nvPr/>
+          </p:nvPicPr>
+          <p:blipFill>
+            <a:blip r:embed="rId2"/>
+            <a:stretch><a:fillRect/></a:stretch>
+          </p:blipFill>
+          <p:spPr>
+            <a:xfrm>
+              <a:off x="0" y="0"/>
+              <a:ext cx="9144000" cy="6858000"/>
+            </a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          </p:spPr>
+        </p:pic>
+      `);
+
+      const pic = parsePicture(xml, theme);
+      expect(pic.isVideoPlaceholder).toBeUndefined();
+    });
+
+    it('does not flag pictures with non-video title (e.g. .png)', () => {
+      const xml = parseXml(`
+        <p:pic ${NS}>
+          <p:nvPicPr>
+            <p:cNvPr id="5" name="Logo" title="company-logo.png"/>
+            <p:cNvPicPr/>
+            <p:nvPr/>
+          </p:nvPicPr>
+          <p:blipFill>
+            <a:blip r:embed="rId3"/>
+            <a:stretch><a:fillRect/></a:stretch>
+          </p:blipFill>
+          <p:spPr/>
+        </p:pic>
+      `);
+
+      const pic = parsePicture(xml, theme);
+      expect(pic.isVideoPlaceholder).toBeUndefined();
+    });
+
+    it('does not flag hlinkClick without media action as video', () => {
+      const xml = parseXml(`
+        <p:pic ${NS}>
+          <p:nvPicPr>
+            <p:cNvPr id="6" name="Linked Pic">
+              <a:hlinkClick r:id="rId4"/>
+            </p:cNvPr>
+            <p:cNvPicPr/>
+            <p:nvPr/>
+          </p:nvPicPr>
+          <p:blipFill>
+            <a:blip r:embed="rId5"/>
+            <a:stretch><a:fillRect/></a:stretch>
+          </p:blipFill>
+          <p:spPr/>
+        </p:pic>
+      `);
+
+      const pic = parsePicture(xml, theme);
+      expect(pic.isVideoPlaceholder).toBeUndefined();
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // Crop values are 1/1000 percent, converted to 0-1 fractions
   // -----------------------------------------------------------------------
   it('converts crop values from 1/1000 percent to 0-1 fractions', () => {

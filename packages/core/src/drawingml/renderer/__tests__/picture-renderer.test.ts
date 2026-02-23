@@ -263,6 +263,70 @@ describe('renderPicture', () => {
     });
   });
 
+  describe('video placeholder', () => {
+    it('skips rendering when isVideoPlaceholder and image is small (degenerate poster)', () => {
+      const ctx = createMockContext();
+      const rctx = createMockRenderContext(ctx);
+      // Small image (240x240) — degenerate poster frame
+      const mockImage = createMockImage(240, 240);
+      rctx.mediaCache.set('/ppt/media/image1.png', mockImage, 1000);
+
+      const pic: PictureIR = {
+        ...makePicture(),
+        isVideoPlaceholder: true,
+      };
+      renderPicture(pic, rctx);
+
+      // No draw calls — degenerate poster skipped
+      expect(ctx._calls).toHaveLength(0);
+    });
+
+    it('renders normally when isVideoPlaceholder but image is large (real screenshot)', () => {
+      const ctx = createMockContext();
+      const rctx = createMockRenderContext(ctx);
+      // Large image (1920x1080) — real poster frame screenshot
+      const mockImage = createMockImage(1920, 1080);
+      rctx.mediaCache.set('/ppt/media/image1.png', mockImage, 1000);
+
+      const pic: PictureIR = {
+        ...makePicture(),
+        isVideoPlaceholder: true,
+      };
+      renderPicture(pic, rctx);
+
+      const drawCall = ctx._calls.find((c) => c.method === 'drawImage');
+      expect(drawCall).toBeDefined();
+    });
+
+    it('skips rendering when isVideoPlaceholder and no image in cache', () => {
+      const ctx = createMockContext();
+      const rctx = createMockRenderContext(ctx);
+      // No image in cache
+
+      const pic: PictureIR = {
+        ...makePicture(),
+        isVideoPlaceholder: true,
+      };
+      renderPicture(pic, rctx);
+
+      // No draw calls — video placeholder with no image skipped silently
+      expect(ctx._calls).toHaveLength(0);
+    });
+
+    it('renders normally when isVideoPlaceholder is undefined', () => {
+      const ctx = createMockContext();
+      const rctx = createMockRenderContext(ctx);
+      const mockImage = createMockImage(200, 150);
+      rctx.mediaCache.set('/ppt/media/image1.png', mockImage, 1000);
+
+      const pic = makePicture();
+      renderPicture(pic, rctx);
+
+      const drawCall = ctx._calls.find((c) => c.method === 'drawImage');
+      expect(drawCall).toBeDefined();
+    });
+  });
+
   describe('edge cases', () => {
     it('does nothing when transform is missing', () => {
       const ctx = createMockContext();

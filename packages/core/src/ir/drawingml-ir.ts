@@ -584,6 +584,19 @@ export interface PictureIR {
     description?: string;
     hidden?: boolean;
   };
+  /**
+   * True when this picture is a video poster frame (e.g. a placeholder
+   * thumbnail for an embedded or linked video). Video placeholders should
+   * be skipped during rendering since they typically display as a solid-
+   * color rectangle and the actual video cannot be played in a static
+   * render.
+   *
+   * Detection covers:
+   * - Google Slides exports: `<p:cNvPr title="...mp4">` with `<a:hlinkClick>`
+   * - Standard OOXML: `<a:videoFile>` in `<p:nvPr>`
+   * - PowerPoint media action: `<a:hlinkClick action="ppaction://media">`
+   */
+  isVideoPlaceholder?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -43,8 +43,17 @@ const DEFAULT_FONT_SIZE_PT = 18;
 /** Default body insets in EMU (OOXML default: 0.1 inches = 91,440 EMU). */
 const DEFAULT_INSET_EMU = 91440;
 
-/** Default line spacing as percentage (120% = 1.2x font size). */
-const DEFAULT_LINE_SPACING_PCT = 120;
+/**
+ * Default line spacing as percentage (100% = single spacing).
+ *
+ * ECMA-376 ss 21.1.2.2.11 (a:lnSpc): "If this element is omitted then the
+ * spacing between two lines of text should be determined by the point size
+ * of the largest piece of text within a line."  This is effectively 100%
+ * of font size — the font's built-in metrics (ascent + descent + line gap)
+ * handle additional visual leading.  Apache POI confirms this default
+ * (DrawTextParagraph.java: `spacing = 100d` when getLineSpacing() is null).
+ */
+const DEFAULT_LINE_SPACING_PCT = 100;
 
 /** Default hyperlink color (OOXML hlink theme color fallback). */
 const DEFAULT_HYPERLINK_COLOR = 'rgba(5, 99, 193, 1)';
@@ -197,11 +206,12 @@ function resolveSpacingPx(
  * SpacingIR with unit 'pct': value 100 = single space (1.0x).
  * SpacingIR with unit 'pt': absolute spacing returned as-is via special path.
  *
- * Returns percentage value (e.g. 120 for 1.2x).
+ * Returns percentage value (e.g. 100 for 1.0x single spacing).
  *
  * @param lnSpcReduction - Optional line spacing reduction from normAutofit
  *                         (percentage points to subtract, e.g. 20 reduces
- *                         120% to 100%).
+ *                         120% to 100%).  Result is clamped to a minimum
+ *                         of 100% (single spacing).
  */
 function resolveLineSpacingPct(spacing: SpacingIR | undefined, lnSpcReduction?: number): number {
   let result: number;
@@ -964,7 +974,7 @@ export function renderTextBody(
   // overflow symmetrically — centered text can extend above and below the
   // text area. We do NOT clamp to 0 here because that would silently
   // degrade middle/bottom alignment to top when the text is taller than
-  // the available space (a common scenario with default 1.2x line spacing).
+  // the available space.
   let verticalOffset = 0;
   const verticalAlign = body.verticalAlign ?? 'top';
   if (verticalAlign === 'middle') {
