@@ -149,6 +149,10 @@ class XmlElementImpl implements XmlElement {
         const t = raw['#text'];
         if (typeof t === 'string') {
           parts.push(t);
+        } else if (typeof t === 'number' || typeof t === 'boolean') {
+          // fast-xml-parser coerces numeric/boolean text content to native
+          // types (e.g. "35" → 35). Convert back to string.
+          parts.push(String(t));
         } else if (Array.isArray(t) && t.length > 0) {
           // fast-xml-parser may wrap text in an array with preserveOrder
           const inner = (t as RawNode[])[0];

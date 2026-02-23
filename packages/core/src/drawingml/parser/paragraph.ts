@@ -29,9 +29,10 @@ import { parseRun, parseLineBreak } from './run.js';
 /**
  * Parse a paragraph element (`a:p`).
  *
- * Iterates child elements in document order, collecting runs (`a:r`) and
- * line breaks (`a:br`). Skips `a:pPr` (processed separately) and
- * `a:endParaRPr` (end-of-paragraph marker not needed in IR).
+ * Iterates child elements in document order, collecting runs (`a:r`),
+ * field codes (`a:fld`), and line breaks (`a:br`). Skips `a:pPr`
+ * (processed separately) and `a:endParaRPr` (end-of-paragraph marker
+ * not needed in IR).
  *
  * ```xml
  * <a:p>
@@ -59,6 +60,11 @@ export function parseParagraph(
   const runs: (RunIR | LineBreakIR)[] = [];
   for (const child of pElement.children) {
     if (child.is('a:r')) {
+      runs.push(parseRun(child, theme, context));
+    } else if (child.is('a:fld')) {
+      // Field codes (slide numbers, dates, etc.) have the same child
+      // structure as a:r — a:rPr + a:t. We parse them as regular runs
+      // using the stored "last known value" from a:t.
       runs.push(parseRun(child, theme, context));
     } else if (child.is('a:br')) {
       runs.push(parseLineBreak(child, theme, context));

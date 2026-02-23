@@ -352,6 +352,95 @@ describe('parseParagraph', () => {
     });
   });
 
+  describe('field codes (a:fld)', () => {
+    it('parses a slide number field as a text run', () => {
+      const el = parseXml(
+        `<a:p ${NS}>
+          <a:fld id="{B6F15528-F159-4107-2} " type="slidenum">
+            <a:rPr lang="en-US" smtClean="0"/>
+            <a:t>35</a:t>
+          </a:fld>
+        </a:p>`
+      );
+      const para = parseParagraph(el, TEST_THEME);
+
+      expect(para.runs).toHaveLength(1);
+      expect(para.runs[0].kind).toBe('run');
+      expect((para.runs[0] as { kind: 'run'; text: string }).text).toBe('35');
+    });
+
+    it('parses a datetime field as a text run', () => {
+      const el = parseXml(
+        `<a:p ${NS}>
+          <a:fld id="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}" type="datetime1">
+            <a:rPr lang="en-US"/>
+            <a:t>2/23/2026</a:t>
+          </a:fld>
+        </a:p>`
+      );
+      const para = parseParagraph(el, TEST_THEME);
+
+      expect(para.runs).toHaveLength(1);
+      expect(para.runs[0].kind).toBe('run');
+      expect((para.runs[0] as { kind: 'run'; text: string }).text).toBe('2/23/2026');
+    });
+
+    it('applies character properties from field rPr', () => {
+      const el = parseXml(
+        `<a:p ${NS}>
+          <a:fld id="{GUID}" type="slidenum">
+            <a:rPr lang="en-US" sz="1200" b="1"/>
+            <a:t>7</a:t>
+          </a:fld>
+        </a:p>`
+      );
+      const para = parseParagraph(el, TEST_THEME);
+
+      expect(para.runs).toHaveLength(1);
+      const run = para.runs[0] as { kind: 'run'; text: string; properties: Record<string, unknown> };
+      expect(run.text).toBe('7');
+      expect(run.properties.fontSize).toBe(1200);
+      expect(run.properties.bold).toBe(true);
+    });
+
+    it('handles field mixed with regular runs', () => {
+      const el = parseXml(
+        `<a:p ${NS}>
+          <a:r><a:t>Slide </a:t></a:r>
+          <a:fld id="{GUID}" type="slidenum">
+            <a:rPr lang="en-US"/>
+            <a:t>12</a:t>
+          </a:fld>
+          <a:r><a:t> of 20</a:t></a:r>
+        </a:p>`
+      );
+      const para = parseParagraph(el, TEST_THEME);
+
+      expect(para.runs).toHaveLength(3);
+      expect(para.runs[0].kind).toBe('run');
+      expect((para.runs[0] as { kind: 'run'; text: string }).text).toBe('Slide ');
+      expect(para.runs[1].kind).toBe('run');
+      expect((para.runs[1] as { kind: 'run'; text: string }).text).toBe('12');
+      expect(para.runs[2].kind).toBe('run');
+      expect((para.runs[2] as { kind: 'run'; text: string }).text).toBe(' of 20');
+    });
+
+    it('handles field with no rPr', () => {
+      const el = parseXml(
+        `<a:p ${NS}>
+          <a:fld id="{GUID}" type="slidenum">
+            <a:t>1</a:t>
+          </a:fld>
+        </a:p>`
+      );
+      const para = parseParagraph(el, TEST_THEME);
+
+      expect(para.runs).toHaveLength(1);
+      expect(para.runs[0].kind).toBe('run');
+      expect((para.runs[0] as { kind: 'run'; text: string }).text).toBe('1');
+    });
+  });
+
   describe('mixed runs and line breaks', () => {
     it('parses paragraph with mixed runs and line breaks', () => {
       const el = parseXml(
