@@ -244,22 +244,16 @@ function measureFragment(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   text: string,
   fontString: string,
-  rctx?: RenderContext,
-  family?: string,
-  fontSizePx?: number,
-  bold?: boolean,
-  italic?: boolean
+  _rctx?: RenderContext,
+  _family?: string,
+  _fontSizePx?: number,
+  _bold?: boolean,
+  _italic?: boolean
 ): number {
-  if (rctx?.fontMetricsDB && family && fontSizePx != null) {
-    const w = rctx.fontMetricsDB.measureText(
-      text,
-      family,
-      fontSizePx,
-      bold ?? false,
-      italic ?? false
-    );
-    if (w !== undefined) return w;
-  }
+  // Always use Canvas2D for horizontal text measurement. This ensures wrapping
+  // decisions match actual rendered widths (including kerning and OpenType shaping).
+  // The metrics DB linear advance widths caused wrapping divergence where text
+  // would wrap at different points than the actual Canvas2D drawing.
   ctx.font = fontString;
   return ctx.measureText(text).width;
 }
