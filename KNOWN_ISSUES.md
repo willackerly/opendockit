@@ -1,6 +1,6 @@
 # Known Issues
 
-**Last updated:** 2026-02-19
+**Last updated:** 2026-02-23
 
 ## Active Blockers
 
@@ -46,7 +46,8 @@ None.
 - **42 families, 130 faces** in ~750KB metrics bundle + ~5MB bundled WOFF2 fonts (100% offline).
 - 5-tier font loading: user-supplied → PPTX embedded (EOT) → bundled WOFF2 → OFL CDN → Google Fonts CDN.
 - Gaps remain for Verdana, Trebuchet MS, Tahoma, Aptos, and C-series Office fonts (Corbel, Candara, Constantia) — no OFL metric-compatible replacements exist.
-- Font metrics do not include kerning pairs; text width measurement is character-by-character (~1-3% width error on long text runs).
+- Text measurement now uses Canvas2D directly (includes kerning/shaping when fonts are loaded). Metrics DB used only for vertical metrics (ascent, descent, line height).
+- Line spacing uses the font's declared line height metric (e.g., Barlow lineHeight=1.2), matching PowerPoint's interpretation of "single spacing".
 
 ### Table Row Auto-Height (cosmetic)
 
@@ -67,6 +68,13 @@ None.
 - Media LRU cache currently unbounded — needs configurable size limits.
 
 ## Resolved Issues
+
+### Text Drift / Vertical Offset (resolved 2026-02-23)
+
+- **Root cause 1**: `ascentPx` calculated as `lineHeight - lineGap` which equals `(ascender + |descender|) / upm * fontSize` — the full glyph extent, not just the ascent. This pushed ALL text down by ~6-10px at typical sizes. Fixed to use `vm.ascender` directly.
+- **Root cause 2**: Percentage-based line spacing used `fontSizePt * pct` instead of `fontSizePt * fontLineHeight * pct`. For fonts like Barlow (lineHeight=1.2), this made text ~20% more compact than PowerPoint. Fixed to use font's declared line height metric.
+- **Root cause 3**: Field codes (`<a:fld>`) like slide numbers were silently dropped by the paragraph parser. Fixed to parse like regular runs.
+- Visual regression: 35 slides improved across the three fixes, 0 net regressions.
 
 ### Font String Quoting Bug (resolved 2026-02-18)
 

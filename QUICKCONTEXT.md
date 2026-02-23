@@ -12,9 +12,9 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer. It reads 
 
 The full PPTX rendering pipeline is implemented, tested, and visually validated:
 
-- **1,302 tests** passing (1,220 core + 82 pptx), typecheck clean, lint clean
+- **1,307 tests** passing (1,225 core + 82 pptx), typecheck clean, lint clean
 - **Visual regression**: 54-slide real-world PPTX with per-slide RMSE baselines and regression guard (`pnpm test:visual`). Visual-compare uses bundled WOFF2 fonts (same as production) for accurate comparison.
-- **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (42 families, 130 faces) + bundled WOFF2 fonts (42 families, ~5MB, 100% offline), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks, video placeholder detection), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation, media cache, capability registry, WASM module loader
+- **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (42 families, 130 faces) + bundled WOFF2 fonts (42 families, ~5MB, 100% offline), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks, video placeholder detection, field codes), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation + font-metric-based line height + ascender baseline positioning, media cache, capability registry, WASM module loader
 - **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance + table textDefaults), SlideKit viewport API (hyperlinks, notes)
 
 ### Font System
