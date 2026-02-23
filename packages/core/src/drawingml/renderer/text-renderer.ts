@@ -530,10 +530,11 @@ function wrapParagraph(
     rawFamily = rawFamily || 'sans-serif';
     const fontSizePx = ptToCanvasPx(fontSizePt, dpiScale);
 
-    // Compute ascent using font metrics when available (pdf.js pattern):
-    //   firstLineHeight = (lineHeight - lineGap) * fontSize
-    // This gives the glyph extent without inter-line spacing, which is
-    // more accurate for baseline positioning than assuming ascent = fontSize.
+    // Compute ascent using font metrics when available.
+    // The ascender value gives the distance from the baseline to the top of
+    // the tallest glyph, which is exactly what we need for baseline positioning.
+    // Previously this used (lineHeight - lineGap) which equals (ascender + |descender|),
+    // the full glyph extent — pushing text down by the descent amount.
     let ascentPx = fontSizePx; // fallback: ascent = full font size
     if (rctx.fontMetricsDB && rawFamily) {
       const vm = rctx.fontMetricsDB.getVerticalMetrics(
@@ -542,8 +543,8 @@ function wrapParagraph(
         run.properties.bold ?? false,
         run.properties.italic ?? false
       );
-      if (vm?.lineHeight != null && vm?.lineGap != null) {
-        ascentPx = vm.lineHeight - vm.lineGap;
+      if (vm?.ascender != null) {
+        ascentPx = vm.ascender;
       }
     }
 
