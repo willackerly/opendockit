@@ -13,6 +13,7 @@ coverage/
 
 # Test output
 test-output/
+visual-diffs/
 diff/
 actual/
 reference/

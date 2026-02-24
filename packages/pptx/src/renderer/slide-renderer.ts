@@ -149,8 +149,16 @@ function buildTextDefaults(
   const category = getTextStyleCategory(element.placeholderType);
   const masterStyle = master.txStyles?.[category];
 
-  // Find matching master placeholder for its lstStyle
-  const masterPh = findMatchingPlaceholder(element, master.elements);
+  // Find matching master placeholder for its lstStyle.
+  // Subtitle placeholders inherit from the master body placeholder when no
+  // direct subTitle placeholder exists in the master (common in Google Slides
+  // exports where the master defines a body placeholder with lstStyle fonts).
+  let masterPh = findMatchingPlaceholder(element, master.elements);
+  if (!masterPh && element.placeholderType === 'subTitle') {
+    masterPh = master.elements.find(
+      (el) => el.kind === 'shape' && el.placeholderType === 'body'
+    );
+  }
   const masterPhLstStyle = masterPh?.kind === 'shape' ? masterPh.textBody?.listStyle : undefined;
 
   // Find matching layout placeholder for its lstStyle
