@@ -298,7 +298,10 @@ function getFontLineHeightMultiplier(
       return vm.lineHeight / fontSizePx;
     }
   }
-  return 1;
+  // Fallback: most fonts have lineHeight between 1.15 and 1.3. Using 1.2 as a
+  // reasonable default reduces vertical drift for fonts not in the metrics DB
+  // (e.g. Verdana, Tahoma, Aptos) compared to the previous 1.0 fallback.
+  return 1.2;
 }
 
 /**
@@ -903,6 +906,33 @@ function measureBullet(
 // ---------------------------------------------------------------------------
 
 /**
+ * Draw a wavy line segment using quadratic bezier curves.
+ */
+function drawWavyLine(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  amplitude: number,
+  wavelength: number
+): void {
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  const halfWave = wavelength / 2;
+  let cx = x;
+  let direction = 1;
+  while (cx < x + width) {
+    const segEnd = Math.min(cx + halfWave, x + width);
+    const cpX = (cx + segEnd) / 2;
+    const cpY = y + amplitude * direction;
+    ctx.quadraticCurveTo(cpX, cpY, segEnd, y);
+    direction *= -1;
+    cx = segEnd;
+  }
+  ctx.stroke();
+}
+
+/**
  * Draw underline decoration beneath text.
  */
 function drawUnderline(
@@ -911,10 +941,92 @@ function drawUnderline(
   baselineY: number,
   width: number,
   fontSizePx: number,
-  fillStyle: string
+  fillStyle: string,
+  style: string = 'single'
 ): void {
   const underlineY = baselineY + fontSizePx * 0.15;
-  const thickness = Math.max(1, fontSizePx * 0.05);
+  const thinThickness = Math.max(1, fontSizePx * 0.05);
+  const isHeavy =
+    style === 'heavy' ||
+    style === 'dottedHeavy' ||
+    style === 'dashHeavy' ||
+    style === 'dashLongHeavy' ||
+    style === 'dotDashHeavy' ||
+    style === 'dotDotDashHeavy' ||
+    style === 'wavyHeavy';
+  const thickness = isHeavy ? thinThickness * 2 : thinThickness;
+
+  // Wavy variants — use bezier curves.
+  if (style === 'wavy' || style === 'wavyHeavy' || style === 'wavyDouble') {
+    ctx.save();
+    ctx.strokeStyle = fillStyle;
+    ctx.lineWidth = thickness;
+    const amplitude = fontSizePx * 0.04;
+    const wavelength = fontSizePx * 0.2;
+    drawWavyLine(ctx, x, underlineY, width, amplitude, wavelength);
+    if (style === 'wavyDouble') {
+      const gap = thickness * 2.5;
+      drawWavyLine(ctx, x, underlineY + gap, width, amplitude, wavelength);
+    }
+    ctx.restore();
+    return;
+  }
+
+  // Double variant — two thin parallel lines.
+  if (style === 'double') {
+    const gap = thinThickness * 2;
+    ctx.fillStyle = fillStyle;
+    ctx.fillRect(x, underlineY, width, thinThickness);
+    ctx.fillRect(x, underlineY + gap, width, thinThickness);
+    return;
+  }
+
+  // Dash/dot patterns — use setLineDash with strokeRect.
+  const dot = thickness * 1.5;
+  const dashShort = fontSizePx * 0.15;
+  const dashLong = fontSizePx * 0.3;
+  const dashGap = fontSizePx * 0.1;
+
+  let dashPattern: number[] | null = null;
+  switch (style) {
+    case 'dotted':
+    case 'dottedHeavy':
+      dashPattern = [dot, dashGap];
+      break;
+    case 'dash':
+    case 'dashHeavy':
+      dashPattern = [dashShort, dashGap];
+      break;
+    case 'dashLong':
+    case 'dashLongHeavy':
+      dashPattern = [dashLong, dashGap];
+      break;
+    case 'dotDash':
+    case 'dotDashHeavy':
+      dashPattern = [dot, dashGap, dashShort, dashGap];
+      break;
+    case 'dotDotDash':
+    case 'dotDotDashHeavy':
+      dashPattern = [dot, dashGap, dot, dashGap, dashShort, dashGap];
+      break;
+  }
+
+  if (dashPattern) {
+    ctx.save();
+    ctx.strokeStyle = fillStyle;
+    ctx.lineWidth = thickness;
+    ctx.setLineDash(dashPattern);
+    ctx.beginPath();
+    const lineY = underlineY + thickness / 2;
+    ctx.moveTo(x, lineY);
+    ctx.lineTo(x + width, lineY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    return;
+  }
+
+  // Default: solid single / heavy.
   ctx.fillStyle = fillStyle;
   ctx.fillRect(x, underlineY, width, thickness);
 }
@@ -928,12 +1040,20 @@ function drawStrikethrough(
   baselineY: number,
   width: number,
   fontSizePx: number,
-  fillStyle: string
+  fillStyle: string,
+  style: string = 'single'
 ): void {
   const strikeY = baselineY - fontSizePx * 0.3;
   const thickness = Math.max(1, fontSizePx * 0.05);
   ctx.fillStyle = fillStyle;
-  ctx.fillRect(x, strikeY, width, thickness);
+
+  if (style === 'double') {
+    const gap = thickness * 2;
+    ctx.fillRect(x, strikeY - gap / 2, width, thickness);
+    ctx.fillRect(x, strikeY + gap / 2, width, thickness);
+  } else {
+    ctx.fillRect(x, strikeY, width, thickness);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1278,6 +1398,17 @@ export function renderTextBody(
           baselineShift = -(frag.props.baseline / 100) * fontSizePx;
         }
 
+        // Draw highlight background behind text.
+        if (frag.props.highlight) {
+          const hlColor = colorToRgba(frag.props.highlight);
+          const textMetrics = ctx.measureText(frag.text);
+          const hlHeight = line.heightPx;
+          const hlY = cursorY;
+          ctx.fillStyle = hlColor;
+          ctx.fillRect(drawX, hlY, textMetrics.width, hlHeight);
+          ctx.fillStyle = frag.fillStyle;
+        }
+
         ctx.fillText(frag.text, drawX, baselineY + baselineShift);
 
         // Measure the ACTUAL rendered width using Canvas2D for draw advancement.
@@ -1298,7 +1429,8 @@ export function renderTextBody(
             baselineY + baselineShift,
             renderedWidth,
             fontSizePx,
-            frag.fillStyle
+            frag.fillStyle,
+            frag.props.underline
           );
         }
 
@@ -1310,7 +1442,8 @@ export function renderTextBody(
             baselineY + baselineShift,
             renderedWidth,
             fontSizePx,
-            frag.fillStyle
+            frag.fillStyle,
+            frag.props.strikethrough
           );
         }
 
