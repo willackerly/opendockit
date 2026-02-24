@@ -120,6 +120,14 @@ export function parseCharacterProperties(
     props.spacing = spc;
   }
 
+  // Capitalization — 'all' (ALL CAPS), 'small' (Small Caps), 'none'
+  const cap = rPrElement.attr('cap');
+  if (cap === 'all' || cap === 'small') {
+    props.cap = cap;
+  } else if (cap === 'none') {
+    props.cap = 'none';
+  }
+
   // Color from solidFill child
   const solidFill = rPrElement.child('a:solidFill');
   if (solidFill) {

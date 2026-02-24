@@ -20,7 +20,7 @@ import type {
 import type { ColorContext } from '../../theme/index.js';
 import { resolveColorFromParent } from '../../theme/index.js';
 import { parseIntAttr, parseBoolAttr } from '../../xml/index.js';
-import { parseRun, parseLineBreak } from './run.js';
+import { parseRun, parseLineBreak, parseCharacterProperties } from './run.js';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -76,13 +76,22 @@ export function parseParagraph(
     } else if (child.is('a:br')) {
       runs.push(parseLineBreak(child, theme, context));
     }
-    // Skip a:pPr, a:endParaRPr, and any other elements
+    // Skip a:pPr and any other elements
   }
+
+  // Parse end-of-paragraph character properties (a:endParaRPr).
+  // This determines font size for empty paragraphs — without it,
+  // empty spacer paragraphs fall back to 18pt default and are too tall.
+  const endParaRPrEl = pElement.child('a:endParaRPr');
+  const endParaProperties = endParaRPrEl
+    ? parseCharacterProperties(endParaRPrEl, theme, context)
+    : undefined;
 
   return {
     runs,
     properties,
     bulletProperties,
+    endParaProperties,
   };
 }
 
@@ -126,6 +135,12 @@ export function parseParagraphProperties(pPrElement: XmlElement): ParagraphPrope
   const marL = parseIntAttr(pPrElement, 'marL');
   if (marL !== undefined) {
     props.marginLeft = marL;
+  }
+
+  // Right margin in EMU
+  const marR = parseIntAttr(pPrElement, 'marR');
+  if (marR !== undefined) {
+    props.marginRight = marR;
   }
 
   // Right-to-left

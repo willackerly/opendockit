@@ -430,6 +430,14 @@ export interface ParagraphIR {
   runs: (RunIR | LineBreakIR)[];
   properties: ParagraphPropertiesIR;
   bulletProperties?: BulletPropertiesIR;
+  /**
+   * Character properties from `a:endParaRPr` — the end-of-paragraph marker.
+   *
+   * Used to determine font size for empty paragraphs (paragraphs with no runs).
+   * In OOXML, empty paragraphs still occupy vertical space based on the font
+   * size specified in endParaRPr.
+   */
+  endParaProperties?: CharacterPropertiesIR;
 }
 
 /** Paragraph-level formatting. */
@@ -441,6 +449,8 @@ export interface ParagraphPropertiesIR {
   indent?: number;
   /** Left margin in EMU. */
   marginLeft?: number;
+  /** Right margin in EMU. */
+  marginRight?: number;
   /** Spacing before the paragraph. */
   spaceBefore?: SpacingIR;
   /** Spacing after the paragraph. */
@@ -485,6 +495,8 @@ export interface CharacterPropertiesIR {
   highlight?: ResolvedColor;
   /** Superscript/subscript baseline offset percentage (-100 to +100). */
   baseline?: number;
+  /** Capitalization style: 'all' for ALL CAPS, 'small' for Small Caps. */
+  cap?: 'none' | 'small' | 'all';
   /** Letter spacing in hundredths of a point (e.g. 100 = 1pt). */
   spacing?: number;
   /** Latin font typeface name. */

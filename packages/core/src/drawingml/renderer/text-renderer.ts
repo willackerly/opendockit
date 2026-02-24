@@ -319,6 +319,13 @@ function getParagraphFontSizePt(
       return fontScale != null ? basePt * (fontScale / 100) : basePt;
     }
   }
+  // For empty paragraphs, use the end-of-paragraph run properties (a:endParaRPr).
+  // This is critical: empty spacer paragraphs specify their font size here,
+  // and without it they'd fall back to 18pt default — making gaps too tall.
+  if (paragraph.endParaProperties?.fontSize != null) {
+    const basePt = hundredthsPtToPt(paragraph.endParaProperties.fontSize);
+    return fontScale != null ? basePt * (fontScale / 100) : basePt;
+  }
   // Try inherited font size from textDefaults
   const level = paragraph.properties.level ?? 0;
   const inherited = rctx?.textDefaults;
@@ -343,6 +350,11 @@ function getParagraphFontSizePt(
 function getParagraphFontFamily(paragraph: ParagraphIR, rctx?: RenderContext): string {
   for (const run of paragraph.runs) {
     const family = run.properties.fontFamily ?? run.properties.latin;
+    if (family) return family;
+  }
+  // For empty paragraphs, use the end-of-paragraph font family.
+  if (paragraph.endParaProperties) {
+    const family = paragraph.endParaProperties.fontFamily ?? paragraph.endParaProperties.latin;
     if (family) return family;
   }
   const level = paragraph.properties.level ?? 0;
@@ -556,16 +568,31 @@ function wrapParagraph(
 
     // run.kind === 'run'
     // Replace field code text at render time (e.g. slidenum → actual number).
-    const effectiveText = resolveFieldText(run, rctx);
+    let effectiveText = resolveFieldText(run, rctx);
+
+    // Apply capitalization transform (cap attribute from a:rPr).
+    if (run.properties.cap === 'all') {
+      effectiveText = effectiveText.toUpperCase();
+    } else if (run.properties.cap === 'small') {
+      // Small caps: uppercase the text; font size reduction handled at draw time.
+      effectiveText = effectiveText.toUpperCase();
+    }
+
+    // Small caps: reduce font size to ~80% for the uppercased text.
+    const capScale = run.properties.cap === 'small' ? 80 : undefined;
+    const effectiveFontScale =
+      capScale != null && fontScale != null
+        ? fontScale * (capScale / 100)
+        : capScale ?? fontScale;
 
     const fontString = buildFontString(
       run.properties,
       resolveFont,
-      fontScale,
+      effectiveFontScale,
       rctx,
       paragraphLevel
     );
-    const fontSizePt = resolveFontSizePt(run.properties, fontScale, rctx, paragraphLevel);
+    const fontSizePt = resolveFontSizePt(run.properties, effectiveFontScale, rctx, paragraphLevel);
     let fillStyle = run.properties.color
       ? colorToRgba(run.properties.color)
       : resolveInheritedTextColor(rctx, paragraphLevel);
@@ -670,7 +697,7 @@ function wrapParagraph(
     const fontSizePt = getParagraphFontSizePt(paragraph, fontScale, rctx);
     const fontSizePxEmpty = ptToCanvasPx(fontSizePt, dpiScale);
     const emptyLhMul = getFontLineHeightMultiplier(
-      rctx, 'sans-serif', fontSizePxEmpty, false, false
+      rctx, getParagraphFontFamily(paragraph, rctx), fontSizePxEmpty, false, false
     );
     const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
     const heightPx =
@@ -683,6 +710,38 @@ function wrapParagraph(
       heightPx,
       ascentPx: fontSizePxEmpty,
     });
+  }
+
+  // If the paragraph has only empty-text runs, the line height was computed
+  // using the run's inherited font size (from textDefaults). But OOXML
+  // endParaRPr specifies the correct font size for the paragraph mark.
+  // Override the line height using endParaRPr when all runs are empty text.
+  if (
+    paragraph.endParaProperties?.fontSize != null &&
+    lines.length === 1 &&
+    paragraph.runs.length > 0 &&
+    paragraph.runs.every(r => r.kind === 'run' && r.text === '')
+  ) {
+    const endParaSizePt = hundredthsPtToPt(paragraph.endParaProperties.fontSize);
+    const scaledSizePt = fontScale != null ? endParaSizePt * (fontScale / 100) : endParaSizePt;
+    const endParaSizePx = ptToCanvasPx(scaledSizePt, dpiScale);
+    const endParaFamily = paragraph.endParaProperties.fontFamily
+      ?? paragraph.endParaProperties.latin
+      ?? getParagraphFontFamily(paragraph, rctx);
+    const endParaLhMul = getFontLineHeightMultiplier(
+      rctx, endParaFamily, endParaSizePx, false, false
+    );
+    const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
+    const heightPx =
+      lineSpacingPct >= 0
+        ? ptToCanvasPx(scaledSizePt * endParaLhMul * (lineSpacingPct / 100), dpiScale)
+        : ptToCanvasPx(-lineSpacingPct, dpiScale);
+    lines[0] = {
+      fragments: lines[0].fragments,
+      widthPx: lines[0].widthPx,
+      heightPx,
+      ascentPx: endParaSizePx,
+    };
   }
 
   return lines;
@@ -924,6 +983,7 @@ export function renderTextBody(
     alignment: 'left' | 'center' | 'right' | 'justify' | 'distributed';
     bullet: ReturnType<typeof measureBullet>;
     marginLeftPx: number;
+    marginRightPx: number;
     indentPx: number;
   }
 
@@ -947,6 +1007,7 @@ export function renderTextBody(
       rctx.textDefaults?.defPPr?.paragraphProperties;
 
     const effectiveMarginLeft = paragraph.properties.marginLeft ?? inheritedPProps?.marginLeft;
+    const effectiveMarginRight = paragraph.properties.marginRight ?? inheritedPProps?.marginRight;
     const effectiveIndent = paragraph.properties.indent ?? inheritedPProps?.indent;
     const effectiveSpaceBefore = paragraph.properties.spaceBefore ?? inheritedPProps?.spaceBefore;
     const effectiveSpaceAfter = paragraph.properties.spaceAfter ?? inheritedPProps?.spaceAfter;
@@ -962,6 +1023,7 @@ export function renderTextBody(
     const spaceAfterPx = resolveSpacingPx(effectiveSpaceAfter, singleSpacingPt, dpiScale);
 
     const marginLeftPx = effectiveMarginLeft ? emuToScaledPx(effectiveMarginLeft, rctx) : 0;
+    const marginRightPx = effectiveMarginRight ? emuToScaledPx(effectiveMarginRight, rctx) : 0;
     const indentPx = effectiveIndent ? emuToScaledPx(effectiveIndent, rctx) : 0;
 
     // Compute auto-number index if this paragraph uses autoNum bullets.
@@ -1007,7 +1069,7 @@ export function renderTextBody(
     const bullet = measureBullet(paragraph, rctx, fontScale, autoNumIndex, bulletProps);
     const bulletWidth = bullet ? bullet.widthPx : 0;
 
-    const availableWidth = shouldWrap ? textAreaWidth - marginLeftPx : Infinity;
+    const availableWidth = shouldWrap ? textAreaWidth - marginLeftPx - marginRightPx : Infinity;
     const lines = wrapParagraph(
       paragraph,
       rctx,
@@ -1041,8 +1103,27 @@ export function renderTextBody(
       alignment,
       bullet,
       marginLeftPx,
+      marginRightPx,
       indentPx,
     });
+  }
+
+  // Phase 1b: Compute anchorCtr horizontal offset.
+  // When anchorCtr is true, the entire text block is horizontally centered
+  // within the text area (independent of per-paragraph alignment).
+  let anchorCtrOffset = 0;
+  if (body.anchorCtr) {
+    let maxLineWidth = 0;
+    for (const layout of paragraphLayouts) {
+      for (const line of layout.lines) {
+        const lineWidth = line.widthPx + layout.marginLeftPx + layout.marginRightPx +
+          (layout.bullet ? layout.bullet.widthPx : 0);
+        maxLineWidth = Math.max(maxLineWidth, lineWidth);
+      }
+    }
+    if (maxLineWidth < textAreaWidth) {
+      anchorCtrOffset = (textAreaWidth - maxLineWidth) / 2;
+    }
   }
 
   // Phase 2: Compute vertical alignment offset.
@@ -1094,13 +1175,13 @@ export function renderTextBody(
 
     // For hanging indent (negative indent): bullet at marginLeft+indent, text at marginLeft.
     // For positive indent: first line text at marginLeft+indent, continuation at marginLeft.
-    const textBaseX = textAreaX + layout.marginLeftPx;
+    const textBaseX = textAreaX + layout.marginLeftPx + anchorCtrOffset;
     const hangingIndent = layout.indentPx < 0;
     const bulletX = hangingIndent
       ? textAreaX + Math.max(0, layout.marginLeftPx + layout.indentPx)
       : textBaseX;
     const firstLineTextX = hangingIndent ? textBaseX : textBaseX + layout.indentPx;
-    const textAvailableWidth = textAreaWidth - layout.marginLeftPx;
+    const textAvailableWidth = textAreaWidth - layout.marginLeftPx - layout.marginRightPx;
 
     for (let li = 0; li < layout.lines.length; li++) {
       const line = layout.lines[li];
@@ -1249,7 +1330,12 @@ export function renderTextBody(
       cursorY += line.heightPx;
     }
 
-    cursorY += layout.spaceAfterPx;
+    // Skip space-after on the last paragraph unless spcFirstLastPara is set,
+    // matching the height calculation phase (lines 1030-1033).
+    const isLastParagraph = pi === paragraphLayouts.length - 1;
+    if (!isLastParagraph || applyFirstLastSpacing) {
+      cursorY += layout.spaceAfterPx;
+    }
   }
 
   ctx.restore();
