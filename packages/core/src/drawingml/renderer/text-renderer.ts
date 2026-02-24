@@ -767,8 +767,9 @@ function measureBullet(
   }
 
   const paragraphFontSizePt = getParagraphFontSizePt(paragraph, fontScale, rctx);
-  const sizePercent = bullet.sizePercent ?? 100;
-  const bulletFontSizePt = paragraphFontSizePt * (sizePercent / 100);
+  const bulletFontSizePt = bullet.sizePoints
+    ? bullet.sizePoints
+    : paragraphFontSizePt * ((bullet.sizePercent ?? 100) / 100);
 
   const fontFamily = bullet.font || 'sans-serif';
   const resolved = rctx.resolveFont(fontFamily);

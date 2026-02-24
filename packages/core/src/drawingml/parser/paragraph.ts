@@ -166,7 +166,7 @@ export function parseParagraphProperties(pPrElement: XmlElement): ParagraphPrope
  *
  * Looks for `a:buNone`, `a:buChar`, `a:buAutoNum`, or `a:buBlip` children
  * to determine bullet type. Also parses optional `a:buFont`, `a:buSzPct`,
- * and `a:buClr` for bullet formatting.
+ * `a:buSzPts`, and `a:buClr` for bullet formatting.
  */
 export function parseBulletProperties(
   pPrElement: XmlElement,
@@ -217,6 +217,15 @@ export function parseBulletProperties(
     const val = parseIntAttr(buSzPct, 'val');
     if (val !== undefined) {
       bullet.sizePercent = val / 100_000;
+    }
+  }
+
+  // Bullet size in points (absolute — takes priority over percentage)
+  const buSzPts = pPrElement.child('a:buSzPts');
+  if (buSzPts) {
+    const val = parseIntAttr(buSzPts, 'val');
+    if (val !== undefined) {
+      bullet.sizePoints = val / 100; // hundredths of a point → points
     }
   }
 

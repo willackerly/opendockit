@@ -11,6 +11,7 @@
 import type { PictureIR } from '../../ir/index.js';
 import type { CachedMedia } from '../../media/index.js';
 import { calculateCropRect } from '../../media/index.js';
+import { buildPresetPath } from '../geometry/path-builder.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
 
@@ -117,6 +118,14 @@ export function renderPicture(pictureIR: PictureIR, rctx: RenderContext): void {
     sh = crop.sh;
   }
 
+  // Build geometry clip path if the picture has a non-rectangular preset geometry.
+  // Pictures can be clipped to ellipses, rounded rectangles, etc. via <a:prstGeom>.
+  let clipPath: Path2D | null = null;
+  const geo = pictureIR.properties.geometry;
+  if (geo?.kind === 'preset' && geo.name !== 'rect') {
+    clipPath = buildPresetPath(geo.name, dw, dh, geo.adjustValues);
+  }
+
   // Apply transforms (rotation, flip).
   const hasRotation = transform.rotation !== undefined && transform.rotation !== 0;
   const hasFlipH = transform.flipH === true;
@@ -140,10 +149,27 @@ export function renderPicture(pictureIR: PictureIR, rctx: RenderContext): void {
       ctx.scale(hasFlipH ? -1 : 1, hasFlipV ? -1 : 1);
     }
 
+    // Apply geometry clip path (offset to center-relative coordinates).
+    if (clipPath) {
+      const offsetPath = new Path2D();
+      offsetPath.addPath(clipPath, { e: -dw / 2, f: -dh / 2 });
+      ctx.clip(offsetPath);
+    }
+
     // Draw relative to the center (translate back by half-size).
     ctx.drawImage(image, sx, sy, sw, sh, -dw / 2, -dh / 2, dw, dh);
     ctx.restore();
   } else {
-    ctx.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh);
+    if (clipPath) {
+      ctx.save();
+      // Offset clip path to the picture's position.
+      const offsetPath = new Path2D();
+      offsetPath.addPath(clipPath, { e: dx, f: dy });
+      ctx.clip(offsetPath);
+      ctx.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh);
+      ctx.restore();
+    } else {
+      ctx.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh);
+    }
   }
 }

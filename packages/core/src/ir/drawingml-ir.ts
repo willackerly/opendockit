@@ -536,6 +536,8 @@ export interface BulletPropertiesIR {
   color?: ResolvedColor;
   /** Bullet size as percentage of the text font size. */
   sizePercent?: number;
+  /** Bullet size in points (absolute). Takes priority over sizePercent. */
+  sizePoints?: number;
   /** Bullet font family. */
   font?: string;
 }
