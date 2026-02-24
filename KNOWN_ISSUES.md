@@ -27,12 +27,25 @@ None.
 
 ### Text Property Gaps (from XML audit)
 
-- `<a:buSzPts>` (absolute bullet size) not parsed — latent bug, currently inherits run font size which coincidentally matches in most decks
+- `<a:buSzPts>` (absolute bullet size) — now parsed (2026-02-24)
 - `anchorCtr` parsed into IR but not consumed by text renderer
 - `vert` (text direction) not parsed — vertical/rotated text renders horizontal
 - `marR` (right paragraph margin) not parsed
 - `cap` (capitalization) not parsed
 - Space-after on last paragraph always applied (spec says it should be omitted)
+
+### Visual Regression Targets (IC CISO deck — do NOT move off this deck until resolved)
+
+User-flagged issues from visual diff review (2026-02-24):
+
+- **Slide 11** — Numbered bullet items (1, 2, 3, 4) badly misspaced vertically
+- **Slide 13** — Severely unreadable render; arrows have crazy rendering artifacts
+- **Slide 9** — Vertical line spacing between lines is a real issue (circular crops fixed)
+- **Slide 46** — Bullet text overflowing / leaving the slide boundary
+- **Slide 17** — "Safe Harbor" text box vertical spacing way off
+- **Slide 16** — Left column text vertical offset significantly wrong
+- **Page numbers** — Not rendering on slides that should show them (e.g., slide 2 shows "2" in reference but not in rendered)
+- **Arrow shapes** — Rendering artifacts on arrow/connector shapes across multiple slides
 
 ### No Diagnostic/Warning System (next priority)
 

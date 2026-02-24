@@ -81,6 +81,20 @@
 
 ## Next Up
 
+### PRIORITY: IC CISO Deck Visual Fixes (do NOT move off until resolved)
+
+User-flagged issues from visual diff review (2026-02-24). Each must be investigated,
+fixed, and verified with RMSE improvement before moving to other work.
+
+- [ ] **Slide 11 — Bullet number spacing** — Items 1, 2, 3, 4 are badly misspaced vertically. Likely a line spacing or space-before/after inheritance issue on numbered list items.
+- [ ] **Slide 13 — Unreadable render + arrow artifacts** — Severely broken output. Arrow shapes have rendering artifacts. Need to investigate shape geometry/path rendering for arrow presets.
+- [ ] **Slide 9 — Line spacing** — Vertical spacing between text lines still off even after circular crop fix. Investigate line height calculation for this specific layout.
+- [ ] **Slide 46 — Bullets overflow** — Bullet text leaving the slide boundary. Likely a text body inset/margin issue or incorrect text box positioning.
+- [ ] **Slide 17 — "Safe Harbor" text spacing** — Text box vertical spacing way off. Investigate body properties, insets, or space-before/after values.
+- [ ] **Slide 16 — Left column vertical offset** — Left text column vertical positioning significantly wrong. May be a vertical alignment (anchor) or inset issue.
+- [ ] **Page numbers not rendering** — Slide number placeholders (e.g., slide 2 shows "2" in reference but blank in rendered). Likely a placeholder content inheritance gap — sldNum placeholder on master/layout has content but slide doesn't override it, so it renders empty.
+- [ ] **Arrow shape artifacts** — Arrow/chevron preset geometries rendering with visual artifacts across multiple slides. Investigate path builder output for arrow-related presets.
+
 ### Phase 3.5: Diagnostics & Observability
 
 - [ ] **Structured logging/warning system** — library-wide diagnostic events that apps subscribe to
@@ -128,7 +142,7 @@ These are known gaps. They can be tackled opportunistically or when a real-world
 
 These were found by a property-by-property audit of real-world PPTX XML vs what the parser/renderer handles.
 
-- [ ] `<a:buSzPts>` — absolute bullet size not parsed (CRITICAL latent bug: currently bullets inherit run font size, which happens to match in most decks but will be wrong when bullet size differs from run size)
+- [x] `<a:buSzPts>` — absolute bullet size (DONE 2026-02-24, sizePoints takes priority over sizePercent)
 - [ ] `anchorCtr` — text body anchor-center parsed into IR (`TextBodyPropertiesIR.anchorCenter`) but not consumed by text renderer (MODERATE: horizontally centered text in vertically-anchored shapes may be slightly off)
 - [ ] `vert` — text direction attribute (`<a:bodyPr vert="vert270">`) not parsed (MODERATE: vertical/rotated text in East Asian layouts renders horizontal)
 - [ ] `marR` — right paragraph margin not parsed (MODERATE: only matters when text approaches right edge of shape)
