@@ -88,9 +88,24 @@ fixed, and verified with RMSE improvement before moving to other work.
 
 - [x] **Slide 11 — Bullet number spacing** — FIXED: Table cell margins (marL/marR/marT/marB) and vertical alignment (anchor) not parsed from `<a:tcPr>`. RMSE 0.1586→0.1420.
 - [x] **Slide 13 — Unreadable render + arrow artifacts** — FIXED: Multi-path geometry rendering. Arrow presets now render each sub-path with correct fill mode (norm/darken/lighten/none) and stroke.
-- [ ] **Slide 9 — Line spacing** — Vertical spacing between text lines still off. RMSE 0.1629. Investigated: line height calc correct (fontLhMul applied), spacing features implemented. Remaining diff likely font metric/rendering engine differences.
-- [ ] **Slide 46 — Bullets overflow** — RMSE 0.1490. Investigated: `<a:noAutofit/>` means text overflow is expected PowerPoint behavior. 18 paragraphs at 95% line spacing with 0pt space-before/after. Remaining diff is cumulative sub-pixel rounding + image overlap.
-- [ ] **Slide 17 — "Safe Harbor" text spacing** — RMSE 0.1060. Investigated: 171.4% line spacing with Barlow, 9pt absolute space-before. Much of RMSE from 3D background image we can't render. Text positioning diff is small.
+- [ ] **Slide 9 — Line spacing (NEEDS FURTHER INVESTIGATION)**
+  - RMSE 0.1629. Diff image: `pptx-pdf-comparisons/comparison-output/diffs/diff-09.png`
+  - **What was checked:** `fontLhMul` correctly applied (Roboto Slab Light lineHeight=1.3188), `spcFirstLastPara`, `buSzPts` all implemented. Space-before/after now uses `fontSizePt * fontLhMul` for percentage values.
+  - **What was NOT checked:** Whether bullet indent/margin interaction affects line height. The three side-by-side text boxes (shapes 404, 405, 406) each have hanging indent `indent=-292100, marL=457200` with sub-bullets at `lvl=1, marL=777240`. Verify bullet baseline alignment doesn't shift lines.
+  - **Extracted XML:** `/tmp/ciso-pptx/` and `/tmp/slide9_pretty.xml` — 115% lnSpc, Roboto Slab Light 10pt, buSzPts=1000
+  - **Next steps:** Run the dev viewer side-by-side with the PDF reference at 2x zoom on the bullet text area. Compare pixel Y positions of each text line. If cumulative drift grows, the per-line height is slightly off — check whether Canvas2D `measureText().fontBoundingBoxAscent` differs from our metrics DB ascender for Roboto Slab Light.
+- [ ] **Slide 46 — Bullets overflow (NEEDS FURTHER INVESTIGATION)**
+  - RMSE 0.1490. Diff image: `pptx-pdf-comparisons/comparison-output/diffs/diff-46.png`
+  - **What was checked:** `<a:noAutofit/>` means text overflow is expected. `buSzPts=852` is ignored because `buNone` suppresses bullets. 95% lnSpc with Barlow (lineHeight=1.2) calculates correctly. Space-before/after is 0pt on all paragraphs.
+  - **What was NOT checked:** Whether the body placeholder transform (off x=300800, y=868675, ext 5168400x3518400) matches what's actually rendered. The picture (shape 937, "Admin UI.png") at x=5356850 overlaps the body text area — check if z-order is correct (picture should be above text). Also check if the layout's body placeholder lstStyle overrides (indent=-330200, marL=457200 with buChar bullets) are correctly suppressed by the slide's buNone.
+  - **Extracted XML:** See agent output for slide 46 (body has 18 paragraphs, alternating bold headings + body text in Barlow 11.3pt/10.91pt/9.75pt)
+  - **Next steps:** Compare cumulative Y position of each paragraph in rendered output vs reference. If text starts at the right Y but drifts, the line height per paragraph is slightly off. If text starts at a wrong Y, the body inset (91425 EMU on all sides) may interact differently with Google Slides' rendering.
+- [ ] **Slide 17 — "Safe Harbor" text spacing (NEEDS FURTHER INVESTIGATION)**
+  - RMSE 0.1060. Diff image: `pptx-pdf-comparisons/comparison-output/diffs/diff-17.png`
+  - **What was checked:** 171.4% lnSpc with Barlow (lineHeight=1.2) at 18pt and 9pt. `spcBef=900` (9pt absolute). `spcFirstLastPara="1"`. Placeholder `idx=4294967295` (sentinel — no layout match, so no lstStyle inheritance).
+  - **What was NOT checked:** Most of the RMSE comes from the layout background image (slideLayout7 "DIVIDER / COLOR HEX ENERGY" has a 3D perspective mesh/grid effect we can't render). The actual text positioning diff in the Safe Harbor box (shape 546, at y=3702904, height=697800 EMU) may be small. Need to isolate text RMSE from background RMSE — try masking the background in the diff to measure text-only delta.
+  - **Key detail:** The dark rectangle (shape 545, solidFill #404040) at y=3692225 is a separate shape BEHIND the Safe Harbor text. Verify z-order renders correctly (dark rect first, then text on top).
+  - **Next steps:** Create a masked diff that only compares the Safe Harbor region (bottom ~25% of the slide). If text positioning is actually correct, this issue can be closed as "background image gap" rather than a text spacing problem.
 - [x] **Slide 16 — Left column vertical offset** — FIXED: Table cell vertical alignment (anchor="ctr") not parsed from `<a:tcPr>`. RMSE 0.1014→0.0800.
 - [x] **Page numbers not rendering** — FIXED: Placeholder content inheritance from master/layout `<a:fld>` elements.
 - [x] **Arrow shape artifacts** — FIXED: `buildPresetPaths()` preserves per-path fill/stroke metadata. Shape renderer iterates sub-paths individually.
