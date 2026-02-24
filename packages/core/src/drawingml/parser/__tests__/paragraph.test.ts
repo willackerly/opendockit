@@ -303,7 +303,7 @@ describe('parseParagraph', () => {
       );
       const para = parseParagraph(el, TEST_THEME);
 
-      expect(para.bulletProperties!.sizePercent).toBeCloseTo(0.75);
+      expect(para.bulletProperties!.sizePercent).toBeCloseTo(75);
     });
 
     it('parses bullet with color', () => {
@@ -340,7 +340,7 @@ describe('parseParagraph', () => {
 
       expect(para.bulletProperties!.type).toBe('char');
       expect(para.bulletProperties!.font).toBe('Symbol');
-      expect(para.bulletProperties!.sizePercent).toBeCloseTo(1.0);
+      expect(para.bulletProperties!.sizePercent).toBeCloseTo(100);
       expect(para.bulletProperties!.color!.g).toBe(255);
     });
 

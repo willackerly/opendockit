@@ -84,6 +84,23 @@ interface WrappedLine {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve field code text at render time.
+ *
+ * Replaces known field types with dynamic values from the render context.
+ * Currently supports:
+ * - `slidenum` → the 1-based slide number from rctx.slideNumber
+ *
+ * Falls back to the run's original text for unknown or unresolved fields.
+ */
+function resolveFieldText(run: RunIR, rctx: RenderContext): string {
+  if (!run.fieldType) return run.text;
+  if (run.fieldType === 'slidenum' && rctx.slideNumber != null) {
+    return String(rctx.slideNumber);
+  }
+  return run.text;
+}
+
 /** Format a ResolvedColor as a CSS rgba() string. */
 function colorToRgba(c: ResolvedColor): string {
   return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
@@ -317,6 +334,29 @@ function getParagraphFontSizePt(
 }
 
 /**
+ * Get the paragraph's representative font family from its first run.
+ *
+ * Falls back to inherited textDefaults, then generic 'sans-serif'.
+ * Used to resolve the font's line height multiplier for spacing
+ * calculations that precede per-run iteration.
+ */
+function getParagraphFontFamily(paragraph: ParagraphIR, rctx?: RenderContext): string {
+  for (const run of paragraph.runs) {
+    const family = run.properties.fontFamily ?? run.properties.latin;
+    if (family) return family;
+  }
+  const level = paragraph.properties.level ?? 0;
+  const inherited = rctx?.textDefaults;
+  return (
+    inherited?.levels[level]?.defaultCharacterProperties?.fontFamily ??
+    inherited?.levels[level]?.defaultCharacterProperties?.latin ??
+    inherited?.defPPr?.defaultCharacterProperties?.fontFamily ??
+    inherited?.defPPr?.defaultCharacterProperties?.latin ??
+    'sans-serif'
+  );
+}
+
+/**
  * Default color map used when no explicit color map is provided.
  *
  * Maps scheme color roles to theme color slots, matching the OOXML default:
@@ -515,6 +555,9 @@ function wrapParagraph(
     }
 
     // run.kind === 'run'
+    // Replace field code text at render time (e.g. slidenum → actual number).
+    const effectiveText = resolveFieldText(run, rctx);
+
     const fontString = buildFontString(
       run.properties,
       resolveFont,
@@ -570,7 +613,7 @@ function wrapParagraph(
     }
 
     // Split into words, preserving spaces for accurate measurement.
-    const words = run.text.split(/(?<=\s)/);
+    const words = effectiveText.split(/(?<=\s)/);
 
     // Character spacing: extra width per character from `spc` attribute.
     const charSpacing = run.properties.spacing;
@@ -909,8 +952,14 @@ export function renderTextBody(
     const effectiveSpaceAfter = paragraph.properties.spaceAfter ?? inheritedPProps?.spaceAfter;
     const effectiveLineSpacing = paragraph.properties.lineSpacing ?? inheritedPProps?.lineSpacing;
 
-    const spaceBeforePx = resolveSpacingPx(effectiveSpaceBefore, fontSizePt, dpiScale);
-    const spaceAfterPx = resolveSpacingPx(effectiveSpaceAfter, fontSizePt, dpiScale);
+    // Percentage-based space-before/after is relative to the font's "single
+    // spacing" (font size * lineHeight multiplier), not just font size alone.
+    const paraFamily = getParagraphFontFamily(paragraph, rctx);
+    const paraFontSizePx = ptToCanvasPx(fontSizePt, dpiScale);
+    const paraLhMul = getFontLineHeightMultiplier(rctx, paraFamily, paraFontSizePx, false, false);
+    const singleSpacingPt = fontSizePt * paraLhMul;
+    const spaceBeforePx = resolveSpacingPx(effectiveSpaceBefore, singleSpacingPt, dpiScale);
+    const spaceAfterPx = resolveSpacingPx(effectiveSpaceAfter, singleSpacingPt, dpiScale);
 
     const marginLeftPx = effectiveMarginLeft ? emuToScaledPx(effectiveMarginLeft, rctx) : 0;
     const indentPx = effectiveIndent ? emuToScaledPx(effectiveIndent, rctx) : 0;

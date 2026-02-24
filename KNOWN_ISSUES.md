@@ -27,25 +27,28 @@ None.
 
 ### Text Property Gaps (from XML audit)
 
-- `<a:buSzPts>` (absolute bullet size) — now parsed (2026-02-24)
+- `<a:buSzPts>` (absolute bullet size) — parsed (2026-02-24)
+- `<a:buSzPct>` (bullet size percentage) — parsing bug fixed (was 100x too small, 2026-02-23)
+- Table cell margins (`marL/marR/marT/marB` on `<a:tcPr>`) — now parsed with OOXML defaults (2026-02-23)
+- Table cell vertical alignment (`anchor` on `<a:tcPr>`) — now parsed (2026-02-23)
 - `anchorCtr` parsed into IR but not consumed by text renderer
 - `vert` (text direction) not parsed — vertical/rotated text renders horizontal
 - `marR` (right paragraph margin) not parsed
 - `cap` (capitalization) not parsed
 - Space-after on last paragraph always applied (spec says it should be omitted)
 
-### Visual Regression Targets (IC CISO deck — do NOT move off this deck until resolved)
+### Visual Regression Targets (IC CISO deck)
 
 User-flagged issues from visual diff review (2026-02-24):
 
-- **Slide 11** — Numbered bullet items (1, 2, 3, 4) badly misspaced vertically
-- **Slide 13** — Severely unreadable render; arrows have crazy rendering artifacts
-- **Slide 9** — Vertical line spacing between lines is a real issue (circular crops fixed)
-- **Slide 46** — Bullet text overflowing / leaving the slide boundary
-- **Slide 17** — "Safe Harbor" text box vertical spacing way off
-- **Slide 16** — Left column text vertical offset significantly wrong
-- **Page numbers** — Not rendering on slides that should show them (e.g., slide 2 shows "2" in reference but not in rendered)
-- **Arrow shapes** — Rendering artifacts on arrow/connector shapes across multiple slides
+- ~~**Slide 11** — Numbered bullet items badly misspaced~~ FIXED: table cell margins/alignment (RMSE 0.1586→0.1420)
+- ~~**Slide 13** — Severely unreadable render; arrow artifacts~~ FIXED: multi-path geometry rendering
+- **Slide 9** — Vertical line spacing (RMSE 0.1629). Investigated: calculation correct, remaining diff from font metric/engine differences
+- **Slide 46** — Bullet text overflow (RMSE 0.1490). Investigated: `noAutofit` means overflow is expected, cumulative sub-pixel rounding
+- **Slide 17** — "Safe Harbor" text spacing (RMSE 0.1060). Investigated: much of diff from 3D background image, text positioning diff small
+- ~~**Slide 16** — Left column text vertical offset~~ FIXED: table cell anchor="ctr" vertical alignment (RMSE 0.1014→0.0800)
+- ~~**Page numbers** — Not rendering~~ FIXED: placeholder content inheritance from `<a:fld>` elements
+- ~~**Arrow shapes** — Rendering artifacts~~ FIXED: `buildPresetPaths()` preserves per-path fill/stroke metadata
 
 ### No Diagnostic/Warning System (next priority)
 

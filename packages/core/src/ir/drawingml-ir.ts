@@ -502,6 +502,15 @@ export interface RunIR {
   properties: CharacterPropertiesIR;
   /** Hyperlink attached to this run (from a:hlinkClick on a:rPr). */
   hyperlink?: HyperlinkIR;
+  /**
+   * Field code type from `<a:fld type="...">`.
+   *
+   * When present, the run originated from a field code element rather than
+   * a regular text run. Common values: "slidenum", "datetime1", etc.
+   * The text renderer replaces the run's text at render time for known
+   * field types (e.g. slidenum → actual slide number).
+   */
+  fieldType?: string;
 }
 
 /** A forced line break within a paragraph. */
@@ -646,11 +655,23 @@ export interface TableCellBorders {
   bottom?: LineIR;
 }
 
+/** Table cell internal margins in EMU (from `<a:tcPr>` marL/marR/marT/marB). */
+export interface TableCellMargins {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
 /** A single cell within a table row. */
 export interface TableCellIR {
   textBody?: TextBodyIR;
   fill?: FillIR;
   borders?: TableCellBorders;
+  /** Cell internal margins in EMU. Defaults: L/R=91440 (0.1in), T/B=45720 (0.05in). */
+  margins?: TableCellMargins;
+  /** Vertical alignment of text within the cell (from `<a:tcPr anchor>`). */
+  verticalAlign?: 'top' | 'middle' | 'bottom';
   /** Number of columns this cell spans. */
   gridSpan?: number;
   /** Number of rows this cell spans. */

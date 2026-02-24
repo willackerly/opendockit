@@ -77,6 +77,13 @@ export interface RenderContext {
    * a "loading..." indicator instead of a static grey-box placeholder.
    */
   loadingModuleKinds?: Set<string>;
+  /**
+   * 1-based slide number for the current slide.
+   *
+   * Used by the text renderer to replace `<a:fld type="slidenum">` field
+   * codes with the actual slide number at render time.
+   */
+  slideNumber?: number;
 }
 
 /**

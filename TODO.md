@@ -86,14 +86,14 @@
 User-flagged issues from visual diff review (2026-02-24). Each must be investigated,
 fixed, and verified with RMSE improvement before moving to other work.
 
-- [ ] **Slide 11 — Bullet number spacing** — Items 1, 2, 3, 4 are badly misspaced vertically. Likely a line spacing or space-before/after inheritance issue on numbered list items.
-- [ ] **Slide 13 — Unreadable render + arrow artifacts** — Severely broken output. Arrow shapes have rendering artifacts. Need to investigate shape geometry/path rendering for arrow presets.
-- [ ] **Slide 9 — Line spacing** — Vertical spacing between text lines still off even after circular crop fix. Investigate line height calculation for this specific layout.
-- [ ] **Slide 46 — Bullets overflow** — Bullet text leaving the slide boundary. Likely a text body inset/margin issue or incorrect text box positioning.
-- [ ] **Slide 17 — "Safe Harbor" text spacing** — Text box vertical spacing way off. Investigate body properties, insets, or space-before/after values.
-- [ ] **Slide 16 — Left column vertical offset** — Left text column vertical positioning significantly wrong. May be a vertical alignment (anchor) or inset issue.
-- [ ] **Page numbers not rendering** — Slide number placeholders (e.g., slide 2 shows "2" in reference but blank in rendered). Likely a placeholder content inheritance gap — sldNum placeholder on master/layout has content but slide doesn't override it, so it renders empty.
-- [ ] **Arrow shape artifacts** — Arrow/chevron preset geometries rendering with visual artifacts across multiple slides. Investigate path builder output for arrow-related presets.
+- [x] **Slide 11 — Bullet number spacing** — FIXED: Table cell margins (marL/marR/marT/marB) and vertical alignment (anchor) not parsed from `<a:tcPr>`. RMSE 0.1586→0.1420.
+- [x] **Slide 13 — Unreadable render + arrow artifacts** — FIXED: Multi-path geometry rendering. Arrow presets now render each sub-path with correct fill mode (norm/darken/lighten/none) and stroke.
+- [ ] **Slide 9 — Line spacing** — Vertical spacing between text lines still off. RMSE 0.1629. Investigated: line height calc correct (fontLhMul applied), spacing features implemented. Remaining diff likely font metric/rendering engine differences.
+- [ ] **Slide 46 — Bullets overflow** — RMSE 0.1490. Investigated: `<a:noAutofit/>` means text overflow is expected PowerPoint behavior. 18 paragraphs at 95% line spacing with 0pt space-before/after. Remaining diff is cumulative sub-pixel rounding + image overlap.
+- [ ] **Slide 17 — "Safe Harbor" text spacing** — RMSE 0.1060. Investigated: 171.4% line spacing with Barlow, 9pt absolute space-before. Much of RMSE from 3D background image we can't render. Text positioning diff is small.
+- [x] **Slide 16 — Left column vertical offset** — FIXED: Table cell vertical alignment (anchor="ctr") not parsed from `<a:tcPr>`. RMSE 0.1014→0.0800.
+- [x] **Page numbers not rendering** — FIXED: Placeholder content inheritance from master/layout `<a:fld>` elements.
+- [x] **Arrow shape artifacts** — FIXED: `buildPresetPaths()` preserves per-path fill/stroke metadata. Shape renderer iterates sub-paths individually.
 
 ### Phase 3.5: Diagnostics & Observability
 

@@ -22,12 +22,14 @@ import type {
   FillIR,
   LineIR,
   EffectIR,
+  ResolvedColor,
 } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
 import { applyFill } from './fill-renderer.js';
 import { applyLine } from './line-renderer.js';
-import { buildPresetPath, buildCustomPath } from '../geometry/path-builder.js';
+import { buildPresetPaths, buildCustomPath } from '../geometry/path-builder.js';
+import type { GeometrySubPath } from '../geometry/path-builder.js';
 import { applyEffects } from './effect-renderer.js';
 import { renderTextBody } from './text-renderer.js';
 import { renderPicture } from './picture-renderer.js';
@@ -104,6 +106,65 @@ function renderUnsupported(element: UnsupportedIR, rctx: RenderContext): void {
     element.elementType,
     rctx.dpiScale
   );
+}
+
+// ---------------------------------------------------------------------------
+// Per-path fill mode modification
+// ---------------------------------------------------------------------------
+
+/**
+ * Modify a fill color for preset geometry sub-path fill modes.
+ *
+ * OOXML preset shapes can specify per-path fill modes:
+ * - `'norm'`: use the shape fill as-is
+ * - `'darken'`: darken the fill color (~60% luminance)
+ * - `'darkenLess'`: slightly darken (~75% luminance)
+ * - `'lighten'`: lighten the fill color (~40% tint toward white)
+ * - `'lightenLess'`: slightly lighten (~20% tint toward white)
+ */
+function modifyColor(
+  color: ResolvedColor,
+  mode: 'darken' | 'darkenLess' | 'lighten' | 'lightenLess'
+): ResolvedColor {
+  switch (mode) {
+    case 'darken':
+      return { ...color, r: Math.round(color.r * 0.6), g: Math.round(color.g * 0.6), b: Math.round(color.b * 0.6) };
+    case 'darkenLess':
+      return { ...color, r: Math.round(color.r * 0.75), g: Math.round(color.g * 0.75), b: Math.round(color.b * 0.75) };
+    case 'lighten':
+      return { ...color, r: Math.round(color.r + (255 - color.r) * 0.4), g: Math.round(color.g + (255 - color.g) * 0.4), b: Math.round(color.b + (255 - color.b) * 0.4) };
+    case 'lightenLess':
+      return { ...color, r: Math.round(color.r + (255 - color.r) * 0.2), g: Math.round(color.g + (255 - color.g) * 0.2), b: Math.round(color.b + (255 - color.b) * 0.2) };
+  }
+}
+
+/**
+ * Apply a fill mode modifier to a FillIR.
+ *
+ * For 'norm' mode, returns the fill unchanged. For darken/lighten modes,
+ * modifies the colors in the fill. Only solid and gradient fills are
+ * modified; other fill types are returned unchanged.
+ */
+function applyFillMode(fill: FillIR, mode: GeometrySubPath['fill']): FillIR {
+  if (mode === 'norm' || mode === 'none') return fill;
+
+  const colorMode = mode; // narrowed to 'darken' | 'darkenLess' | 'lighten' | 'lightenLess'
+
+  if (fill.type === 'solid') {
+    return { ...fill, color: modifyColor(fill.color, colorMode) };
+  }
+
+  if (fill.type === 'gradient') {
+    return {
+      ...fill,
+      stops: fill.stops.map((stop) => ({
+        ...stop,
+        color: modifyColor(stop.color, colorMode),
+      })),
+    };
+  }
+
+  return fill;
 }
 
 // ---------------------------------------------------------------------------
@@ -241,34 +302,48 @@ export function renderShape(shape: DrawingMLShapeIR, rctx: RenderContext): void 
   const effectCleanup = applyEffects(effectiveEffects, rctx, bounds);
 
   // -- Geometry path --
-  // Build a Path2D from preset or custom geometry definitions.
-  // Falls back to a simple rectangle when no geometry is defined or
-  // when the path builder returns null (e.g. in Node.js without Path2D).
+  // Build Path2D(s) from preset or custom geometry definitions.
+  // Preset shapes may have multiple sub-paths with different fill modes
+  // (e.g. curved arrows have 'norm', 'darken', and 'none' sub-paths).
   const geo = shape.properties.geometry;
-  let geometryPath: Path2D | null = null;
+  let subPaths: GeometrySubPath[] | null = null;
+  let singlePath: Path2D | null = null;
 
   if (geo) {
     if (geo.kind === 'preset') {
-      geometryPath = buildPresetPath(geo.name, w, h, geo.adjustValues);
+      subPaths = buildPresetPaths(geo.name, w, h, geo.adjustValues);
     } else if (geo.kind === 'custom') {
-      geometryPath = buildCustomPath(geo, w, h);
+      singlePath = buildCustomPath(geo, w, h);
     }
   }
 
-  if (!geometryPath) {
-    // Fallback: define a simple rectangle as the current context path.
-    ctx.beginPath();
-    ctx.rect(0, 0, w, h);
-  }
+  // If we have multi-path geometry with per-path fill/stroke metadata,
+  // render each sub-path with its own fill mode and stroke setting.
+  if (subPaths && subPaths.length > 0) {
+    for (const sp of subPaths) {
+      // Apply fill based on sub-path fill mode
+      if (sp.fill !== 'none' && effectiveFill) {
+        const modifiedFill = applyFillMode(effectiveFill, sp.fill);
+        applyFill(modifiedFill, rctx, bounds, sp.path);
+      }
+      // Apply stroke if this sub-path should be stroked
+      if (sp.stroke && effectiveLine) {
+        applyLine(effectiveLine, rctx, sp.path);
+      }
+    }
+  } else {
+    // Single path or fallback rectangle
+    if (!singlePath) {
+      ctx.beginPath();
+      ctx.rect(0, 0, w, h);
+    }
 
-  // -- Fill --
-  if (effectiveFill) {
-    applyFill(effectiveFill, rctx, bounds, geometryPath ?? undefined);
-  }
-
-  // -- Line/Stroke --
-  if (effectiveLine) {
-    applyLine(effectiveLine, rctx, geometryPath ?? undefined);
+    if (effectiveFill) {
+      applyFill(effectiveFill, rctx, bounds, singlePath ?? undefined);
+    }
+    if (effectiveLine) {
+      applyLine(effectiveLine, rctx, singlePath ?? undefined);
+    }
   }
 
   // -- Effect cleanup --

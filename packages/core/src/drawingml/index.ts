@@ -57,12 +57,14 @@ export {
   getPresetGeometry,
   getPresetGeometryNames,
   buildPresetPath,
+  buildPresetPaths,
   buildCustomPath,
   tracePresetPath,
   traceCustomPath,
 } from './geometry/index.js';
 export type {
   GuideContext,
+  GeometrySubPath,
   PresetGeometryDef,
   PresetPath,
   PresetPathCommand,

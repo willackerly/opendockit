@@ -139,6 +139,27 @@ export function parseTableCell(tcElement: XmlElement, theme: ThemeIR): TableCell
     if (borders) {
       cell.borders = borders;
     }
+
+    // Cell margins (marL/marR/marT/marB) — defaults per OOXML spec
+    const marL = parseIntAttr(tcPr, 'marL');
+    const marR = parseIntAttr(tcPr, 'marR');
+    const marT = parseIntAttr(tcPr, 'marT');
+    const marB = parseIntAttr(tcPr, 'marB');
+    cell.margins = {
+      left: marL ?? 91440,
+      right: marR ?? 91440,
+      top: marT ?? 45720,
+      bottom: marB ?? 45720,
+    };
+
+    // Vertical alignment (anchor attribute)
+    const anchor = tcPr.attr('anchor');
+    if (anchor === 'ctr') {
+      cell.verticalAlign = 'middle';
+    } else if (anchor === 'b') {
+      cell.verticalAlign = 'bottom';
+    }
+    // 't' or unspecified = 'top' (default, no need to set)
   }
 
   // Merge attributes (on the <a:tc> element itself)

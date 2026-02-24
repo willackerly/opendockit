@@ -64,8 +64,15 @@ export function parseParagraph(
     } else if (child.is('a:fld')) {
       // Field codes (slide numbers, dates, etc.) have the same child
       // structure as a:r — a:rPr + a:t. We parse them as regular runs
-      // using the stored "last known value" from a:t.
-      runs.push(parseRun(child, theme, context));
+      // using the stored "last known value" from a:t, and tag them
+      // with the field type so the text renderer can replace the text
+      // at render time (e.g. slidenum → actual slide number).
+      const fieldRun = parseRun(child, theme, context);
+      const fieldType = child.attr('type');
+      if (fieldType) {
+        fieldRun.fieldType = fieldType;
+      }
+      runs.push(fieldRun);
     } else if (child.is('a:br')) {
       runs.push(parseLineBreak(child, theme, context));
     }
@@ -216,7 +223,7 @@ export function parseBulletProperties(
   if (buSzPct) {
     const val = parseIntAttr(buSzPct, 'val');
     if (val !== undefined) {
-      bullet.sizePercent = val / 100_000;
+      bullet.sizePercent = val / 1000; // thousandths of percent → percent
     }
   }
 

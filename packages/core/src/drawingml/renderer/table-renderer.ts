@@ -202,21 +202,22 @@ export function renderTable(table: TableIR, rctx: RenderContext): void {
       }
 
       // Render text body.
-      // Table cells use <a:tcPr> margins (marL/marR/marT/marB), NOT the
-      // large default shape body insets (91440 EMU = 0.1in).  When the cell's
-      // <a:bodyPr> omits inset attributes, the text renderer would apply the
-      // shape default, which consumes rows that are only ~93k EMU tall.
-      // Override undefined insets to 0 so text actually renders.
+      // Table cells use <a:tcPr> margins (marL/marR/marT/marB) as the text
+      // insets, NOT the shape default body insets (91440 EMU = 0.1in per side).
+      // We inject the cell margins as bodyPr insets so the text renderer
+      // positions text correctly within the cell.
       if (cell.textBody) {
         const bp = cell.textBody.bodyProperties;
+        const margins = cell.margins;
         const cellTextBody = {
           ...cell.textBody,
           bodyProperties: {
             ...bp,
-            leftInset: bp.leftInset ?? 0,
-            rightInset: bp.rightInset ?? 0,
-            topInset: bp.topInset ?? 0,
-            bottomInset: bp.bottomInset ?? 0,
+            leftInset: bp.leftInset ?? (margins?.left ?? 91440),
+            rightInset: bp.rightInset ?? (margins?.right ?? 91440),
+            topInset: bp.topInset ?? (margins?.top ?? 45720),
+            bottomInset: bp.bottomInset ?? (margins?.bottom ?? 45720),
+            verticalAlign: bp.verticalAlign ?? cell.verticalAlign ?? 'top',
           },
         };
         renderTextBody(cellTextBody, rctx, {

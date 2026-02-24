@@ -303,6 +303,7 @@ export class SlideKit {
       colorMap,
       fontMetricsDB: this._fontMetricsDB,
       loadingModuleKinds: loadingKinds.size > 0 ? loadingKinds : undefined,
+      slideNumber: index + 1,
     };
 
     // Clear and render

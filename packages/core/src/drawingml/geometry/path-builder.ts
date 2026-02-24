@@ -18,6 +18,32 @@ import { getPresetGeometry } from './preset-geometries.js';
 import type { PresetPathCommand } from './preset-geometries.js';
 
 // ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/**
+ * A single sub-path from a preset geometry with per-path fill/stroke metadata.
+ *
+ * Preset shapes like curved arrows have multiple sub-paths where each part
+ * has a different fill mode (normal, darkened, none) and stroke flag. The
+ * shape renderer iterates these and applies fill/stroke per sub-path.
+ */
+export interface GeometrySubPath {
+  /** The Canvas2D path for this sub-path. */
+  path: Path2D;
+  /**
+   * Fill mode for this sub-path.
+   * - `'norm'` (default): use the shape's normal fill
+   * - `'none'`: no fill (outline only)
+   * - `'darken'` / `'darkenLess'`: darker shade of the fill
+   * - `'lighten'` / `'lightenLess'`: lighter shade of the fill
+   */
+  fill: 'norm' | 'none' | 'lighten' | 'lightenLess' | 'darken' | 'darkenLess';
+  /** Whether to stroke this sub-path (default true). */
+  stroke: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -72,6 +98,67 @@ export function buildPresetPath(
   }
 
   return path2d;
+}
+
+/**
+ * Build separate Canvas2D Path2D objects for each sub-path in a preset geometry.
+ *
+ * Unlike {@link buildPresetPath} which combines all paths into one, this function
+ * preserves per-path fill mode and stroke flag metadata. This is needed for shapes
+ * like curved arrows where sub-paths have different fill modes ('norm', 'darken',
+ * 'none') and stroke settings.
+ *
+ * @param presetName Preset shape name, e.g. "curvedRightArrow"
+ * @param width Shape width in px (already converted from EMU)
+ * @param height Shape height in px (already converted from EMU)
+ * @param adjustValues Optional adjust value overrides
+ * @returns An array of sub-paths with metadata, or null if unavailable
+ */
+export function buildPresetPaths(
+  presetName: string,
+  width: number,
+  height: number,
+  adjustValues?: Record<string, number>
+): GeometrySubPath[] | null {
+  if (typeof Path2D === 'undefined') {
+    return null;
+  }
+
+  const preset = getPresetGeometry(presetName);
+  if (!preset) {
+    return null;
+  }
+
+  // Merge adjust values: preset defaults, then user overrides
+  const mergedAdjust: Record<string, number> = {};
+  for (const av of preset.avLst) {
+    const val = evaluateFormula(av.fmla, createGuideContext(width, height));
+    mergedAdjust[av.name] = val;
+  }
+  if (adjustValues) {
+    for (const [name, value] of Object.entries(adjustValues)) {
+      mergedAdjust[name] = value;
+    }
+  }
+
+  // Create guide context and evaluate guide list
+  const ctx = createGuideContext(width, height, mergedAdjust);
+  evaluateGuides(preset.gdLst, ctx);
+
+  // Build separate Path2D for each sub-path
+  const subPaths: GeometrySubPath[] = [];
+
+  for (const presetPath of preset.pathLst) {
+    const path2d = new Path2D();
+    tracePresetPath(path2d, presetPath.commands, ctx, presetPath.w, presetPath.h, width, height);
+    subPaths.push({
+      path: path2d,
+      fill: presetPath.fill ?? 'norm',
+      stroke: presetPath.stroke !== false,
+    });
+  }
+
+  return subPaths;
 }
 
 /**

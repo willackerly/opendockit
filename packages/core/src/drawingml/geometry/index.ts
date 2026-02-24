@@ -13,7 +13,9 @@ export type { PresetGeometryDef, PresetPath, PresetPathCommand } from './preset-
 
 export {
   buildPresetPath,
+  buildPresetPaths,
   buildCustomPath,
   tracePresetPath,
   traceCustomPath,
 } from './path-builder.js';
+export type { GeometrySubPath } from './path-builder.js';

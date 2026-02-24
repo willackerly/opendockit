@@ -79,6 +79,7 @@ export type {
   ConnectorIR,
   // Table
   TableCellBorders,
+  TableCellMargins,
   TableCellIR,
   TableRowIR,
   TableIR,
