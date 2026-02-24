@@ -1,6 +1,6 @@
 # TODO
 
-**Last synced:** 2026-02-23
+**Last synced:** 2026-02-24
 
 ## Completed
 
@@ -88,24 +88,9 @@ fixed, and verified with RMSE improvement before moving to other work.
 
 - [x] **Slide 11 — Bullet number spacing** — FIXED: Table cell margins (marL/marR/marT/marB) and vertical alignment (anchor) not parsed from `<a:tcPr>`. RMSE 0.1586→0.1420.
 - [x] **Slide 13 — Unreadable render + arrow artifacts** — FIXED: Multi-path geometry rendering. Arrow presets now render each sub-path with correct fill mode (norm/darken/lighten/none) and stroke.
-- [ ] **Slide 9 — Line spacing (NEEDS FURTHER INVESTIGATION)**
-  - RMSE 0.1629. Diff image: `pptx-pdf-comparisons/comparison-output/diffs/diff-09.png`
-  - **What was checked:** `fontLhMul` correctly applied (Roboto Slab Light lineHeight=1.3188), `spcFirstLastPara`, `buSzPts` all implemented. Space-before/after now uses `fontSizePt * fontLhMul` for percentage values.
-  - **What was NOT checked:** Whether bullet indent/margin interaction affects line height. The three side-by-side text boxes (shapes 404, 405, 406) each have hanging indent `indent=-292100, marL=457200` with sub-bullets at `lvl=1, marL=777240`. Verify bullet baseline alignment doesn't shift lines.
-  - **Extracted XML:** `/tmp/ciso-pptx/` and `/tmp/slide9_pretty.xml` — 115% lnSpc, Roboto Slab Light 10pt, buSzPts=1000
-  - **Next steps:** Run the dev viewer side-by-side with the PDF reference at 2x zoom on the bullet text area. Compare pixel Y positions of each text line. If cumulative drift grows, the per-line height is slightly off — check whether Canvas2D `measureText().fontBoundingBoxAscent` differs from our metrics DB ascender for Roboto Slab Light.
-- [ ] **Slide 46 — Bullets overflow (NEEDS FURTHER INVESTIGATION)**
-  - RMSE 0.1490. Diff image: `pptx-pdf-comparisons/comparison-output/diffs/diff-46.png`
-  - **What was checked:** `<a:noAutofit/>` means text overflow is expected. `buSzPts=852` is ignored because `buNone` suppresses bullets. 95% lnSpc with Barlow (lineHeight=1.2) calculates correctly. Space-before/after is 0pt on all paragraphs.
-  - **What was NOT checked:** Whether the body placeholder transform (off x=300800, y=868675, ext 5168400x3518400) matches what's actually rendered. The picture (shape 937, "Admin UI.png") at x=5356850 overlaps the body text area — check if z-order is correct (picture should be above text). Also check if the layout's body placeholder lstStyle overrides (indent=-330200, marL=457200 with buChar bullets) are correctly suppressed by the slide's buNone.
-  - **Extracted XML:** See agent output for slide 46 (body has 18 paragraphs, alternating bold headings + body text in Barlow 11.3pt/10.91pt/9.75pt)
-  - **Next steps:** Compare cumulative Y position of each paragraph in rendered output vs reference. If text starts at the right Y but drifts, the line height per paragraph is slightly off. If text starts at a wrong Y, the body inset (91425 EMU on all sides) may interact differently with Google Slides' rendering.
-- [ ] **Slide 17 — "Safe Harbor" text spacing (NEEDS FURTHER INVESTIGATION)**
-  - RMSE 0.1060. Diff image: `pptx-pdf-comparisons/comparison-output/diffs/diff-17.png`
-  - **What was checked:** 171.4% lnSpc with Barlow (lineHeight=1.2) at 18pt and 9pt. `spcBef=900` (9pt absolute). `spcFirstLastPara="1"`. Placeholder `idx=4294967295` (sentinel — no layout match, so no lstStyle inheritance).
-  - **What was NOT checked:** Most of the RMSE comes from the layout background image (slideLayout7 "DIVIDER / COLOR HEX ENERGY" has a 3D perspective mesh/grid effect we can't render). The actual text positioning diff in the Safe Harbor box (shape 546, at y=3702904, height=697800 EMU) may be small. Need to isolate text RMSE from background RMSE — try masking the background in the diff to measure text-only delta.
-  - **Key detail:** The dark rectangle (shape 545, solidFill #404040) at y=3692225 is a separate shape BEHIND the Safe Harbor text. Verify z-order renders correctly (dark rect first, then text on top).
-  - **Next steps:** Create a masked diff that only compares the Safe Harbor region (bottom ~25% of the slide). If text positioning is actually correct, this issue can be closed as "background image gap" rather than a text spacing problem.
+- [ ] **Slide 9 — Line spacing (RMSE 0.1627)** — endParaRPr fix applied, remaining diff is font metric/engine differences (Roboto Slab Light). No further structural layout fix identified.
+- [x] **Slide 46 — Spacer paragraph sizing** — FIXED: endParaRPr empty paragraph sizing (RMSE 0.1490→0.1372). Also improved slides 41, 43, 50.
+- [x] **Slide 17 — "Safe Harbor" text** — CLOSED: confirmed primarily unrendered 3D background image, text positioning is accurate. RMSE 0.1060.
 - [x] **Slide 16 — Left column vertical offset** — FIXED: Table cell vertical alignment (anchor="ctr") not parsed from `<a:tcPr>`. RMSE 0.1014→0.0800.
 - [x] **Page numbers not rendering** — FIXED: Placeholder content inheritance from master/layout `<a:fld>` elements.
 - [x] **Arrow shape artifacts** — FIXED: `buildPresetPaths()` preserves per-path fill/stroke metadata. Shape renderer iterates sub-paths individually.
@@ -158,11 +143,12 @@ These are known gaps. They can be tackled opportunistically or when a real-world
 These were found by a property-by-property audit of real-world PPTX XML vs what the parser/renderer handles.
 
 - [x] `<a:buSzPts>` — absolute bullet size (DONE 2026-02-24, sizePoints takes priority over sizePercent)
-- [ ] `anchorCtr` — text body anchor-center parsed into IR (`TextBodyPropertiesIR.anchorCenter`) but not consumed by text renderer (MODERATE: horizontally centered text in vertically-anchored shapes may be slightly off)
+- [x] `anchorCtr` — text body horizontal centering (DONE 2026-02-24)
 - [ ] `vert` — text direction attribute (`<a:bodyPr vert="vert270">`) not parsed (MODERATE: vertical/rotated text in East Asian layouts renders horizontal)
-- [ ] `marR` — right paragraph margin not parsed (MODERATE: only matters when text approaches right edge of shape)
-- [ ] `cap` — capitalization attribute (`<a:rPr cap="all">`) not parsed (LOW: affects few real-world presentations)
-- [ ] Space-after not conditionally omitted for last paragraph (LOW: OOXML spec says space-after on the last paragraph in a text body should be ignored; currently always applied; only affects middle/bottom vertical alignment)
+- [x] `marR` — right paragraph margin (DONE 2026-02-24)
+- [x] `cap` — capitalization attribute, all-caps and small-caps (DONE 2026-02-24)
+- [x] Space-after on last paragraph — now correctly omitted per spec (DONE 2026-02-24)
+- [x] `a:endParaRPr` — empty paragraph font sizing (DONE 2026-02-24)
 
 ### Broader Visual Test Corpus
 
@@ -212,9 +198,4 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [ ] spAutoFit text (shape resize to fit text - needs layout feedback loop)
 - [ ] Table row auto-height (rows should expand to fit content text)
 - [ ] Media LRU cache size limits (currently unbounded)
-- [ ] Absolute bullet size (`<a:buSzPts>`) not parsed — latent bug, see Deferred section
-- [ ] Text body `anchorCtr` not consumed by renderer
 - [ ] Text direction `vert` attribute not parsed
-- [ ] Right paragraph margin `marR` not parsed
-- [ ] Capitalization `cap` attribute not parsed
-- [ ] Space-after on last paragraph should be omitted per OOXML spec

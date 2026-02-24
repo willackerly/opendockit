@@ -1,6 +1,6 @@
 # Known Issues
 
-**Last updated:** 2026-02-23
+**Last updated:** 2026-02-24
 
 ## Active Blockers
 
@@ -31,11 +31,12 @@ None.
 - `<a:buSzPct>` (bullet size percentage) — parsing bug fixed (was 100x too small, 2026-02-23)
 - Table cell margins (`marL/marR/marT/marB` on `<a:tcPr>`) — now parsed with OOXML defaults (2026-02-23)
 - Table cell vertical alignment (`anchor` on `<a:tcPr>`) — now parsed (2026-02-23)
-- `anchorCtr` parsed into IR but not consumed by text renderer
+- `anchorCtr` — now consumed by text renderer for horizontal centering (2026-02-24)
 - `vert` (text direction) not parsed — vertical/rotated text renders horizontal
-- `marR` (right paragraph margin) not parsed
-- `cap` (capitalization) not parsed
-- Space-after on last paragraph always applied (spec says it should be omitted)
+- `marR` (right paragraph margin) — now parsed and rendered (2026-02-24)
+- `cap` (capitalization) — now parsed with all-caps and small-caps support (2026-02-24)
+- Space-after on last paragraph — now correctly omitted per spec (2026-02-24)
+- `a:endParaRPr` — now parsed for correct empty paragraph sizing (2026-02-24)
 
 ### Visual Regression Targets (IC CISO deck)
 
@@ -43,9 +44,9 @@ User-flagged issues from visual diff review (2026-02-24):
 
 - ~~**Slide 11** — Numbered bullet items badly misspaced~~ FIXED: table cell margins/alignment (RMSE 0.1586→0.1420)
 - ~~**Slide 13** — Severely unreadable render; arrow artifacts~~ FIXED: multi-path geometry rendering
-- **Slide 9** — Vertical line spacing (RMSE 0.1629). Investigated: calculation correct, remaining diff from font metric/engine differences
-- **Slide 46** — Bullet text overflow (RMSE 0.1490). Investigated: `noAutofit` means overflow is expected, cumulative sub-pixel rounding
-- **Slide 17** — "Safe Harbor" text spacing (RMSE 0.1060). Investigated: much of diff from 3D background image, text positioning diff small
+- **Slide 9** — Vertical line spacing (RMSE 0.1627). endParaRPr fix applied but remaining diff is from font metric/engine differences, not layout
+- ~~**Slide 46** — Bullet text overflow (RMSE 0.1490)~~ IMPROVED: endParaRPr empty paragraph sizing (RMSE 0.1490→0.1372)
+- **Slide 17** — "Safe Harbor" text spacing (RMSE 0.1060). Confirmed: primarily unrendered 3D background image, text positioning is accurate
 - ~~**Slide 16** — Left column text vertical offset~~ FIXED: table cell anchor="ctr" vertical alignment (RMSE 0.1014→0.0800)
 - ~~**Page numbers** — Not rendering~~ FIXED: placeholder content inheritance from `<a:fld>` elements
 - ~~**Arrow shapes** — Rendering artifacts~~ FIXED: `buildPresetPaths()` preserves per-path fill/stroke metadata
@@ -93,6 +94,13 @@ User-flagged issues from visual diff review (2026-02-24):
 - Media LRU cache currently unbounded — needs configurable size limits.
 
 ## Resolved Issues
+
+### Empty Paragraph Sizing / endParaRPr (resolved 2026-02-24)
+
+- **Root cause**: Empty paragraphs in OOXML have `<a:r><a:rPr/><a:t/></a:r>` (run with empty text and no fontSize) plus `<a:endParaRPr sz="1200"/>`. The empty-text run resolved its font size from textDefaults (18pt) instead of the endParaRPr (12pt), making spacer paragraphs too tall.
+- **Fix**: After line building, detect paragraphs where all runs have empty text and override line height using endParaProperties font size.
+- Also fixed: `anchorCtr`, `marR`, `cap`, space-after on last paragraph.
+- Visual regression: 4 slides improved (41, 43, 46, 50), 0 regressions.
 
 ### Text Drift / Vertical Offset (resolved 2026-02-23)
 
