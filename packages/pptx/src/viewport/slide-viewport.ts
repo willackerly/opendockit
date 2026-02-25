@@ -29,6 +29,8 @@ import type { RenderContext, DynamicRenderer } from '@opendockit/core/drawingml/
 import { CapabilityRegistry } from '@opendockit/core/capability';
 import type { CoverageReport } from '@opendockit/core/capability';
 import { WasmModuleLoader } from '@opendockit/core/wasm';
+import { DiagnosticEmitter } from '@opendockit/core/diagnostics';
+import type { DiagnosticListener } from '@opendockit/core/diagnostics';
 import { emuToPx } from '@opendockit/core';
 import {
   resolveFontName,
@@ -97,6 +99,14 @@ export interface SlideKitOptions {
    * upgraded rendering with the new capability.
    */
   onSlideInvalidated?: (slideIndices: number[]) => void;
+  /**
+   * Called when a diagnostic event is emitted during rendering.
+   *
+   * Diagnostic events include warnings about unsupported OOXML features,
+   * missing fonts, partial rendering, and fallback usage. The app decides
+   * how to present these (console, toast UI, diagnostic panel, etc.).
+   */
+  onDiagnostic?: DiagnosticListener;
 }
 
 /** Progress event emitted during load and render operations. */
@@ -177,6 +187,8 @@ export class SlideKit {
   private _loadingModules = new Set<string>();
   /** Maps WASM module IDs to the element kinds they provide renderers for. */
   private _moduleKindMap = new Map<string, string[]>();
+  /** Diagnostic emitter for structured warnings. */
+  private _diagnostics: DiagnosticEmitter;
 
   constructor(options: SlideKitOptions) {
     this._container = options.container;
@@ -185,6 +197,7 @@ export class SlideKit {
     this._userFonts = options.fonts;
     this._onProgress = options.onProgress;
     this._onSlideInvalidated = options.onSlideInvalidated;
+    this._diagnostics = new DiagnosticEmitter(options.onDiagnostic);
 
     // Initialize font metrics database with built-in metrics bundle.
     this._fontMetricsDB = new FontMetricsDB();
@@ -304,6 +317,7 @@ export class SlideKit {
       fontMetricsDB: this._fontMetricsDB,
       loadingModuleKinds: loadingKinds.size > 0 ? loadingKinds : undefined,
       slideNumber: index + 1,
+      diagnostics: this._diagnostics,
     };
 
     // Clear and render
@@ -477,6 +491,19 @@ export class SlideKit {
   }
 
   /**
+   * Get the diagnostic emitter for this SlideKit instance.
+   *
+   * Use this to retrieve collected diagnostics after rendering:
+   * ```ts
+   * const summary = kit.diagnostics.getSummary();
+   * const events = kit.diagnostics.getEvents();
+   * ```
+   */
+  get diagnostics(): DiagnosticEmitter {
+    return this._diagnostics;
+  }
+
+  /**
    * Clean up resources: clear caches, remove created canvas elements,
    * and mark this instance as disposed. After calling dispose(), all
    * other methods will throw.
@@ -494,6 +521,7 @@ export class SlideKit {
     this._loadingModules.clear();
     this._moduleKindMap.clear();
     this._loadedFonts.clear();
+    this._diagnostics.clear();
     this._pkg = undefined;
     this._presentation = undefined;
 
@@ -1254,6 +1282,14 @@ export class SlideKit {
       return `'${fontName}', sans-serif`;
     }
     // Fall back to the static substitution table.
+    // Emit a diagnostic for the font fallback — the original font is not
+    // available, so rendering may differ from the author's intent.
+    this._diagnostics.emit({
+      category: 'fallback-used',
+      severity: 'info',
+      message: `Font "${fontName}" not loaded; using substitution`,
+      context: { elementType: 'font' },
+    });
     return resolveFontName(fontName);
   }
 

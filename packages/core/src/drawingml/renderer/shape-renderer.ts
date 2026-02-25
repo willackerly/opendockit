@@ -83,6 +83,15 @@ function renderChart(chart: ChartIR, rctx: RenderContext): void {
   if (!px) return;
   const loading = rctx.loadingModuleKinds?.has('chart');
   const label = loading ? 'Chart (loading\u2026)' : 'Chart';
+  rctx.diagnostics?.emit({
+    category: 'unsupported-element',
+    severity: 'warning',
+    message: `Chart element rendered as placeholder (type: ${chart.chartType})`,
+    context: {
+      slideNumber: rctx.slideNumber,
+      elementType: 'chart',
+    },
+  });
   renderGreyBox(
     rctx.ctx as CanvasRenderingContext2D,
     { x: px.x, y: px.y, width: px.w, height: px.h },
@@ -95,6 +104,15 @@ function renderChart(chart: ChartIR, rctx: RenderContext): void {
  * Render an unsupported element as a grey-box placeholder.
  */
 function renderUnsupported(element: UnsupportedIR, rctx: RenderContext): void {
+  rctx.diagnostics?.emit({
+    category: 'unsupported-element',
+    severity: 'warning',
+    message: `Unsupported element type: ${element.elementType}`,
+    context: {
+      slideNumber: rctx.slideNumber,
+      elementType: element.elementType,
+    },
+  });
   if (!element.bounds) return;
   const x = emuToScaledPx(element.bounds.x, rctx);
   const y = emuToScaledPx(element.bounds.y, rctx);

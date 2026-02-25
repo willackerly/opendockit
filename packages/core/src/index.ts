@@ -4,3 +4,4 @@ export * from './units/index.js';
 export * from './xml/index.js';
 export * from './capability/index.js';
 export * from './wasm/index.js';
+export * from './diagnostics/index.js';

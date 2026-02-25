@@ -53,6 +53,10 @@
     "./wasm": {
       "types": "./dist/wasm/index.d.ts",
       "import": "./dist/wasm/index.js"
+    },
+    "./diagnostics": {
+      "types": "./dist/diagnostics/index.d.ts",
+      "import": "./dist/diagnostics/index.js"
     }
   },
   "scripts": {

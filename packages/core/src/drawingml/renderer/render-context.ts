@@ -9,6 +9,7 @@
 import type { SlideElementIR, ThemeIR, ListStyleIR } from '../../ir/index.js';
 import type { MediaCache } from '../../media/index.js';
 import type { FontMetricsDB } from '../../font/font-metrics-db.js';
+import type { DiagnosticEmitter } from '../../diagnostics/index.js';
 import { emuToPx } from '../../units/index.js';
 
 /**
@@ -84,6 +85,14 @@ export interface RenderContext {
    * codes with the actual slide number at render time.
    */
   slideNumber?: number;
+  /**
+   * Diagnostic emitter for structured warnings and logging.
+   *
+   * When present, renderers emit diagnostic events for unsupported
+   * features, missing fonts, fallback usage, and partial rendering.
+   * The consuming app subscribes via the emitter's listener callback.
+   */
+  diagnostics?: DiagnosticEmitter;
 }
 
 /**
