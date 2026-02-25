@@ -88,7 +88,7 @@ fixed, and verified with RMSE improvement before moving to other work.
 
 - [x] **Slide 11 — Bullet number spacing** — FIXED: Table cell margins (marL/marR/marT/marB) and vertical alignment (anchor) not parsed from `<a:tcPr>`. RMSE 0.1586→0.1420.
 - [x] **Slide 13 — Unreadable render + arrow artifacts** — FIXED: Multi-path geometry rendering. Arrow presets now render each sub-path with correct fill mode (norm/darken/lighten/none) and stroke.
-- [ ] **Slide 9 — Line spacing (RMSE 0.1627)** — endParaRPr fix applied, remaining diff is font metric/engine differences (Roboto Slab Light). No further structural layout fix identified.
+- [x] **Slide 9 — Line spacing (RMSE 0.1627)** — CLOSED: endParaRPr fix applied, remaining diff is Canvas2D vs PDF font rendering (antialiasing, kerning). Pixel-level audit confirmed font sizes and layout are correct.
 - [x] **Slide 46 — Spacer paragraph sizing** — FIXED: endParaRPr empty paragraph sizing (RMSE 0.1490→0.1372). Also improved slides 41, 43, 50.
 - [x] **Slide 17 — "Safe Harbor" text** — CLOSED: confirmed primarily unrendered 3D background image, text positioning is accurate. RMSE 0.1060.
 - [x] **Slide 16 — Left column vertical offset** — FIXED: Table cell vertical alignment (anchor="ctr") not parsed from `<a:tcPr>`. RMSE 0.1014→0.0800.
@@ -138,17 +138,40 @@ These are known gaps. They can be tackled opportunistically or when a real-world
 - Impact: slides with intentionally-empty placeholders (expecting to show layout title/subtitle) render blank
 - Common in template-heavy presentations
 
-### Text Property Gaps (from XML audit 2026-02-23)
+### Text Property Gaps (from XML audit + code audit 2026-02-24)
 
-These were found by a property-by-property audit of real-world PPTX XML vs what the parser/renderer handles.
+Found by property-by-property audit of real-world PPTX XML vs parser/renderer.
 
-- [x] `<a:buSzPts>` — absolute bullet size (DONE 2026-02-24, sizePoints takes priority over sizePercent)
-- [x] `anchorCtr` — text body horizontal centering (DONE 2026-02-24)
-- [ ] `vert` — text direction attribute (`<a:bodyPr vert="vert270">`) not parsed (MODERATE: vertical/rotated text in East Asian layouts renders horizontal)
-- [x] `marR` — right paragraph margin (DONE 2026-02-24)
-- [x] `cap` — capitalization attribute, all-caps and small-caps (DONE 2026-02-24)
-- [x] Space-after on last paragraph — now correctly omitted per spec (DONE 2026-02-24)
-- [x] `a:endParaRPr` — empty paragraph font sizing (DONE 2026-02-24)
+**Done:**
+- [x] `<a:buSzPts>` — absolute bullet size (2026-02-24)
+- [x] `anchorCtr` — text body horizontal centering (2026-02-24)
+- [x] `marR` — right paragraph margin (2026-02-24)
+- [x] `cap` — capitalization (all-caps + small-caps) (2026-02-24)
+- [x] Space-after on last paragraph omitted per spec (2026-02-24)
+- [x] `a:endParaRPr` — empty paragraph font sizing (2026-02-24)
+- [x] All 16 underline style variants (wavy, dashed, dotted, double, heavy) (2026-02-24)
+- [x] Double strikethrough (2026-02-24)
+- [x] Highlight background color rendering (2026-02-24)
+- [x] LineHeight fallback improved to 1.2 for unknown fonts (2026-02-24)
+
+**Remaining:**
+- [ ] `vert` — text direction (`<a:bodyPr vert="vert270">`) not parsed (MODERATE: vertical/rotated text renders horizontal)
+- [ ] `rtl` — parsed into IR but NOT consumed by text renderer (MODERATE: Arabic/Hebrew text renders LTR)
+- [ ] `a:highlight` color — now rendered, but underline color from `<a:uFill>` not yet parsed
+- [ ] `a:ln` on `a:rPr` (text outline) — not parsed
+- [ ] `a:effectLst` on `a:rPr` (text shadow/glow/reflection) — not parsed
+- [ ] `defTabSz` / `a:tabLst` (tab stops) — not parsed; tabs render as spaces
+- [ ] `numCol` / `spcCol` on `a:bodyPr` — parsed into IR but not consumed (multi-column text bodies)
+- [ ] Underline/strikethrough position — uses geometric heuristic (15%/30% of font size), not OS/2 font metrics
+
+### Visual Regression Ceiling Analysis (2026-02-24)
+
+Deep investigation of top-10 RMSE slides confirms:
+- **Font sizes and layout are correct** — pixel-level audit of slide 35 (worst RMSE) shows glyph heights match within 1px
+- **Remaining RMSE (0.15-0.19) is dominated by Canvas2D vs PDF font rendering** — antialiasing, kerning, hinting, sub-pixel positioning
+- **This is fundamentally a rendering engine ceiling** — addressable via CanvasKit/Skia WASM (Phase 4) for higher-fidelity text
+- **pdfbox-ts peer repo** (`/Users/will/dev/pdfbox-ts/`) has reusable: font metric extraction (OS/2 tables), glyph width data, matrix math, CMYK→RGB conversion, text layout word-wrap
+- Current metrics bundle is correct (OS/2 sTypoAscender/Descender, USE_TYPO_METRICS verified)
 
 ### Broader Visual Test Corpus
 
