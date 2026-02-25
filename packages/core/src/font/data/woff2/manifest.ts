@@ -28,6 +28,11 @@ export const BUNDLED_FONTS: Record<string, BundledFontEntry> = {
     registerAs: 'Barlow Light',
     variants: ["regular", "italic"],
   },
+  'barlow medium': {
+    module: './barlow-medium.js',
+    registerAs: 'Barlow Medium',
+    variants: ["regular"],
+  },
   'caladea': {
     module: './caladea.js',
     registerAs: 'Caladea',
@@ -50,6 +55,11 @@ export const BUNDLED_FONTS: Record<string, BundledFontEntry> = {
     module: './comfortaa.js',
     registerAs: 'Comfortaa',
     variants: ["regular", "bold"],
+  },
+  'comfortaa light': {
+    module: './comfortaa-light.js',
+    registerAs: 'Comfortaa Light',
+    variants: ["regular"],
   },
   'courier prime': {
     module: './courier-prime.js',
@@ -126,6 +136,11 @@ export const BUNDLED_FONTS: Record<string, BundledFontEntry> = {
     registerAs: 'Open Sans',
     variants: ["regular", "bold"],
   },
+  'open sans extrabold': {
+    module: './open-sans-extrabold.js',
+    registerAs: 'Open Sans ExtraBold',
+    variants: ["regular"],
+  },
   'oswald': {
     module: './oswald.js',
     registerAs: 'Oswald',
@@ -169,6 +184,11 @@ export const BUNDLED_FONTS: Record<string, BundledFontEntry> = {
   'roboto slab light': {
     module: './roboto-slab-light.js',
     registerAs: 'Roboto Slab Light',
+    variants: ["regular"],
+  },
+  'roboto slab medium': {
+    module: './roboto-slab-medium.js',
+    registerAs: 'Roboto Slab Medium',
     variants: ["regular"],
   },
   'roboto slab semibold': {

@@ -235,11 +235,23 @@ FONT_FAMILIES = {
             "italic": "Barlow-LightItalic.ttf",
         },
     },
+    "barlow-medium": {
+        "register_as": "Barlow Medium",
+        "variants": {
+            "regular": "Barlow-Medium.ttf",
+        },
+    },
     "comfortaa": {
         "register_as": "Comfortaa",
         "variants": {
             "regular": "Comfortaa-Regular.ttf",
             "bold": "Comfortaa-Bold.ttf",
+        },
+    },
+    "comfortaa-light": {
+        "register_as": "Comfortaa Light",
+        "variants": {
+            "regular": "Comfortaa-Light.ttf",
         },
     },
     "courier-prime": {
@@ -315,6 +327,12 @@ FONT_FAMILIES = {
             "bold": "OpenSans-Bold.ttf",
         },
     },
+    "open-sans-extrabold": {
+        "register_as": "Open Sans ExtraBold",
+        "variants": {
+            "regular": "OpenSans-ExtraBold.ttf",
+        },
+    },
     "oswald": {
         "register_as": "Oswald",
         "variants": {
@@ -385,6 +403,12 @@ FONT_FAMILIES = {
         "register_as": "Roboto Slab Light",
         "variants": {
             "regular": "RobotoSlab-Light.ttf",
+        },
+    },
+    "roboto-slab-medium": {
+        "register_as": "Roboto Slab Medium",
+        "variants": {
+            "regular": "RobotoSlab-Medium.ttf",
         },
     },
     "roboto-slab-semibold": {

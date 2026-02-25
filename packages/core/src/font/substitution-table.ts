@@ -65,7 +65,9 @@ const SUBSTITUTIONS: Record<string, string> = {
   'lato light': "'Lato Light', Lato, sans-serif",
   arimo: 'Arimo, Arial, sans-serif',
   comfortaa: 'Comfortaa, cursive',
+  'comfortaa light': "'Comfortaa Light', Comfortaa, cursive",
   'open sans': "'Open Sans', sans-serif",
+  'open sans extrabold': "'Open Sans ExtraBold', 'Open Sans', sans-serif",
   'noto sans symbols': "'Noto Sans Symbols', sans-serif",
   'courier prime': "'Courier Prime', 'Courier New', monospace",
   'fira code': "'Fira Code', monospace",
@@ -80,6 +82,7 @@ const SUBSTITUTIONS: Record<string, string> = {
   'roboto mono': "'Roboto Mono', monospace",
   'roboto slab': "'Roboto Slab', serif",
   'roboto slab light': "'Roboto Slab Light', 'Roboto Slab', serif",
+  'roboto slab medium': "'Roboto Slab Medium', 'Roboto Slab', serif",
   'roboto slab semibold': "'Roboto Slab SemiBold', 'Roboto Slab', serif",
   'source code pro': "'Source Code Pro', monospace",
   'source sans pro': "'Source Sans Pro', sans-serif",
@@ -88,6 +91,7 @@ const SUBSTITUTIONS: Record<string, string> = {
   play: 'Play, sans-serif',
   barlow: 'Barlow, sans-serif',
   'barlow light': "'Barlow Light', Barlow, sans-serif",
+  'barlow medium': "'Barlow Medium', Barlow, sans-serif",
 
   // Decorative / Other
   impact: "'Arial Black', sans-serif",

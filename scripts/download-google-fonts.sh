@@ -149,6 +149,18 @@ instance "$VAR_DIR/Roboto[wdth,wght].ttf" "$FONTS_DIR/Roboto-Bold.ttf" 700 100
 instance "$VAR_DIR/Roboto-Italic[wdth,wght].ttf" "$FONTS_DIR/Roboto-Italic.ttf" 400 100
 instance "$VAR_DIR/Roboto-Italic[wdth,wght].ttf" "$FONTS_DIR/Roboto-BoldItalic.ttf" 700 100
 
+# --- Static weight downloads (fonts not available as variable) ---
+
+# Barlow Medium (static-only on Google Fonts)
+echo "Barlow Medium..."
+download "$GF_RAW/ofl/barlow/Barlow-Medium.ttf" "$FONTS_DIR/Barlow-Medium.ttf"
+
+# --- Instance additional weights from existing variable fonts ---
+
+# Roboto Slab Medium (weight 500)
+echo "Roboto Slab Medium..."
+instance "$FONTS_DIR/RobotoSlab[wght].ttf" "$FONTS_DIR/RobotoSlab-Medium.ttf" 500
+
 echo ""
 echo "=== Download and instancing complete ==="
 echo "Fonts directory: $FONTS_DIR"
