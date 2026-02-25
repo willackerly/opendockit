@@ -652,10 +652,18 @@ function wrapParagraph(
         ? ptToCanvasPx(hundredthsPtToPt(charSpacing), dpiScale)
         : 0;
 
+    // Track accumulated text within this run on the current line.
+    // Measuring the full accumulated text preserves inter-word kerning pairs
+    // that would be lost when measuring words individually and summing.
+    let runAccText = '';
+    let runAccWidth = 0;
+
     for (const word of words) {
-      let wordWidth = measureFragment(
+      // Measure accumulated text including this word for kerning-aware width.
+      const testText = runAccText + word;
+      let testWidth = measureFragment(
         ctx,
-        word,
+        testText,
         fontString,
         rctx,
         rawFamily,
@@ -663,27 +671,60 @@ function wrapParagraph(
         run.properties.bold,
         run.properties.italic
       );
-      // Add character spacing to measured width.
-      if (charSpacingPx !== 0 && word.length > 0) {
-        wordWidth += charSpacingPx * word.length;
+      if (charSpacingPx !== 0 && testText.length > 0) {
+        testWidth += charSpacingPx * testText.length;
       }
+
+      // Word width = delta from accumulated measurement (includes kerning context).
+      const wordWidth = testWidth - runAccWidth;
       const lineAvail = getLineAvailableWidth();
+
+      // For overflow check, compute total line width using accumulated run width.
+      const otherRunsWidth = currentLineWidth - runAccWidth;
 
       // Wrap if this word would overflow — but not if the line is empty
       // (a single word wider than the line must still be placed).
-      if (currentLineWidth + wordWidth > lineAvail && currentFragments.length > 0) {
+      if (otherRunsWidth + testWidth > lineAvail && currentFragments.length > 0) {
         commitLine();
-      }
+        // Reset run accumulator for new line and re-measure this word standalone.
+        runAccText = word;
+        runAccWidth = measureFragment(
+          ctx,
+          word,
+          fontString,
+          rctx,
+          rawFamily,
+          fontSizePx,
+          run.properties.bold,
+          run.properties.italic
+        );
+        if (charSpacingPx !== 0 && word.length > 0) {
+          runAccWidth += charSpacingPx * word.length;
+        }
 
-      currentFragments.push({
-        text: word,
-        fontString,
-        fillStyle,
-        widthPx: wordWidth,
-        fontSizePt,
-        props: effectiveProps,
-      });
-      currentLineWidth += wordWidth;
+        currentFragments.push({
+          text: word,
+          fontString,
+          fillStyle,
+          widthPx: runAccWidth,
+          fontSizePt,
+          props: effectiveProps,
+        });
+        currentLineWidth = runAccWidth;
+      } else {
+        runAccText = testText;
+        runAccWidth = testWidth;
+
+        currentFragments.push({
+          text: word,
+          fontString,
+          fillStyle,
+          widthPx: wordWidth,
+          fontSizePt,
+          props: effectiveProps,
+        });
+        currentLineWidth += wordWidth;
+      }
       currentLineHeight = Math.max(currentLineHeight, fragmentHeightPx);
       currentAscent = Math.max(currentAscent, ascentPx);
     }
