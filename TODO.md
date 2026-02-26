@@ -105,6 +105,8 @@ fixed, and verified with RMSE improvement before moving to other work.
 - [x] **Table row auto-height** — measureTextBodyHeight + row expansion to fit content (2026-02-25)
 - [x] **spAutoFit text** — shape height auto-grows to fit text content via measureTextBodyHeight (2026-02-25)
 - [x] **Placeholder inherited content** — empty slide placeholders inherit text content from layout/master cascade (2026-02-25)
+- [x] **Theme font placeholders** — resolve +mj-lt/+mn-lt/+mn-cs to actual font names via theme (2026-02-25)
+- [x] **SmartArt fallback rendering** — parse pre-rendered DrawingML from diagram drawing parts (2026-02-25)
 
 ## Deferred (Not Blocking)
 
