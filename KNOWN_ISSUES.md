@@ -14,12 +14,6 @@ None.
 - Visual impact: connector start/end points may be a few pixels off
 - Fix requires: shape position registry + connection site geometry lookup per preset shape
 
-### spAutoFit Text (rare)
-
-- `spAutoFit` (shape-auto-fit) is parsed but renders at normal size
-- True implementation requires a layout feedback loop (render text -> measure -> resize shape -> re-render)
-- `normAutofit` (shrink text to fit) works correctly with fontScale/lnSpcReduction
-
 ### Placeholder Inherited Content (moderate)
 
 - Slide elements referencing placeholders inherit text defaults, visual properties, and body properties from layout -> master cascade

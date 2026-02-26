@@ -20,7 +20,7 @@ export { applyLine, drawLineEnds } from './line-renderer.js';
 export { applyEffects } from './effect-renderer.js';
 
 // Text renderer
-export { renderTextBody } from './text-renderer.js';
+export { renderTextBody, measureTextBodyHeight } from './text-renderer.js';
 
 // Picture renderer
 export { renderPicture } from './picture-renderer.js';

@@ -706,3 +706,213 @@ describe('renderShape — style reference resolution', () => {
     expect(strokeCalls).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// spAutoFit tests
+// ---------------------------------------------------------------------------
+
+describe('renderShape — spAutoFit (shape auto-fit)', () => {
+  /**
+   * Create a text body with spAutoFit enabled and zero insets so the full
+   * shape width is available for text layout.
+   *
+   * Uses many paragraphs to ensure the text overflows the declared shape
+   * height, forcing spAutoFit to expand the shape.
+   */
+  function makeSpAutoFitTextBody(
+    overrides?: Partial<TextBodyIR['bodyProperties']>,
+    paragraphCount = 5
+  ): TextBodyIR {
+    const paragraphs = [];
+    for (let i = 0; i < paragraphCount; i++) {
+      paragraphs.push({
+        runs: [
+          {
+            kind: 'run' as const,
+            text: 'This is a line of text that should take up space',
+            properties: { fontSize: 1800 },
+          },
+        ],
+        properties: {},
+      });
+    }
+    return {
+      paragraphs,
+      bodyProperties: {
+        autoFit: 'spAutoFit',
+        leftInset: 0,
+        rightInset: 0,
+        topInset: 0,
+        bottomInset: 0,
+        ...overrides,
+      },
+    };
+  }
+
+  it('expands shape height when text overflows', () => {
+    const rctx = createMockRenderContext();
+    // Small shape: 200px wide x 10px tall (will overflow with 5 paragraphs).
+    const shape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform({
+          size: { width: 9144000, height: 91440 }, // ~960px wide, ~9.6px tall
+        }),
+        fill: solidBlue,
+      }),
+      textBody: makeSpAutoFitTextBody(),
+    });
+
+    renderShape(shape, rctx);
+
+    // The fallback rect call should use expanded height, not the original 9.6px.
+    // Find the rect call that draws the shape background.
+    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    expect(rectCalls.length).toBeGreaterThan(0);
+    // The rect height (4th arg, index 3) should be larger than the
+    // original 9.6px (91440 EMU at dpiScale 1).
+    const bgRect = rectCalls[0];
+    const rectHeight = bgRect.args[3] as number;
+    expect(rectHeight).toBeGreaterThan(9.6);
+  });
+
+  it('does not shrink shape height when text fits', () => {
+    const rctx = createMockRenderContext();
+    // Large shape: 960px wide x 960px tall (text easily fits).
+    const shape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform({
+          size: { width: 9144000, height: 9144000 }, // ~960px x ~960px
+        }),
+        fill: solidBlue,
+      }),
+      textBody: makeSpAutoFitTextBody({}, 1), // Single paragraph
+    });
+
+    renderShape(shape, rctx);
+
+    // The rect height should remain at the original 960px.
+    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    expect(rectCalls.length).toBeGreaterThan(0);
+    const bgRect = rectCalls[0];
+    const rectHeight = bgRect.args[3] as number;
+    // Original height is 9144000 EMU = 960px at dpiScale 1.
+    expect(rectHeight).toBeCloseTo(960, 0);
+  });
+
+  it('does not change width', () => {
+    const rctx = createMockRenderContext();
+    const shape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform({
+          size: { width: 9144000, height: 91440 }, // 960px wide, 9.6px tall
+        }),
+        fill: solidBlue,
+      }),
+      textBody: makeSpAutoFitTextBody(),
+    });
+
+    renderShape(shape, rctx);
+
+    // Width of the rect call should remain at the original 960px.
+    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    expect(rectCalls.length).toBeGreaterThan(0);
+    const bgRect = rectCalls[0];
+    const rectWidth = bgRect.args[2] as number;
+    expect(rectWidth).toBeCloseTo(960, 0);
+  });
+
+  it('does not affect shapes without spAutoFit', () => {
+    const rctx = createMockRenderContext();
+    // Same small shape, but autoFit is 'none'.
+    const shape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform({
+          size: { width: 9144000, height: 91440 }, // 960px wide, 9.6px tall
+        }),
+        fill: solidBlue,
+      }),
+      textBody: {
+        paragraphs: [
+          {
+            runs: [
+              {
+                kind: 'run' as const,
+                text: 'This is a line of text that should take up space',
+                properties: { fontSize: 1800 },
+              },
+            ],
+            properties: {},
+          },
+          {
+            runs: [
+              {
+                kind: 'run' as const,
+                text: 'Another line',
+                properties: { fontSize: 1800 },
+              },
+            ],
+            properties: {},
+          },
+        ],
+        bodyProperties: {
+          autoFit: 'none',
+          leftInset: 0,
+          rightInset: 0,
+          topInset: 0,
+          bottomInset: 0,
+        },
+      },
+    });
+
+    renderShape(shape, rctx);
+
+    // The rect height should remain at the original 9.6px (no expansion).
+    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    expect(rectCalls.length).toBeGreaterThan(0);
+    const bgRect = rectCalls[0];
+    const rectHeight = bgRect.args[3] as number;
+    expect(rectHeight).toBeCloseTo(9.6, 0);
+  });
+
+  it('does not affect shapes with shrink autoFit', () => {
+    const rctx = createMockRenderContext();
+    const shape = makeShape({
+      properties: makeProperties({
+        transform: makeTransform({
+          size: { width: 9144000, height: 91440 }, // 960px wide, 9.6px tall
+        }),
+        fill: solidBlue,
+      }),
+      textBody: {
+        paragraphs: [
+          {
+            runs: [
+              {
+                kind: 'run' as const,
+                text: 'Text',
+                properties: { fontSize: 1800 },
+              },
+            ],
+            properties: {},
+          },
+        ],
+        bodyProperties: {
+          autoFit: 'shrink',
+          leftInset: 0,
+          rightInset: 0,
+          topInset: 0,
+          bottomInset: 0,
+        },
+      },
+    });
+
+    renderShape(shape, rctx);
+
+    // The rect height should remain at the original 9.6px (no expansion).
+    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    expect(rectCalls.length).toBeGreaterThan(0);
+    const bgRect = rectCalls[0];
+    const rectHeight = bgRect.args[3] as number;
+    expect(rectHeight).toBeCloseTo(9.6, 0);
+  });
+});

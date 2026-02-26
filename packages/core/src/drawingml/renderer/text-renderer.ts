@@ -1191,6 +1191,126 @@ function drawStrikethrough(
 // ---------------------------------------------------------------------------
 
 /**
+ * Measure the total height (in scaled px) a text body needs to render all
+ * its content, including body insets. This runs the same Phase 1 layout as
+ * {@link renderTextBody} but does not draw anything.
+ *
+ * Used by spAutoFit (shape-auto-fit) to expand shape height to fit text.
+ *
+ * @param textBody - The text body IR to measure.
+ * @param rctx     - The shared render context.
+ * @param boundsWidth - The available width in scaled px (shape width).
+ * @returns The total required height in scaled px, or 0 if degenerate.
+ */
+export function measureTextBodyHeight(
+  textBody: TextBodyIR,
+  rctx: RenderContext,
+  boundsWidth: number
+): number {
+  const { dpiScale } = rctx;
+  const body = textBody.bodyProperties;
+
+  // Calculate text area by applying body insets.
+  const leftInset = emuToScaledPx(body.leftInset ?? DEFAULT_INSET_EMU, rctx);
+  const rightInset = emuToScaledPx(body.rightInset ?? DEFAULT_INSET_EMU, rctx);
+  const topInset = emuToScaledPx(body.topInset ?? DEFAULT_INSET_EMU, rctx);
+  const bottomInset = emuToScaledPx(body.bottomInset ?? DEFAULT_INSET_EMU, rctx);
+
+  const textAreaWidth = boundsWidth - leftInset - rightInset;
+  if (textAreaWidth <= 0) return 0;
+
+  const shouldWrap = body.wrap !== 'none';
+
+  // spAutoFit does not use font scaling — text stays at declared size.
+  const fontScale = body.autoFit === 'shrink' ? body.fontScale : undefined;
+  const lnSpcReduction = body.autoFit === 'shrink' ? body.lnSpcReduction : undefined;
+
+  let totalHeight = 0;
+  const autoNumCounters = new Map<number, number>();
+
+  for (let pi = 0; pi < textBody.paragraphs.length; pi++) {
+    const paragraph = textBody.paragraphs[pi];
+    const fontSizePt = getParagraphFontSizePt(paragraph, fontScale, rctx);
+
+    const paragraphLevel = paragraph.properties.level ?? 0;
+    const inheritedPProps =
+      rctx.textDefaults?.levels[paragraphLevel]?.paragraphProperties ??
+      rctx.textDefaults?.defPPr?.paragraphProperties;
+
+    const effectiveMarginLeft = paragraph.properties.marginLeft ?? inheritedPProps?.marginLeft;
+    const effectiveMarginRight = paragraph.properties.marginRight ?? inheritedPProps?.marginRight;
+    const effectiveIndent = paragraph.properties.indent ?? inheritedPProps?.indent;
+    const effectiveSpaceBefore = paragraph.properties.spaceBefore ?? inheritedPProps?.spaceBefore;
+    const effectiveSpaceAfter = paragraph.properties.spaceAfter ?? inheritedPProps?.spaceAfter;
+    const effectiveLineSpacing = paragraph.properties.lineSpacing ?? inheritedPProps?.lineSpacing;
+
+    const paraFamily = getParagraphFontFamily(paragraph, rctx);
+    const paraFontSizePx = ptToCanvasPx(fontSizePt, dpiScale);
+    const paraLhMul = getFontLineHeightMultiplier(rctx, paraFamily, paraFontSizePx, false, false);
+    const singleSpacingPt = fontSizePt * paraLhMul;
+    const spaceBeforePx = resolveSpacingPx(effectiveSpaceBefore, singleSpacingPt, dpiScale);
+    const spaceAfterPx = resolveSpacingPx(effectiveSpaceAfter, singleSpacingPt, dpiScale);
+
+    const marginLeftPx = effectiveMarginLeft ? emuToScaledPx(effectiveMarginLeft, rctx) : 0;
+    const marginRightPx = effectiveMarginRight ? emuToScaledPx(effectiveMarginRight, rctx) : 0;
+    const indentPx = effectiveIndent ? emuToScaledPx(effectiveIndent, rctx) : 0;
+
+    // Auto-numbering tracking (mirrors renderTextBody).
+    let autoNumIndex: number | undefined;
+    const hasVisibleText = paragraph.runs.some((r) => r.kind === 'run' && r.text.length > 0);
+    const bulletProps =
+      paragraph.bulletProperties ??
+      (hasVisibleText
+        ? (rctx.textDefaults?.levels[paragraphLevel]?.bulletProperties ??
+          rctx.textDefaults?.defPPr?.bulletProperties)
+        : undefined);
+    if (bulletProps?.type === 'autoNum') {
+      const level = paragraph.properties.level ?? 0;
+      for (const key of autoNumCounters.keys()) {
+        if (key > level) autoNumCounters.delete(key);
+      }
+      const startAt = bulletProps.startAt ?? 1;
+      const current = autoNumCounters.get(level);
+      autoNumIndex = current == null ? startAt : current + 1;
+      autoNumCounters.set(level, autoNumIndex);
+    } else {
+      const level = paragraph.properties.level ?? 0;
+      for (const key of autoNumCounters.keys()) {
+        if (key >= level) autoNumCounters.delete(key);
+      }
+    }
+
+    const bullet = measureBullet(paragraph, rctx, fontScale, autoNumIndex, bulletProps);
+    const bulletWidth = bullet ? bullet.widthPx : 0;
+
+    const availableWidth = shouldWrap ? textAreaWidth - marginLeftPx - marginRightPx : Infinity;
+    const lines = wrapParagraph(
+      paragraph,
+      rctx,
+      availableWidth,
+      bulletWidth,
+      fontScale,
+      lnSpcReduction,
+      indentPx,
+      effectiveLineSpacing
+    );
+
+    const isFirstParagraph = pi === 0;
+    const isLastParagraph = pi === textBody.paragraphs.length - 1;
+    const applyFirstLastSpacing = body.spcFirstLastPara === true;
+    const paragraphHeight =
+      (isFirstParagraph && !applyFirstLastSpacing ? 0 : spaceBeforePx) +
+      lines.reduce((sum, l) => sum + l.heightPx, 0) +
+      (isLastParagraph && !applyFirstLastSpacing ? 0 : spaceAfterPx);
+
+    totalHeight += paragraphHeight;
+  }
+
+  // Return total content height including insets.
+  return totalHeight + topInset + bottomInset;
+}
+
+/**
  * Render a text body within the given bounds (in pixels, already scaled).
  *
  * @param textBody - The text body IR to render.
@@ -1746,153 +1866,3 @@ export function renderTextBody(
   ctx.restore();
 }
 
-// ---------------------------------------------------------------------------
-// Measurement API
-// ---------------------------------------------------------------------------
-
-/**
- * Measure the total height a text body would occupy when rendered into the
- * given bounds. Runs the same Phase 1 layout logic as renderTextBody()
- * (paragraph wrapping, spacing, bullets) but returns the content height in
- * pixels instead of drawing anything.
- *
- * Used by table-renderer to implement OOXML row auto-height (rows expand
- * to fit their content).
- *
- * @param textBody - The text body IR to measure.
- * @param rctx     - The shared render context.
- * @param bounds   - The bounding rectangle in canvas pixel coordinates.
- * @returns The total content height in pixels (including top/bottom insets).
- */
-export function measureTextBodyHeight(
-  textBody: TextBodyIR,
-  rctx: RenderContext,
-  bounds: { x: number; y: number; width: number; height: number }
-): number {
-  const { dpiScale } = rctx;
-  const body = textBody.bodyProperties;
-
-  // Calculate text area by applying body insets.
-  const leftInset = emuToScaledPx(body.leftInset ?? DEFAULT_INSET_EMU, rctx);
-  const rightInset = emuToScaledPx(body.rightInset ?? DEFAULT_INSET_EMU, rctx);
-  const topInset = emuToScaledPx(body.topInset ?? DEFAULT_INSET_EMU, rctx);
-  const bottomInset = emuToScaledPx(body.bottomInset ?? DEFAULT_INSET_EMU, rctx);
-
-  const textAreaWidth = bounds.width - leftInset - rightInset;
-
-  // Bail out if text area is degenerate.
-  if (textAreaWidth <= 0) return topInset + bottomInset;
-
-  const shouldWrap = body.wrap !== 'none';
-
-  // Auto-fit: extract font scale and line spacing reduction for normAutofit.
-  const fontScale = body.autoFit === 'shrink' ? body.fontScale : undefined;
-  const lnSpcReduction = body.autoFit === 'shrink' ? body.lnSpcReduction : undefined;
-
-  let totalHeight = 0;
-
-  // Track auto-numbering counters per indent level.
-  const autoNumCounters = new Map<number, number>();
-
-  for (let pi = 0; pi < textBody.paragraphs.length; pi++) {
-    const paragraph = textBody.paragraphs[pi];
-    const fontSizePt = getParagraphFontSizePt(paragraph, fontScale, rctx);
-
-    // Resolve paragraph properties with inheritance from textDefaults.
-    const paragraphLevel = paragraph.properties.level ?? 0;
-    const inheritedPProps =
-      rctx.textDefaults?.levels[paragraphLevel]?.paragraphProperties ??
-      rctx.textDefaults?.defPPr?.paragraphProperties;
-
-    const effectiveMarginLeft = paragraph.properties.marginLeft ?? inheritedPProps?.marginLeft;
-    const effectiveMarginRight = paragraph.properties.marginRight ?? inheritedPProps?.marginRight;
-    const effectiveIndent = paragraph.properties.indent ?? inheritedPProps?.indent;
-    const effectiveSpaceBefore = paragraph.properties.spaceBefore ?? inheritedPProps?.spaceBefore;
-    const effectiveSpaceAfter = paragraph.properties.spaceAfter ?? inheritedPProps?.spaceAfter;
-    const effectiveLineSpacing = paragraph.properties.lineSpacing ?? inheritedPProps?.lineSpacing;
-
-    // Percentage-based space-before/after is relative to the font's "single
-    // spacing" (font size * lineHeight multiplier), not just font size alone.
-    const paraFamily = getParagraphFontFamily(paragraph, rctx);
-    const paraFontSizePx = ptToCanvasPx(fontSizePt, dpiScale);
-    const paraLhMul = getFontLineHeightMultiplier(rctx, paraFamily, paraFontSizePx, false, false);
-    const singleSpacingPt = fontSizePt * paraLhMul;
-    const spaceBeforePx = resolveSpacingPx(effectiveSpaceBefore, singleSpacingPt, dpiScale);
-    const spaceAfterPx = resolveSpacingPx(effectiveSpaceAfter, singleSpacingPt, dpiScale);
-
-    const marginLeftPx = effectiveMarginLeft ? emuToScaledPx(effectiveMarginLeft, rctx) : 0;
-    const marginRightPx = effectiveMarginRight ? emuToScaledPx(effectiveMarginRight, rctx) : 0;
-    const indentPx = effectiveIndent ? emuToScaledPx(effectiveIndent, rctx) : 0;
-
-    // Compute auto-number index if this paragraph uses autoNum bullets.
-    let autoNumIndex: number | undefined;
-    const hasVisibleText = paragraph.runs.some((r) => r.kind === 'run' && r.text.length > 0);
-    const bulletProps =
-      paragraph.bulletProperties ??
-      (hasVisibleText
-        ? (rctx.textDefaults?.levels[paragraphLevel]?.bulletProperties ??
-          rctx.textDefaults?.defPPr?.bulletProperties)
-        : undefined);
-    if (bulletProps?.type === 'autoNum') {
-      const level = paragraph.properties.level ?? 0;
-      for (const key of autoNumCounters.keys()) {
-        if (key > level) {
-          autoNumCounters.delete(key);
-        }
-      }
-      const startAt = bulletProps.startAt ?? 1;
-      const current = autoNumCounters.get(level);
-      if (current == null) {
-        autoNumIndex = startAt;
-      } else {
-        autoNumIndex = current + 1;
-      }
-      autoNumCounters.set(level, autoNumIndex);
-    } else {
-      const level = paragraph.properties.level ?? 0;
-      for (const key of autoNumCounters.keys()) {
-        if (key >= level) {
-          autoNumCounters.delete(key);
-        }
-      }
-    }
-
-    const bullet = measureBullet(paragraph, rctx, fontScale, autoNumIndex, bulletProps);
-    const bulletWidth = bullet ? bullet.widthPx : 0;
-
-    const availableWidth = shouldWrap ? textAreaWidth - marginLeftPx - marginRightPx : Infinity;
-
-    // Resolve tab stops: paragraph-level → inherited from textDefaults.
-    const effectiveTabStops = paragraph.properties.tabStops ?? inheritedPProps?.tabStops;
-
-    // Convert defaultTabSize from EMU to px (body-level property).
-    const defaultTabSizePx =
-      body.defaultTabSize != null ? emuToScaledPx(body.defaultTabSize, rctx) : undefined;
-
-    const lines = wrapParagraph(
-      paragraph,
-      rctx,
-      availableWidth,
-      bulletWidth,
-      fontScale,
-      lnSpcReduction,
-      indentPx,
-      effectiveLineSpacing,
-      defaultTabSizePx,
-      effectiveTabStops
-    );
-
-    const isFirstParagraph = pi === 0;
-    const isLastParagraph = pi === textBody.paragraphs.length - 1;
-    const applyFirstLastSpacing = body.spcFirstLastPara === true;
-    const paragraphHeight =
-      (isFirstParagraph && !applyFirstLastSpacing ? 0 : spaceBeforePx) +
-      lines.reduce((sum, l) => sum + l.heightPx, 0) +
-      (isLastParagraph && !applyFirstLastSpacing ? 0 : spaceAfterPx);
-
-    totalHeight += paragraphHeight;
-  }
-
-  // Return total content height including insets.
-  return topInset + totalHeight + bottomInset;
-}

@@ -31,7 +31,7 @@ import { applyLine } from './line-renderer.js';
 import { buildPresetPaths, buildCustomPath } from '../geometry/path-builder.js';
 import type { GeometrySubPath } from '../geometry/path-builder.js';
 import { applyEffects } from './effect-renderer.js';
-import { renderTextBody } from './text-renderer.js';
+import { renderTextBody, measureTextBodyHeight } from './text-renderer.js';
 import { renderPicture } from './picture-renderer.js';
 import { renderGroup } from './group-renderer.js';
 import { renderTable as renderTableImpl } from './table-renderer.js';
@@ -146,13 +146,33 @@ function modifyColor(
 ): ResolvedColor {
   switch (mode) {
     case 'darken':
-      return { ...color, r: Math.round(color.r * 0.6), g: Math.round(color.g * 0.6), b: Math.round(color.b * 0.6) };
+      return {
+        ...color,
+        r: Math.round(color.r * 0.6),
+        g: Math.round(color.g * 0.6),
+        b: Math.round(color.b * 0.6),
+      };
     case 'darkenLess':
-      return { ...color, r: Math.round(color.r * 0.75), g: Math.round(color.g * 0.75), b: Math.round(color.b * 0.75) };
+      return {
+        ...color,
+        r: Math.round(color.r * 0.75),
+        g: Math.round(color.g * 0.75),
+        b: Math.round(color.b * 0.75),
+      };
     case 'lighten':
-      return { ...color, r: Math.round(color.r + (255 - color.r) * 0.4), g: Math.round(color.g + (255 - color.g) * 0.4), b: Math.round(color.b + (255 - color.b) * 0.4) };
+      return {
+        ...color,
+        r: Math.round(color.r + (255 - color.r) * 0.4),
+        g: Math.round(color.g + (255 - color.g) * 0.4),
+        b: Math.round(color.b + (255 - color.b) * 0.4),
+      };
     case 'lightenLess':
-      return { ...color, r: Math.round(color.r + (255 - color.r) * 0.2), g: Math.round(color.g + (255 - color.g) * 0.2), b: Math.round(color.b + (255 - color.b) * 0.2) };
+      return {
+        ...color,
+        r: Math.round(color.r + (255 - color.r) * 0.2),
+        g: Math.round(color.g + (255 - color.g) * 0.2),
+        b: Math.round(color.b + (255 - color.b) * 0.2),
+      };
   }
 }
 
@@ -309,7 +329,19 @@ export function renderShape(shape: DrawingMLShapeIR, rctx: RenderContext): void 
   ctx.translate(-w / 2, -h / 2);
 
   // Bounds in the local coordinate space (post-transform origin is at 0,0).
-  const bounds = { x: 0, y: 0, width: w, height: h };
+  // Use `let` so spAutoFit can expand height below.
+  let bounds = { x: 0, y: 0, width: w, height: h };
+
+  // -- spAutoFit: expand shape height to fit text content --
+  // When autoFit is 'spAutoFit', the shape grows vertically to contain all
+  // text. Width stays fixed. This must happen BEFORE geometry drawing so that
+  // fill/stroke backgrounds also expand.
+  if (shape.textBody && shape.textBody.bodyProperties.autoFit === 'spAutoFit') {
+    const contentHeight = measureTextBodyHeight(shape.textBody, rctx, w);
+    if (contentHeight > bounds.height) {
+      bounds = { ...bounds, height: contentHeight };
+    }
+  }
 
   // -- Resolve effective properties (inline takes precedence over style refs) --
   const effectiveFill = resolveEffectiveFill(shape, rctx);
@@ -327,11 +359,15 @@ export function renderShape(shape: DrawingMLShapeIR, rctx: RenderContext): void 
   let subPaths: GeometrySubPath[] | null = null;
   let singlePath: Path2D | null = null;
 
+  // Use bounds dimensions for geometry (may differ from w/h when spAutoFit expanded).
+  const geoW = bounds.width;
+  const geoH = bounds.height;
+
   if (geo) {
     if (geo.kind === 'preset') {
-      subPaths = buildPresetPaths(geo.name, w, h, geo.adjustValues);
+      subPaths = buildPresetPaths(geo.name, geoW, geoH, geo.adjustValues);
     } else if (geo.kind === 'custom') {
-      singlePath = buildCustomPath(geo, w, h);
+      singlePath = buildCustomPath(geo, geoW, geoH);
     }
   }
 
@@ -353,7 +389,7 @@ export function renderShape(shape: DrawingMLShapeIR, rctx: RenderContext): void 
     // Single path or fallback rectangle
     if (!singlePath) {
       ctx.beginPath();
-      ctx.rect(0, 0, w, h);
+      ctx.rect(0, 0, geoW, geoH);
     }
 
     if (effectiveFill) {

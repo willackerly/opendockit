@@ -156,12 +156,7 @@ export function renderTable(table: TableIR, rctx: RenderContext): void {
         },
       };
 
-      const contentHeight = measureTextBodyHeight(cellTextBody, rctx, {
-        x: 0,
-        y: 0,
-        width: cellW,
-        height: maxContentHeight,
-      });
+      const contentHeight = measureTextBodyHeight(cellTextBody, rctx, cellW);
 
       if (contentHeight > maxContentHeight) {
         maxContentHeight = contentHeight;
