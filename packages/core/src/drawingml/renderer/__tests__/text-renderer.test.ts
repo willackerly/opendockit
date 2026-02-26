@@ -58,6 +58,7 @@ function makeParagraph(
     bulletProperties?: BulletPropertiesIR;
     marginLeft?: number;
     indent?: number;
+    rtl?: boolean;
   }
 ): ParagraphIR {
   return {
@@ -69,6 +70,7 @@ function makeParagraph(
       lineSpacing: extras?.lineSpacing,
       marginLeft: extras?.marginLeft,
       indent: extras?.indent,
+      rtl: extras?.rtl,
     },
     bulletProperties: extras?.bulletProperties,
   };
@@ -1110,5 +1112,168 @@ describe('renderTextBody — vertical text direction', () => {
     const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
     expect(fillTexts.length).toBeGreaterThanOrEqual(1);
     expect(fillTexts.some((c) => c.args[0] === 'Vertical')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RTL (right-to-left) text rendering
+// ---------------------------------------------------------------------------
+
+describe('RTL text rendering', () => {
+  it('renders RTL paragraph with mirrored alignment (left becomes right)', () => {
+    const rctx = createMockRenderContext();
+    // LTR left-aligned paragraph should start near x=0.
+    const bodyLtr = makeTextBody([makeParagraph([makeRun('LTR')], 'left')]);
+
+    renderTextBody(bodyLtr, rctx, BOUNDS);
+    const ltrCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const ltrCall = ltrCalls.find((c) => c.args[0] === 'LTR');
+    expect(ltrCall).toBeDefined();
+    const ltrX = ltrCall!.args[1] as number;
+
+    rctx.ctx._calls.length = 0;
+
+    // RTL paragraph with 'left' alignment should be mirrored to right-aligned.
+    const bodyRtl = makeTextBody([
+      makeParagraph([makeRun('RTL')], 'left', { rtl: true }),
+    ]);
+
+    renderTextBody(bodyRtl, rctx, BOUNDS);
+    const rtlCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const rtlCall = rtlCalls.find((c) => c.args[0] === 'RTL');
+    expect(rtlCall).toBeDefined();
+    const rtlX = rtlCall!.args[1] as number;
+
+    // RTL 'left' alignment → right-aligned, so x should be much greater.
+    expect(rtlX).toBeGreaterThan(ltrX);
+    // Specifically, it should be past the center of the 400px bounds.
+    expect(rtlX).toBeGreaterThan(BOUNDS.width / 2);
+  });
+
+  it('renders RTL paragraph with right alignment as left-aligned', () => {
+    const rctx = createMockRenderContext();
+    // LTR right-aligned paragraph.
+    const bodyLtrRight = makeTextBody([makeParagraph([makeRun('LTR-R')], 'right')]);
+
+    renderTextBody(bodyLtrRight, rctx, BOUNDS);
+    const ltrRightCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const ltrRightCall = ltrRightCalls.find((c) => c.args[0] === 'LTR-R');
+    expect(ltrRightCall).toBeDefined();
+    const ltrRightX = ltrRightCall!.args[1] as number;
+
+    rctx.ctx._calls.length = 0;
+
+    // RTL paragraph with 'right' alignment should be mirrored to left-aligned.
+    const bodyRtlRight = makeTextBody([
+      makeParagraph([makeRun('RTL-R')], 'right', { rtl: true }),
+    ]);
+
+    renderTextBody(bodyRtlRight, rctx, BOUNDS);
+    const rtlRightCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const rtlRightCall = rtlRightCalls.find((c) => c.args[0] === 'RTL-R');
+    expect(rtlRightCall).toBeDefined();
+    const rtlRightX = rtlRightCall!.args[1] as number;
+
+    // RTL 'right' alignment → left-aligned, so x should be near 0.
+    expect(rtlRightX).toBeLessThan(ltrRightX);
+    expect(rtlRightX).toBeLessThan(BOUNDS.width / 2);
+  });
+
+  it('renders RTL paragraph with center alignment unchanged', () => {
+    const rctx = createMockRenderContext();
+    // LTR centered paragraph.
+    const bodyLtrCenter = makeTextBody([
+      makeParagraph([makeRun('Center')], 'center'),
+    ]);
+
+    renderTextBody(bodyLtrCenter, rctx, BOUNDS);
+    const ltrCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const ltrCall = ltrCalls.find((c) => c.args[0] === 'Center');
+    expect(ltrCall).toBeDefined();
+    const ltrX = ltrCall!.args[1] as number;
+
+    rctx.ctx._calls.length = 0;
+
+    // RTL centered paragraph — center alignment should remain the same.
+    const bodyRtlCenter = makeTextBody([
+      makeParagraph([makeRun('Center')], 'center', { rtl: true }),
+    ]);
+
+    renderTextBody(bodyRtlCenter, rctx, BOUNDS);
+    const rtlCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const rtlCall = rtlCalls.find((c) => c.args[0] === 'Center');
+    expect(rtlCall).toBeDefined();
+    const rtlX = rtlCall!.args[1] as number;
+
+    // Center alignment should produce the same x position for both LTR and RTL.
+    expect(rtlX).toBeCloseTo(ltrX, 1);
+  });
+
+  it('renders RTL bullet on the right side of the text', () => {
+    const rctx = createMockRenderContext();
+    // LTR bullet.
+    const bodyLtr = makeTextBody([
+      makeParagraph([makeRun('Item')], 'left', {
+        bulletProperties: { type: 'char', char: '\u2022' },
+      }),
+    ]);
+
+    renderTextBody(bodyLtr, rctx, BOUNDS);
+    const ltrCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const ltrBullet = ltrCalls.find((c) => (c.args[0] as string).includes('\u2022'));
+    const ltrItem = ltrCalls.find((c) => c.args[0] === 'Item');
+    expect(ltrBullet).toBeDefined();
+    expect(ltrItem).toBeDefined();
+    const ltrBulletX = ltrBullet!.args[1] as number;
+    const ltrItemX = ltrItem!.args[1] as number;
+
+    // LTR: bullet should be to the left of text.
+    expect(ltrBulletX).toBeLessThanOrEqual(ltrItemX);
+
+    rctx.ctx._calls.length = 0;
+
+    // RTL bullet.
+    const bodyRtl = makeTextBody([
+      makeParagraph([makeRun('Item')], 'left', {
+        bulletProperties: { type: 'char', char: '\u2022' },
+        rtl: true,
+      }),
+    ]);
+
+    renderTextBody(bodyRtl, rctx, BOUNDS);
+    const rtlCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const rtlBullet = rtlCalls.find((c) => (c.args[0] as string).includes('\u2022'));
+    const rtlItem = rtlCalls.find((c) => c.args[0] === 'Item');
+    expect(rtlBullet).toBeDefined();
+    expect(rtlItem).toBeDefined();
+    const rtlBulletX = rtlBullet!.args[1] as number;
+    const rtlItemX = rtlItem!.args[1] as number;
+
+    // RTL: bullet should be to the right of text.
+    expect(rtlBulletX).toBeGreaterThan(rtlItemX);
+  });
+
+  it('does not affect non-RTL paragraphs', () => {
+    const rctx = createMockRenderContext();
+    // Two paragraphs: one RTL, one LTR.
+    const body = makeTextBody([
+      makeParagraph([makeRun('RTL-Text')], 'left', { rtl: true }),
+      makeParagraph([makeRun('LTR-Text')], 'left'),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const rtlCall = fillTexts.find((c) => c.args[0] === 'RTL-Text');
+    const ltrCall = fillTexts.find((c) => c.args[0] === 'LTR-Text');
+    expect(rtlCall).toBeDefined();
+    expect(ltrCall).toBeDefined();
+
+    const rtlX = rtlCall!.args[1] as number;
+    const ltrX = ltrCall!.args[1] as number;
+
+    // RTL paragraph (left alignment mirrored to right) should be far right.
+    // LTR paragraph should be near the left edge.
+    expect(rtlX).toBeGreaterThan(ltrX);
   });
 });

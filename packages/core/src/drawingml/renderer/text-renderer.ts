@@ -1169,6 +1169,7 @@ export function renderTextBody(
     marginLeftPx: number;
     marginRightPx: number;
     indentPx: number;
+    rtl: boolean;
   }
 
   const paragraphLayouts: ParagraphLayout[] = [];
@@ -1266,6 +1267,7 @@ export function renderTextBody(
     );
 
     const alignment = paragraph.properties.alignment ?? inheritedPProps?.alignment ?? 'left';
+    const rtl = paragraph.properties.rtl ?? inheritedPProps?.rtl ?? false;
 
     const isFirstParagraph = pi === 0;
     const isLastParagraph = pi === textBody.paragraphs.length - 1;
@@ -1289,6 +1291,7 @@ export function renderTextBody(
       marginLeftPx,
       marginRightPx,
       indentPx,
+      rtl,
     });
   }
 
@@ -1389,13 +1392,36 @@ export function renderTextBody(
 
     // For hanging indent (negative indent): bullet at marginLeft+indent, text at marginLeft.
     // For positive indent: first line text at marginLeft+indent, continuation at marginLeft.
-    const textBaseX = textAreaX + layout.marginLeftPx + anchorCtrOffset;
+    const isRtl = layout.rtl;
+
+    // RTL: swap margin semantics — marginLeft becomes the right-side margin and vice versa.
+    const effectiveMarginLeft = isRtl ? layout.marginRightPx : layout.marginLeftPx;
+    const effectiveMarginRight = isRtl ? layout.marginLeftPx : layout.marginRightPx;
+
+    const textBaseX = textAreaX + effectiveMarginLeft + anchorCtrOffset;
     const hangingIndent = layout.indentPx < 0;
     const bulletX = hangingIndent
-      ? textAreaX + Math.max(0, layout.marginLeftPx + layout.indentPx)
+      ? textAreaX + Math.max(0, effectiveMarginLeft + layout.indentPx)
       : textBaseX;
     const firstLineTextX = hangingIndent ? textBaseX : textBaseX + layout.indentPx;
-    const textAvailableWidth = textAreaWidth - layout.marginLeftPx - layout.marginRightPx;
+    const textAvailableWidth = textAreaWidth - effectiveMarginLeft - effectiveMarginRight;
+
+    // RTL: mirror alignment semantics.
+    // In RTL, default/left alignment means right-aligned, and right alignment means left-aligned.
+    let effectiveAlignment = layout.alignment;
+    if (isRtl) {
+      if (effectiveAlignment === 'left') {
+        effectiveAlignment = 'right';
+      } else if (effectiveAlignment === 'right') {
+        effectiveAlignment = 'left';
+      }
+      // 'center', 'justify', 'distributed' remain unchanged.
+    }
+
+    // Set canvas direction for RTL text rendering.
+    if (isRtl && 'direction' in ctx) {
+      (ctx as unknown as { direction: string }).direction = 'rtl';
+    }
 
     for (let li = 0; li < layout.lines.length; li++) {
       const line = layout.lines[li];
@@ -1422,9 +1448,9 @@ export function renderTextBody(
         renderedLineWidth += ctx.measureText(layout.bullet.text).width;
       }
 
-      if (layout.alignment === 'center') {
+      if (effectiveAlignment === 'center') {
         lineX += (lineAvailableWidth - renderedLineWidth) / 2;
-      } else if (layout.alignment === 'right') {
+      } else if (effectiveAlignment === 'right') {
         lineX += lineAvailableWidth - renderedLineWidth;
       }
       // 'left': no offset. 'justify'/'distributed': handled below via word spacing.
@@ -1434,10 +1460,11 @@ export function renderTextBody(
 
       // Justify/distributed: distribute extra horizontal space between words.
       // Last line of paragraph renders left-aligned (standard justify behavior).
+      // For RTL, the last line renders right-aligned instead.
       let justifyExtraPerGap = 0;
       const isLastLine = li === layout.lines.length - 1;
       if (
-        (layout.alignment === 'justify' || layout.alignment === 'distributed') &&
+        (effectiveAlignment === 'justify' || effectiveAlignment === 'distributed') &&
         !isLastLine &&
         line.fragments.length > 1
       ) {
@@ -1457,11 +1484,38 @@ export function renderTextBody(
         }
       }
 
+      // For RTL justify: right-align the last line instead of left-aligning it.
+      if (
+        isRtl &&
+        isLastLine &&
+        (effectiveAlignment === 'justify' || effectiveAlignment === 'distributed')
+      ) {
+        lineX += lineAvailableWidth - renderedLineWidth;
+        drawX = lineX;
+      }
+
       // Draw bullet on the first line of the paragraph.
       if (li === 0 && layout.bullet) {
         ctx.font = layout.bullet.fontString;
         ctx.fillStyle = layout.bullet.fillStyle;
-        if (hangingIndent) {
+        if (isRtl) {
+          // RTL: bullet appears on the right side (the "start" of the line in RTL).
+          const bulletWidth = ctx.measureText(layout.bullet.text).width;
+          if (hangingIndent) {
+            // Hanging indent RTL: bullet at the right margin area, mirroring
+            // the LTR hanging indent position on the left.
+            const rtlBulletX =
+              textAreaX + textAreaWidth - effectiveMarginRight -
+              Math.abs(layout.indentPx) + anchorCtrOffset;
+            ctx.fillText(layout.bullet.text, rtlBulletX, baselineY);
+          } else {
+            // Normal RTL inline bullet: bullet at the right end of the rendered content.
+            // The renderedLineWidth already includes the bullet width, and the line
+            // is right-aligned, so the bullet sits at the far right.
+            const rtlBulletX = drawX + renderedLineWidth - bulletWidth;
+            ctx.fillText(layout.bullet.text, rtlBulletX, baselineY);
+          }
+        } else if (hangingIndent) {
           // Hanging indent: bullet draws at bulletX, text stays at lineX.
           ctx.fillText(layout.bullet.text, bulletX, baselineY);
         } else {
@@ -1555,6 +1609,11 @@ export function renderTextBody(
       }
 
       cursorY += line.heightPx;
+    }
+
+    // Reset canvas direction after rendering RTL paragraph.
+    if (isRtl && 'direction' in ctx) {
+      (ctx as unknown as { direction: string }).direction = 'ltr';
     }
 
     // Skip space-after on the last paragraph unless spcFirstLastPara is set,
