@@ -8,7 +8,7 @@
  * Reference: ECMA-376 5th Edition, Part 1 ss 19.3.1.22 (spTree)
  */
 
-import type { XmlElement, ThemeIR, SlideElementIR, TableIR } from '@opendockit/core';
+import type { XmlElement, ThemeIR, SlideElementIR, TableIR, ChartIR } from '@opendockit/core';
 import {
   parseShapeTreeChildren as coreParseShapeTreeChildren,
   parseTable,
@@ -17,6 +17,9 @@ import {
 
 /** URI identifying a DrawingML table inside a graphic frame. */
 const TABLE_URI = 'http://schemas.openxmlformats.org/drawingml/2006/table';
+
+/** URI identifying a DrawingML chart inside a graphic frame. */
+const CHART_URI = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
 
 /**
  * Parse a shape tree's children into a {@link SlideElementIR} array.
@@ -70,8 +73,8 @@ export function parseShapeTreeChildren(
 /**
  * Attempt to parse a `p:graphicFrame` element.
  *
- * Currently supports tables (`a:tbl`). Returns `undefined` for
- * unsupported content types (charts, SmartArt, OLE objects).
+ * Currently supports tables (`a:tbl`) and charts (`c:chart`).
+ * Returns `undefined` for unsupported content types (SmartArt, OLE objects).
  *
  * ```xml
  * <p:graphicFrame>
@@ -99,7 +102,11 @@ function parseGraphicFrame(gfElement: XmlElement, theme: ThemeIR): SlideElementI
     return parseTableFrame(gfElement, graphicData, theme);
   }
 
-  // Other graphic frame types (chart, SmartArt, etc.) remain unsupported
+  if (uri === CHART_URI) {
+    return parseChartFrame(gfElement, graphicData);
+  }
+
+  // Other graphic frame types (SmartArt, OLE objects, etc.) remain unsupported
   return undefined;
 }
 
@@ -126,4 +133,51 @@ function parseTableFrame(
   }
 
   return table;
+}
+
+/**
+ * Parse a graphic frame containing a chart.
+ *
+ * Extracts the chart relationship ID from `c:chart @r:id` and the
+ * transform from `p:xfrm`. The relationship ID is stored in
+ * `chartPartUri` and will be resolved asynchronously by
+ * {@link resolveChartFallbacks} to follow the chain:
+ * slide → chart part → cached image.
+ *
+ * ```xml
+ * <p:graphicFrame>
+ *   <p:xfrm>
+ *     <a:off x="914400" y="914400"/>
+ *     <a:ext cx="7315200" cy="4572000"/>
+ *   </p:xfrm>
+ *   <a:graphic>
+ *     <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+ *       <c:chart xmlns:c="..." r:id="rId2"/>
+ *     </a:graphicData>
+ *   </a:graphic>
+ * </p:graphicFrame>
+ * ```
+ */
+function parseChartFrame(gfElement: XmlElement, graphicData: XmlElement): ChartIR | undefined {
+  // Find the c:chart element — may be prefixed or unprefixed
+  const chartEl =
+    graphicData.child('c:chart') ?? graphicData.children.find((c) => c.name.endsWith(':chart'));
+  if (!chartEl) return undefined;
+
+  const rId = chartEl.attr('r:id');
+  if (!rId) return undefined;
+
+  // Extract transform from p:xfrm (graphic frame level)
+  const xfrmEl = gfElement.child('p:xfrm');
+  const transform = xfrmEl ? parseTransform(xfrmEl) : undefined;
+
+  return {
+    kind: 'chart',
+    chartType: 'unknown', // Determined later if full ChartML parsing is implemented
+    properties: {
+      transform,
+      effects: [],
+    },
+    chartPartUri: rId, // Raw relationship ID — resolved async by resolveChartFallbacks
+  };
 }

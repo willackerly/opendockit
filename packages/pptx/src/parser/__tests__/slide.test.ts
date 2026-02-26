@@ -462,7 +462,109 @@ describe('parseSlide', () => {
     }
   });
 
-  it('keeps unsupported graphic frames for non-table content', () => {
+  it('parses a chart graphic frame as ChartIR', () => {
+    const xml = parseXml(`
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+  <p:cSld>
+    <p:spTree>
+      <p:nvGrpSpPr>
+        <p:cNvPr id="1" name=""/>
+        <p:cNvGrpSpPr/>
+        <p:nvPr/>
+      </p:nvGrpSpPr>
+      <p:grpSpPr/>
+      <p:graphicFrame>
+        <p:nvGraphicFramePr>
+          <p:cNvPr id="6" name="Chart 5"/>
+          <p:cNvGraphicFramePr/>
+          <p:nvPr/>
+        </p:nvGraphicFramePr>
+        <p:xfrm>
+          <a:off x="100000" y="100000"/>
+          <a:ext cx="5000000" cy="3000000"/>
+        </p:xfrm>
+        <a:graphic>
+          <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+            <c:chart r:id="rId2"/>
+          </a:graphicData>
+        </a:graphic>
+      </p:graphicFrame>
+    </p:spTree>
+  </p:cSld>
+</p:sld>`);
+
+    const result = parseSlide(
+      xml,
+      '/ppt/slides/slide1.xml',
+      '/ppt/slideLayouts/slideLayout1.xml',
+      '/ppt/slideMasters/slideMaster1.xml',
+      minimalTheme()
+    );
+
+    expect(result.elements).toHaveLength(1);
+    const el = result.elements[0];
+    expect(el.kind).toBe('chart');
+    if (el.kind === 'chart') {
+      expect(el.chartPartUri).toBe('rId2');
+      expect(el.chartType).toBe('unknown');
+      expect(el.properties.transform?.position).toEqual({ x: 100000, y: 100000 });
+      expect(el.properties.transform?.size).toEqual({ width: 5000000, height: 3000000 });
+    }
+  });
+
+  it('keeps unsupported graphic frames for non-table/chart content (SmartArt)', () => {
+    const xml = parseXml(`
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld>
+    <p:spTree>
+      <p:nvGrpSpPr>
+        <p:cNvPr id="1" name=""/>
+        <p:cNvGrpSpPr/>
+        <p:nvPr/>
+      </p:nvGrpSpPr>
+      <p:grpSpPr/>
+      <p:graphicFrame>
+        <p:nvGraphicFramePr>
+          <p:cNvPr id="6" name="Diagram 5"/>
+          <p:cNvGraphicFramePr/>
+          <p:nvPr/>
+        </p:nvGraphicFramePr>
+        <p:xfrm>
+          <a:off x="100000" y="100000"/>
+          <a:ext cx="5000000" cy="3000000"/>
+        </p:xfrm>
+        <a:graphic>
+          <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+            <!-- SmartArt data would be here -->
+          </a:graphicData>
+        </a:graphic>
+      </p:graphicFrame>
+    </p:spTree>
+  </p:cSld>
+</p:sld>`);
+
+    const result = parseSlide(
+      xml,
+      '/ppt/slides/slide1.xml',
+      '/ppt/slideLayouts/slideLayout1.xml',
+      '/ppt/slideMasters/slideMaster1.xml',
+      minimalTheme()
+    );
+
+    expect(result.elements).toHaveLength(1);
+    const el = result.elements[0];
+    expect(el.kind).toBe('unsupported');
+    if (el.kind === 'unsupported') {
+      expect(el.elementType).toBe('p:graphicFrame');
+    }
+  });
+
+  it('falls back to unsupported when chart has no r:id', () => {
     const xml = parseXml(`
 <p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -487,7 +589,7 @@ describe('parseSlide', () => {
         </p:xfrm>
         <a:graphic>
           <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
-            <!-- chart data would be here -->
+            <!-- no c:chart element -->
           </a:graphicData>
         </a:graphic>
       </p:graphicFrame>
@@ -505,10 +607,8 @@ describe('parseSlide', () => {
 
     expect(result.elements).toHaveLength(1);
     const el = result.elements[0];
+    // Falls back to unsupported because no c:chart element with r:id was found
     expect(el.kind).toBe('unsupported');
-    if (el.kind === 'unsupported') {
-      expect(el.elementType).toBe('p:graphicFrame');
-    }
   });
 
   it('parses a connector with full properties via core parsers', () => {

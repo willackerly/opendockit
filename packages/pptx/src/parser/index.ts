@@ -2,7 +2,7 @@
  * PPTX Parser — barrel export.
  *
  * Re-exports all PresentationML parsers: presentation (top-level),
- * slide, slide master, slide layout, and background.
+ * slide, slide master, slide layout, background, and chart fallback.
  */
 
 export { parsePresentation } from './presentation.js';
@@ -12,3 +12,4 @@ export { parseSlide, parseNotesText, extractNotesText } from './slide.js';
 export { parseBackground } from './background.js';
 export { parseColorMap, parseColorMapOverride } from './color-map.js';
 export { resolveSmartArtFallbacks } from './smartart-fallback.js';
+export { resolveChartFallbacks } from './chart-fallback.js';

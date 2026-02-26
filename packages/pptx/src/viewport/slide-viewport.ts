@@ -59,6 +59,7 @@ import { parseSlide, parseNotesText } from '../parser/slide.js';
 import { resolveSmartArtFallbacks } from '../parser/smartart-fallback.js';
 import { parseSlideLayout } from '../parser/slide-layout.js';
 import { parseSlideMaster } from '../parser/slide-master.js';
+import { resolveChartFallbacks } from '../parser/chart-fallback.js';
 import { renderSlide } from '../renderer/index.js';
 
 // ---------------------------------------------------------------------------
@@ -691,6 +692,9 @@ export class SlideKit {
 
     // Resolve SmartArt fallback drawings (replaces UnsupportedIR with GroupIR).
     await resolveSmartArtFallbacks(slide, slideXml, pkg, partUri, theme);
+
+    // Resolve chart elements to cached image fallbacks where available.
+    slide.elements = await resolveChartFallbacks(slide.elements, pkg, partUri);
 
     // Parse speaker notes (if present) from the notesSlide relationship.
     const notes = await parseNotesText(pkg, partUri);
