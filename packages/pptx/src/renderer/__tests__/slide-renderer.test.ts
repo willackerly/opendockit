@@ -19,6 +19,9 @@ import type {
   TransformIR,
   SolidFillIR,
   SlideElementIR,
+  TextBodyIR,
+  ParagraphIR,
+  RunIR,
 } from '@opendockit/core';
 import { renderSlide } from '../slide-renderer.js';
 import { createMockRenderContext } from './mock-canvas.js';
@@ -628,5 +631,377 @@ describe('renderSlide', () => {
     // Both master and slide shapes render
     const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
     expect(saveCalls).toHaveLength(2);
+  });
+
+  // -------------------------------------------------------------------------
+  // Placeholder text content inheritance
+  // -------------------------------------------------------------------------
+
+  describe('placeholder text content inheritance', () => {
+    function makeTextBody(text: string, fontSize?: number): TextBodyIR {
+      const run: RunIR = {
+        kind: 'run',
+        text,
+        properties: fontSize ? { fontSize } : {},
+      };
+      const paragraph: ParagraphIR = {
+        runs: [run],
+        properties: {},
+      };
+      return {
+        paragraphs: [paragraph],
+        bodyProperties: {},
+      };
+    }
+
+    function makeEmptyTextBody(): TextBodyIR {
+      return {
+        paragraphs: [],
+        bodyProperties: {},
+      };
+    }
+
+    function makeTextBodyWithEmptyRuns(): TextBodyIR {
+      const run: RunIR = {
+        kind: 'run',
+        text: '',
+        properties: {},
+      };
+      const paragraph: ParagraphIR = {
+        runs: [run],
+        properties: {},
+      };
+      return {
+        paragraphs: [paragraph],
+        bodyProperties: {},
+      };
+    }
+
+    /** Collect all fillText output into a single trimmed string. */
+    function collectFillText(rctx: ReturnType<typeof createMockRenderContext>): string {
+      return rctx.ctx._calls
+        .filter((c) => c.method === 'fillText')
+        .map((c) => c.args[0] as string)
+        .join('')
+        .trim();
+    }
+
+    it('empty slide placeholder inherits text content from layout', () => {
+      const rctx = createMockRenderContext();
+
+      const layoutTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeTextBody('Click to add title'),
+      });
+
+      // Slide title has empty text body — should inherit layout text
+      const slideTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeEmptyTextBody(),
+      });
+
+      const data = makeEnriched({ elements: [slideTitle] }, { elements: [layoutTitle] });
+
+      renderSlide(data, rctx, 960, 540);
+
+      // The shape should render with inherited text (fillText call present)
+      const renderedText = collectFillText(rctx);
+      expect(renderedText).toBe('Click to add title');
+    });
+
+    it('empty slide placeholder inherits text from master when layout has none', () => {
+      const rctx = createMockRenderContext();
+
+      const masterTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeTextBody('Master title text'),
+      });
+
+      // Layout has title placeholder but no text content
+      const layoutTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeEmptyTextBody(),
+      });
+
+      // Slide title also has no text — should fall back to master
+      const slideTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeEmptyTextBody(),
+      });
+
+      const data = makeEnriched(
+        { elements: [slideTitle] },
+        { elements: [layoutTitle] },
+        { elements: [masterTitle] }
+      );
+
+      renderSlide(data, rctx, 960, 540);
+
+      const renderedText = collectFillText(rctx);
+      expect(renderedText).toBe('Master title text');
+    });
+
+    it('non-empty slide placeholder keeps its own text (no override)', () => {
+      const rctx = createMockRenderContext();
+
+      const layoutTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeTextBody('Layout title'),
+      });
+
+      // Slide title has its own text — should NOT inherit from layout
+      const slideTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeTextBody('My Slide Title'),
+      });
+
+      const data = makeEnriched({ elements: [slideTitle] }, { elements: [layoutTitle] });
+
+      renderSlide(data, rctx, 960, 540);
+
+      const renderedText = collectFillText(rctx);
+      expect(renderedText).toBe('My Slide Title');
+    });
+
+    it('placeholder with only empty-text runs inherits from layout', () => {
+      const rctx = createMockRenderContext();
+
+      const layoutBody = makeShape({
+        placeholderType: 'body',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeTextBody('Body text from layout'),
+      });
+
+      // Slide body has runs but all with empty text
+      const slideBody = makeShape({
+        placeholderType: 'body',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeTextBodyWithEmptyRuns(),
+      });
+
+      const data = makeEnriched({ elements: [slideBody] }, { elements: [layoutBody] });
+
+      renderSlide(data, rctx, 960, 540);
+
+      const renderedText = collectFillText(rctx);
+      expect(renderedText).toBe('Body text from layout');
+    });
+
+    it('placeholder with whitespace-only text is treated as having content', () => {
+      const rctx = createMockRenderContext();
+
+      const layoutTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeTextBody('Should NOT appear'),
+      });
+
+      // Slide title has whitespace-only text — counts as content, no inheritance
+      const slideTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeTextBody('   '),
+      });
+
+      const data = makeEnriched({ elements: [slideTitle] }, { elements: [layoutTitle] });
+
+      renderSlide(data, rctx, 960, 540);
+
+      const renderedText = collectFillText(rctx);
+      // Should NOT render the layout's text — whitespace counts as content
+      expect(renderedText).not.toContain('Should NOT appear');
+    });
+
+    it('field codes count as content (no override)', () => {
+      const rctx = createMockRenderContext();
+
+      const layoutSlideNum = makeShape({
+        placeholderType: 'sldNum',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeTextBody('##'),
+      });
+
+      // Slide has a field code run with empty text (slidenum field)
+      const slideSlideNum = makeShape({
+        placeholderType: 'sldNum',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: {
+          paragraphs: [
+            {
+              runs: [
+                {
+                  kind: 'run' as const,
+                  text: '',
+                  properties: {},
+                  fieldType: 'slidenum',
+                },
+              ],
+              properties: {},
+            },
+          ],
+          bodyProperties: {},
+        },
+      });
+
+      const data = makeEnriched({ elements: [slideSlideNum] }, { elements: [layoutSlideNum] });
+
+      renderSlide(data, rctx, 960, 540);
+
+      // The slide's own field code should be rendered, not the layout text.
+      // With a field type present, the text body is NOT considered empty.
+      const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+      // The field renders something (likely "1" for slide number, or empty), but
+      // the key assertion is that it does NOT render "##" from the layout.
+      const layoutTextRendered = fillTextCalls.some((c) => c.args[0] === '##');
+      expect(layoutTextRendered).toBe(false);
+    });
+
+    it('undefined textBody on slide inherits content from layout', () => {
+      const rctx = createMockRenderContext();
+
+      const layoutTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeTextBody('Layout default text'),
+      });
+
+      // Slide title has no textBody at all
+      const slideTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        // textBody is undefined
+      });
+
+      const data = makeEnriched({ elements: [slideTitle] }, { elements: [layoutTitle] });
+
+      renderSlide(data, rctx, 960, 540);
+
+      const renderedText = collectFillText(rctx);
+      expect(renderedText).toBe('Layout default text');
+    });
+
+    it('no crash when neither layout nor master has matching placeholder', () => {
+      const rctx = createMockRenderContext();
+
+      // Slide has an empty body placeholder but layout/master have no body placeholder
+      const slideBody = makeShape({
+        placeholderType: 'body',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeEmptyTextBody(),
+      });
+
+      const data = makeEnriched({ elements: [slideBody] }, {}, {});
+
+      // Should not throw — just renders the empty placeholder
+      expect(() => renderSlide(data, rctx, 960, 540)).not.toThrow();
+    });
+
+    it('preserves slide body properties when inheriting text content', () => {
+      const rctx = createMockRenderContext();
+
+      const layoutTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: {
+          paragraphs: [
+            {
+              runs: [{ kind: 'run' as const, text: 'Inherited text', properties: {} }],
+              properties: {},
+            },
+          ],
+          bodyProperties: {
+            leftInset: 12700,
+            verticalAlign: 'bottom' as const,
+          },
+        },
+      });
+
+      // Slide has body properties but no text content
+      const slideTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: {
+          paragraphs: [],
+          bodyProperties: {
+            leftInset: 91440,
+            verticalAlign: 'middle' as const,
+          },
+        },
+      });
+
+      const data = makeEnriched({ elements: [slideTitle] }, { elements: [layoutTitle] });
+
+      // Should not throw — body properties from slide are preserved
+      expect(() => renderSlide(data, rctx, 960, 540)).not.toThrow();
+
+      // Verify text was inherited
+      const renderedText = collectFillText(rctx);
+      expect(renderedText).toBe('Inherited text');
+    });
+
+    it('matches placeholders by index when type is not available', () => {
+      const rctx = createMockRenderContext();
+
+      const layoutPh = makeShape({
+        placeholderIndex: 2,
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeTextBody('Index-matched text'),
+      });
+
+      // Slide placeholder matched by index
+      const slidePh = makeShape({
+        placeholderIndex: 2,
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeEmptyTextBody(),
+      });
+
+      const data = makeEnriched({ elements: [slidePh] }, { elements: [layoutPh] });
+
+      renderSlide(data, rctx, 960, 540);
+
+      const renderedText = collectFillText(rctx);
+      expect(renderedText).toBe('Index-matched text');
+    });
+
+    it('layout text takes precedence over master text for content inheritance', () => {
+      const rctx = createMockRenderContext();
+
+      const masterTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeTextBody('Master text'),
+      });
+
+      const layoutTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeTextBody('Layout text'),
+      });
+
+      const slideTitle = makeShape({
+        placeholderType: 'title',
+        properties: makeProperties({ transform: makeTransform() }),
+        textBody: makeEmptyTextBody(),
+      });
+
+      const data = makeEnriched(
+        { elements: [slideTitle] },
+        { elements: [layoutTitle] },
+        { elements: [masterTitle] }
+      );
+
+      renderSlide(data, rctx, 960, 540);
+
+      const renderedText = collectFillText(rctx);
+      // Layout takes precedence over master
+      expect(renderedText).toBe('Layout text');
+    });
   });
 });

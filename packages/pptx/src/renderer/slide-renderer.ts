@@ -21,6 +21,7 @@ import type {
   ShapePropertiesIR,
   BodyPropertiesIR,
   DrawingMLShapeIR,
+  TextBodyIR,
 } from '@opendockit/core';
 import type { RenderContext } from '@opendockit/core/drawingml/renderer';
 import { renderSlideElement } from '@opendockit/core/drawingml/renderer';
@@ -192,6 +193,52 @@ function renderElementWithDefaults(
 }
 
 // ---------------------------------------------------------------------------
+// Text content inheritance
+// ---------------------------------------------------------------------------
+
+/**
+ * Check whether a text body has meaningful text content.
+ *
+ * Returns `true` if the text body has at least one paragraph with a non-empty
+ * text run or a field code. Whitespace-only runs count as content (not empty).
+ * Line breaks alone do NOT count as content.
+ *
+ * Returns `false` if:
+ * - textBody is undefined
+ * - paragraphs array is empty
+ * - All paragraphs have zero runs or only empty-text runs
+ */
+function hasTextContent(textBody: TextBodyIR | undefined): boolean {
+  if (!textBody) return false;
+  if (textBody.paragraphs.length === 0) return false;
+
+  for (const para of textBody.paragraphs) {
+    for (const run of para.runs) {
+      if (run.kind === 'lineBreak') continue;
+      // A run with any text (including whitespace) counts as content.
+      // A field code also counts as content even if text is empty.
+      if (run.text.length > 0 || run.fieldType) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Get text content (paragraphs) from a placeholder for content inheritance.
+ *
+ * Returns the paragraphs array if the placeholder is a shape with text content,
+ * or undefined if not applicable.
+ */
+function getPlaceholderTextContent(
+  placeholder: SlideElementIR | undefined
+): TextBodyIR | undefined {
+  if (!placeholder || placeholder.kind !== 'shape') return undefined;
+  if (!hasTextContent(placeholder.textBody)) return undefined;
+  return placeholder.textBody;
+}
+
+// ---------------------------------------------------------------------------
 // Shape property inheritance
 // ---------------------------------------------------------------------------
 
@@ -243,8 +290,17 @@ function mergeBodyProperties(higher: BodyPropertiesIR, lower: BodyPropertiesIR):
  * Resolve inherited properties for a slide element.
  *
  * For placeholder shapes, looks up matching placeholders in the layout → master
- * cascade and merges non-text visual properties (transform, fill, line, effects,
- * geometry) and body properties (insets, wrapping, auto-fit).
+ * cascade and merges:
+ * - Visual properties (transform, fill, line, effects, geometry)
+ * - Body properties (insets, wrapping, auto-fit)
+ * - Style references (fillRef, lnRef, effectRef, fontRef)
+ * - Text content (paragraphs) when the slide placeholder has no text
+ *
+ * Text content inheritance: when a slide placeholder has empty text content
+ * (no runs, or only runs with empty text), the paragraphs are inherited from
+ * the matching layout placeholder. If the layout also has no content, falls
+ * back to the master placeholder. Only the paragraphs are inherited — body
+ * properties and list styles remain from the slide's own cascade.
  *
  * Resolution priority: slide > layout > master.
  *
@@ -291,6 +347,21 @@ function resolveInheritedElement(element: SlideElementIR, data: EnrichedSlideDat
       mergedTextBody = {
         ...mergedTextBody,
         bodyProperties: mergeBodyProperties(mergedTextBody.bodyProperties, baseBodyProps),
+      };
+    }
+  }
+
+  // Inherit text content from layout/master when the slide placeholder is empty.
+  // The slide element keeps its own resolved body properties and list style —
+  // only the paragraphs (actual text runs) are inherited.
+  if (!hasTextContent(mergedTextBody)) {
+    const inheritedContent =
+      getPlaceholderTextContent(layoutPh) ?? getPlaceholderTextContent(masterPh);
+    if (inheritedContent) {
+      mergedTextBody = {
+        paragraphs: inheritedContent.paragraphs,
+        bodyProperties: mergedTextBody?.bodyProperties ?? inheritedContent.bodyProperties,
+        listStyle: mergedTextBody?.listStyle,
       };
     }
   }
