@@ -1122,13 +1122,36 @@ export function renderTextBody(
   const topInset = emuToScaledPx(body.topInset ?? DEFAULT_INSET_EMU, rctx);
   const bottomInset = emuToScaledPx(body.bottomInset ?? DEFAULT_INSET_EMU, rctx);
 
-  const textAreaX = bounds.x + leftInset;
-  const textAreaY = bounds.y + topInset;
-  const textAreaWidth = bounds.width - leftInset - rightInset;
-  const textAreaHeight = bounds.height - topInset - bottomInset;
+  let textAreaX = bounds.x + leftInset;
+  let textAreaY = bounds.y + topInset;
+  let textAreaWidth = bounds.width - leftInset - rightInset;
+  let textAreaHeight = bounds.height - topInset - bottomInset;
 
   // Bail out if text area is degenerate.
   if (textAreaWidth <= 0 || textAreaHeight <= 0) return;
+
+  // Determine vertical text mode and swap layout dimensions if needed.
+  // Vertical modes rotate the text body so text flows top-to-bottom;
+  // the shape's height becomes the effective width for text wrapping.
+  const vertMode = body.vert;
+  const isVertical =
+    vertMode === 'vert' ||
+    vertMode === 'vert270' ||
+    vertMode === 'eaVert' ||
+    vertMode === 'wordArtVert';
+  if (isVertical) {
+    // Swap layout dimensions: after rotation, the original height is
+    // the available width for text wrapping and vice versa.
+    const cx = bounds.x + bounds.width / 2;
+    const cy = bounds.y + bounds.height / 2;
+    // Re-center text area with swapped dimensions
+    const swappedWidth = textAreaHeight;
+    const swappedHeight = textAreaWidth;
+    textAreaX = cx - swappedWidth / 2;
+    textAreaY = cy - swappedHeight / 2;
+    textAreaWidth = swappedWidth;
+    textAreaHeight = swappedHeight;
+  }
 
   const shouldWrap = body.wrap !== 'none';
 
@@ -1310,6 +1333,36 @@ export function renderTextBody(
     ctx.beginPath();
     ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
     ctx.clip();
+  }
+
+  // Apply vertical text direction transform.
+  // Rotates the canvas so that text laid out horizontally appears in the
+  // correct vertical orientation. The layout dimensions were already swapped
+  // above (before Phase 1) so text wrapping used the correct effective width.
+  if (isVertical) {
+    const cx = bounds.x + bounds.width / 2;
+    const cy = bounds.y + bounds.height / 2;
+    if (vertMode === 'vert' || vertMode === 'eaVert' || vertMode === 'wordArtVert') {
+      // 90° clockwise: text reads top-to-bottom
+      ctx.translate(cx, cy);
+      ctx.rotate(Math.PI / 2);
+      ctx.translate(-cx, -cy);
+    } else if (vertMode === 'vert270') {
+      // 90° counter-clockwise: text reads bottom-to-top
+      ctx.translate(cx, cy);
+      ctx.rotate(-Math.PI / 2);
+      ctx.translate(-cx, -cy);
+    }
+
+    // Emit diagnostics for approximated complex vertical modes.
+    if (vertMode === 'eaVert' || vertMode === 'wordArtVert') {
+      rctx.diagnostics?.emit({
+        category: 'partial-rendering',
+        severity: 'info',
+        message: `Vertical text mode "${vertMode}" approximated with simple 90° rotation (per-glyph upright rotation not implemented)`,
+        context: { slideNumber: rctx.slideNumber },
+      });
+    }
   }
 
   // Apply text body rotation (independent of shape rotation).
