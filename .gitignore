@@ -18,5 +18,8 @@ diff/
 actual/
 reference/
 
+# Visual regression baseline PNGs (regenerated via --update-baselines)
+test-data/corpus-baselines/
+
 # Downloaded font files (used for metrics extraction, not shipped)
 fonts/
