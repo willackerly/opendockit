@@ -2,10 +2,11 @@
 
 ## Core Documents
 
-| Doc                 | Description                                                                                                                                                                                                                                 |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OOXML_RENDERER.md` | Comprehensive multi-format architecture. Covers the shared core, format-specific layers (PPTX/DOCX/XLSX), the OOXML sharing matrix, DrawingML integration points, text divergence analysis, and phased implementation plan. **Start here.** |
-| `PPTX_SLIDEKIT.md`  | Detailed PPTX-specific renderer design. Covers the progressive rendering pipeline, capability registry, WASM module loading, fallback system, testing strategy, and public API surface.                                                     |
+| Doc                      | Description                                                                                                                                                                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CANVASKIT_STRATEGY.md`  | **CanvasKit / Skia WASM integration strategy.** Lazy-load architecture, bundle size analysis, Canvas2D vs CanvasKit capabilities, phased implementation plan. Cross-project relevance with pdfbox-ts. **Read this for rendering roadmap.**    |
+| `OOXML_RENDERER.md`      | Comprehensive multi-format architecture. Covers the shared core, format-specific layers (PPTX/DOCX/XLSX), the OOXML sharing matrix, DrawingML integration points, text divergence analysis, and phased implementation plan. **Start here.** |
+| `PPTX_SLIDEKIT.md`       | Detailed PPTX-specific renderer design. Covers the progressive rendering pipeline, capability registry, WASM module loading, fallback system, testing strategy, and public API surface.                                                     |
 
 ## Architecture Decision Records
 
