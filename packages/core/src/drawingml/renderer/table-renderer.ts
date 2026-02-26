@@ -12,7 +12,7 @@ import type { TableIR, LineIR, ResolvedColor } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
 import { applyFill } from './fill-renderer.js';
-import { renderTextBody } from './text-renderer.js';
+import { renderTextBody, measureTextBodyHeight } from './text-renderer.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -118,6 +118,59 @@ export function renderTable(table: TableIR, rctx: RenderContext): void {
     rowHeightsPx = Array(numRows).fill(frameH / numRows) as number[];
   }
 
+  // Auto-height: expand row heights when cell content exceeds the minimum.
+  // OOXML table row heights are minimums — rows grow to fit their content.
+  for (let rowIdx = 0; rowIdx < table.rows.length; rowIdx++) {
+    const row = table.rows[rowIdx];
+    let maxContentHeight = rowHeightsPx[rowIdx];
+
+    for (let colIdx = 0; colIdx < row.cells.length; colIdx++) {
+      const cell = row.cells[colIdx];
+
+      // Skip continuation cells and cells spanning multiple rows
+      // (multi-row spans are sized by their first row; expansion is complex).
+      if (cell.hMerge || cell.vMerge) continue;
+      if ((cell.rowSpan ?? 1) > 1) continue;
+
+      if (!cell.textBody) continue;
+
+      // Compute cell width (sum of spanned columns).
+      const spanCols = cell.gridSpan ?? 1;
+      let cellW = 0;
+      for (let s = 0; s < spanCols && colIdx + s < colWidthsPx.length; s++) {
+        cellW += colWidthsPx[colIdx + s];
+      }
+
+      // Build the same adjusted text body as used for rendering.
+      const bp = cell.textBody.bodyProperties;
+      const margins = cell.margins;
+      const cellTextBody = {
+        ...cell.textBody,
+        bodyProperties: {
+          ...bp,
+          leftInset: bp.leftInset ?? margins?.left ?? 91440,
+          rightInset: bp.rightInset ?? margins?.right ?? 91440,
+          topInset: bp.topInset ?? margins?.top ?? 45720,
+          bottomInset: bp.bottomInset ?? margins?.bottom ?? 45720,
+          verticalAlign: bp.verticalAlign ?? cell.verticalAlign ?? 'top',
+        },
+      };
+
+      const contentHeight = measureTextBodyHeight(cellTextBody, rctx, {
+        x: 0,
+        y: 0,
+        width: cellW,
+        height: maxContentHeight,
+      });
+
+      if (contentHeight > maxContentHeight) {
+        maxContentHeight = contentHeight;
+      }
+    }
+
+    rowHeightsPx[rowIdx] = maxContentHeight;
+  }
+
   // Precompute cumulative X offsets for columns.
   const colXOffsets: number[] = [0];
   for (let c = 0; c < colWidthsPx.length; c++) {
@@ -213,10 +266,10 @@ export function renderTable(table: TableIR, rctx: RenderContext): void {
           ...cell.textBody,
           bodyProperties: {
             ...bp,
-            leftInset: bp.leftInset ?? (margins?.left ?? 91440),
-            rightInset: bp.rightInset ?? (margins?.right ?? 91440),
-            topInset: bp.topInset ?? (margins?.top ?? 45720),
-            bottomInset: bp.bottomInset ?? (margins?.bottom ?? 45720),
+            leftInset: bp.leftInset ?? margins?.left ?? 91440,
+            rightInset: bp.rightInset ?? margins?.right ?? 91440,
+            topInset: bp.topInset ?? margins?.top ?? 45720,
+            bottomInset: bp.bottomInset ?? margins?.bottom ?? 45720,
             verticalAlign: bp.verticalAlign ?? cell.verticalAlign ?? 'top',
           },
         };

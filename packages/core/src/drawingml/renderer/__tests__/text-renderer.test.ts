@@ -18,7 +18,13 @@ import type {
   SpacingIR,
   BulletPropertiesIR,
 } from '../../../ir/index.js';
-import { renderTextBody, toRoman, toAlpha, formatAutoNumber } from '../text-renderer.js';
+import {
+  renderTextBody,
+  measureTextBodyHeight,
+  toRoman,
+  toAlpha,
+  formatAutoNumber,
+} from '../text-renderer.js';
 import { createMockRenderContext } from './mock-canvas.js';
 import { DiagnosticEmitter } from '../../../diagnostics/index.js';
 
@@ -1055,7 +1061,9 @@ describe('renderTextBody — vertical text direction', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    expect(events.some((e) => e.category === 'partial-rendering' && e.message.includes('eaVert'))).toBe(true);
+    expect(
+      events.some((e) => e.category === 'partial-rendering' && e.message.includes('eaVert'))
+    ).toBe(true);
   });
 
   it('emits diagnostic for wordArtVert approximation', () => {
@@ -1069,7 +1077,9 @@ describe('renderTextBody — vertical text direction', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    expect(events.some((e) => e.category === 'partial-rendering' && e.message.includes('wordArtVert'))).toBe(true);
+    expect(
+      events.some((e) => e.category === 'partial-rendering' && e.message.includes('wordArtVert'))
+    ).toBe(true);
   });
 
   it('does not emit diagnostic for vert mode (fully supported)', () => {
@@ -1134,9 +1144,7 @@ describe('RTL text rendering', () => {
     rctx.ctx._calls.length = 0;
 
     // RTL paragraph with 'left' alignment should be mirrored to right-aligned.
-    const bodyRtl = makeTextBody([
-      makeParagraph([makeRun('RTL')], 'left', { rtl: true }),
-    ]);
+    const bodyRtl = makeTextBody([makeParagraph([makeRun('RTL')], 'left', { rtl: true })]);
 
     renderTextBody(bodyRtl, rctx, BOUNDS);
     const rtlCalls = filterCalls(rctx.ctx._calls, 'fillText');
@@ -1164,9 +1172,7 @@ describe('RTL text rendering', () => {
     rctx.ctx._calls.length = 0;
 
     // RTL paragraph with 'right' alignment should be mirrored to left-aligned.
-    const bodyRtlRight = makeTextBody([
-      makeParagraph([makeRun('RTL-R')], 'right', { rtl: true }),
-    ]);
+    const bodyRtlRight = makeTextBody([makeParagraph([makeRun('RTL-R')], 'right', { rtl: true })]);
 
     renderTextBody(bodyRtlRight, rctx, BOUNDS);
     const rtlRightCalls = filterCalls(rctx.ctx._calls, 'fillText');
@@ -1182,9 +1188,7 @@ describe('RTL text rendering', () => {
   it('renders RTL paragraph with center alignment unchanged', () => {
     const rctx = createMockRenderContext();
     // LTR centered paragraph.
-    const bodyLtrCenter = makeTextBody([
-      makeParagraph([makeRun('Center')], 'center'),
-    ]);
+    const bodyLtrCenter = makeTextBody([makeParagraph([makeRun('Center')], 'center')]);
 
     renderTextBody(bodyLtrCenter, rctx, BOUNDS);
     const ltrCalls = filterCalls(rctx.ctx._calls, 'fillText');
@@ -1275,5 +1279,179 @@ describe('RTL text rendering', () => {
     // RTL paragraph (left alignment mirrored to right) should be far right.
     // LTR paragraph should be near the left edge.
     expect(rtlX).toBeGreaterThan(ltrX);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tab stop tests
+// ---------------------------------------------------------------------------
+
+describe('renderTextBody — tab stops', () => {
+  it('advances past tab character using default tab size (1 inch)', () => {
+    const rctx = createMockRenderContext();
+    // Text: "A\tB" — A is rendered, then tab advances to next tab stop, then B.
+    const body = makeTextBody([makeParagraph([makeRun('A\tB')])]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    // Should have separate fragments: 'A', '\t' (not drawn as visible text), 'B'.
+    const textFragments = fillTexts.map((c) => c.args[0] as string);
+    expect(textFragments).toContain('A');
+    expect(textFragments).toContain('B');
+
+    // B should start at a position past A — at least at the default tab stop (1 inch = 96px).
+    const aCall = fillTexts.find((c) => c.args[0] === 'A');
+    const bCall = fillTexts.find((c) => c.args[0] === 'B');
+    expect(aCall).toBeDefined();
+    expect(bCall).toBeDefined();
+    const bX = bCall!.args[1] as number;
+    const aX = aCall!.args[1] as number;
+    // B should be significantly past A (at least one tab stop away).
+    expect(bX).toBeGreaterThan(aX + 50);
+  });
+
+  it('advances past tab using custom defaultTabSize from bodyProperties', () => {
+    const rctx = createMockRenderContext();
+    // defaultTabSize = 457200 EMU = 0.5 inch = 48px at dpi 96
+    const body = makeTextBody([makeParagraph([makeRun('X\tY')])], {
+      defaultTabSize: 457200,
+    });
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const xCall = fillTexts.find((c) => c.args[0] === 'X');
+    const yCall = fillTexts.find((c) => c.args[0] === 'Y');
+    expect(xCall).toBeDefined();
+    expect(yCall).toBeDefined();
+    const yX = yCall!.args[1] as number;
+    const xX = xCall!.args[1] as number;
+    // Y should be past X. With 0.5-inch tab at 96dpi = 48px grid.
+    expect(yX).toBeGreaterThan(xX);
+  });
+
+  it('uses explicit tabStops from paragraph properties', () => {
+    const rctx = createMockRenderContext();
+    // Set explicit tab stop at 2 inches (1828800 EMU = 192px).
+    const body = makeTextBody([
+      {
+        runs: [makeRun('A\tB')],
+        properties: {
+          alignment: 'left' as const,
+          tabStops: [{ position: 1828800, alignment: 'l' as const }],
+        },
+      },
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const bCall = fillTexts.find((c) => c.args[0] === 'B');
+    expect(bCall).toBeDefined();
+    // B should be near 192px (the explicit tab stop position).
+    const bX = bCall!.args[1] as number;
+    expect(bX).toBeGreaterThanOrEqual(190);
+    expect(bX).toBeLessThan(200);
+  });
+
+  it('handles multiple tabs in sequence', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([makeParagraph([makeRun('A\t\tB')])]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const aCall = fillTexts.find((c) => c.args[0] === 'A');
+    const bCall = fillTexts.find((c) => c.args[0] === 'B');
+    expect(aCall).toBeDefined();
+    expect(bCall).toBeDefined();
+
+    // With two tabs, B should be at least 2 tab stops away from A.
+    const bX = bCall!.args[1] as number;
+    const aX = aCall!.args[1] as number;
+    expect(bX).toBeGreaterThan(aX + 100);
+  });
+
+  it('renders text without tabs normally (no regression)', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([makeParagraph([makeRun('Hello World')])]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const allText = fillTexts.map((c) => c.args[0] as string).join('');
+    expect(allText).toContain('Hello');
+    expect(allText).toContain('World');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// measureTextBodyHeight tests
+// ---------------------------------------------------------------------------
+
+describe('measureTextBodyHeight', () => {
+  it('returns positive height for a single paragraph', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([makeParagraph([makeRun('Hello')])]);
+
+    const height = measureTextBodyHeight(body, rctx, BOUNDS);
+
+    // Should be > 0 (at least one line of text).
+    expect(height).toBeGreaterThan(0);
+  });
+
+  it('returns taller height for more paragraphs', () => {
+    const rctx = createMockRenderContext();
+    const body1 = makeTextBody([makeParagraph([makeRun('One')])]);
+    const body2 = makeTextBody([
+      makeParagraph([makeRun('One')]),
+      makeParagraph([makeRun('Two')]),
+      makeParagraph([makeRun('Three')]),
+    ]);
+
+    const height1 = measureTextBodyHeight(body1, rctx, BOUNDS);
+    const height2 = measureTextBodyHeight(body2, rctx, BOUNDS);
+
+    expect(height2).toBeGreaterThan(height1);
+  });
+
+  it('includes insets in the returned height', () => {
+    const rctx = createMockRenderContext();
+    const bodyNoInset = makeTextBody([makeParagraph([makeRun('Test')])]);
+    const bodyWithInset = makeTextBody([makeParagraph([makeRun('Test')])], {
+      topInset: 914400, // 1 inch = 96px
+      bottomInset: 914400,
+    });
+
+    const heightNoInset = measureTextBodyHeight(bodyNoInset, rctx, BOUNDS);
+    const heightWithInset = measureTextBodyHeight(bodyWithInset, rctx, BOUNDS);
+
+    // With 2 inch insets total, the height should be at least 192px more.
+    expect(heightWithInset).toBeGreaterThan(heightNoInset + 180);
+  });
+
+  it('returns inset-only height for empty text body', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([], {
+      topInset: 457200, // 0.5 inch = 48px
+      bottomInset: 457200,
+    });
+
+    const height = measureTextBodyHeight(body, rctx, BOUNDS);
+
+    // Should be approximately topInset + bottomInset = 96px.
+    expect(height).toBeCloseTo(96, 0);
+  });
+
+  it('accounts for larger font size', () => {
+    const rctx = createMockRenderContext();
+    const bodySmall = makeTextBody([makeParagraph([makeRun('Text', { fontSize: 1200 })])]);
+    const bodyLarge = makeTextBody([makeParagraph([makeRun('Text', { fontSize: 3600 })])]);
+
+    const heightSmall = measureTextBodyHeight(bodySmall, rctx, BOUNDS);
+    const heightLarge = measureTextBodyHeight(bodyLarge, rctx, BOUNDS);
+
+    expect(heightLarge).toBeGreaterThan(heightSmall);
   });
 });

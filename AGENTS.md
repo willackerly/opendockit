@@ -208,6 +208,122 @@ Phase 1 work can start before Phase 0 is 100% complete:
 
 ---
 
+## Aggressive Sub-Agent Fanout Strategy
+
+**Default to parallel.** Sub-agents are cheap, context is expensive. When in doubt, fan out.
+
+### When to Fan Out
+
+| Situation | Strategy |
+|-----------|----------|
+| **Research / exploration** | Fan out 2-4 agents to search different areas simultaneously |
+| **Independent code changes** | One agent per module/file that doesn't share imports |
+| **Read-heavy analysis** | Offload large file reads to sub-agents to protect main context |
+| **Validation** | Run typecheck, tests, and lint in parallel sub-agents |
+| **Investigation + fix** | One agent diagnoses, another starts on the most-likely fix |
+
+### Fanout Patterns
+
+**Pattern 1: Research Fanout** — When you need to understand something, don't search sequentially. Launch 2-4 Explore agents in parallel with different search angles.
+```
+Agent A: "Find all call sites of functionX"
+Agent B: "Find the type definition and its history"
+Agent C: "Search for related test files"
+→ Synthesize results in main context
+```
+
+**Pattern 2: Implementation Fanout** — When changes are independent, use worktree isolation.
+```
+Agent A (worktree): "Implement parser for feature X"
+Agent B (worktree): "Implement renderer for feature X"
+Agent C (main): "Write tests for feature X using mock data"
+→ Merge worktrees, run integration tests
+```
+
+**Pattern 3: Validation Fanout** — After making changes, validate everything in parallel.
+```
+Agent A (background): "Run full test suite"
+Agent B (background): "Run typecheck"
+Agent C (background): "Check for untracked TODOs"
+→ Continue working, handle results as they arrive
+```
+
+**Pattern 4: Speculative Fanout** — When the fix isn't certain, try multiple approaches.
+```
+Agent A (worktree): "Fix by adjusting the parser"
+Agent B (worktree): "Fix by adjusting the renderer"
+→ Compare results, keep the better solution
+```
+
+### Rules
+
+1. **Always fan out for 3+ independent searches** — sequential search wastes context on intermediate results
+2. **Use background agents for validation** — don't block on test runs
+3. **Protect main context** — if you need to read >3 files to answer a question, use a sub-agent
+4. **Prefer worktree isolation for code changes** — prevents merge conflicts between parallel agents
+5. **Synthesize, don't relay** — when sub-agents return, summarize findings concisely; don't paste raw output into main context
+
+---
+
+## Proactive Context Management (MANDATORY)
+
+**Context is your most precious resource.** Running out mid-task loses all accumulated understanding. Manage it actively, not reactively.
+
+### The 70% Checkpoint Ritual
+
+When you sense the conversation is getting long (many tool calls, large file reads, extensive back-and-forth), proactively perform a **checkpoint**:
+
+#### Step 1: Commit Current Work
+```bash
+# Stage and commit whatever is working, even if incomplete
+git add -A && git commit -m "wip: [description of current state]"
+```
+
+#### Step 2: Write Handoff Notes
+Update these files so the next session (or post-compaction self) can resume instantly:
+
+| File | What to Update |
+|------|---------------|
+| `QUICKCONTEXT.md` | Current state, what just changed |
+| `TODO.md` | What's done, what's next, what's blocked |
+| `KNOWN_ISSUES.md` | Any new gotchas discovered this session |
+| Memory files | Stable patterns/insights worth preserving across sessions |
+
+#### Step 3: Compact with Focus
+Run `/compact` with a detailed focus hint:
+```
+/compact Preserve: current task context, files being edited, test results,
+architectural decisions made this session. Discard: exploratory searches,
+intermediate debugging output, file contents that can be re-read.
+```
+
+Or if switching tasks entirely, use `/clear` for a fresh start.
+
+### Context Budget Awareness
+
+**Habits that burn context fast:**
+- Reading entire large files (use line ranges or sub-agents instead)
+- Sequential searching (fan out to sub-agents)
+- Keeping verbose test output in main context (use background agents)
+- Re-reading files you already read (take notes or use memory files)
+
+**Habits that preserve context:**
+- Fan out research to sub-agents (their context is separate)
+- Run validation in background (results arrive as notifications)
+- Commit frequently (so you can `/clear` without losing work)
+- Write status to files, not just conversation (files survive compaction)
+- Use `/compact` proactively with a focus hint, don't wait for auto-compaction
+
+### Why This Matters
+
+Auto-compaction happens at the last moment and makes lossy choices about what to keep. By checkpointing at ~70%, you:
+1. **Control what survives** — your handoff notes are in files, not just conversation
+2. **Enable clean resumption** — post-compaction, re-read QUICKCONTEXT.md and you're back
+3. **Prevent lost work** — committed code + documented state = nothing lost
+4. **Improve focus** — compacting forces you to crystallize what actually matters
+
+---
+
 ## Build, Test & Development Commands
 
 ```

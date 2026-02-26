@@ -28,6 +28,7 @@ import type {
   SpacingIR,
   ResolvedColor,
   RgbaColor,
+  TabStopIR,
 } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
@@ -498,7 +499,9 @@ function wrapParagraph(
   fontScale?: number,
   lnSpcReduction?: number,
   firstLineIndentPx?: number,
-  effectiveLineSpacing?: SpacingIR
+  effectiveLineSpacing?: SpacingIR,
+  defaultTabSizePx?: number,
+  tabStops?: TabStopIR[]
 ): WrappedLine[] {
   const { ctx, dpiScale, resolveFont } = rctx;
   const lines: WrappedLine[] = [];
@@ -548,9 +551,7 @@ function wrapParagraph(
       if (currentFragments.length === 0) {
         const fontSizePt = resolveFontSizePt(run.properties, fontScale, rctx, paragraphLevel);
         const fontSizePxBr = ptToCanvasPx(fontSizePt, dpiScale);
-        const brLhMul = getFontLineHeightMultiplier(
-          rctx, 'sans-serif', fontSizePxBr, false, false
-        );
+        const brLhMul = getFontLineHeightMultiplier(rctx, 'sans-serif', fontSizePxBr, false, false);
         const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
         const heightPx =
           lineSpacingPct >= 0
@@ -586,7 +587,7 @@ function wrapParagraph(
     const effectiveFontScale =
       capScale != null && fontScale != null
         ? fontScale * (capScale / 100)
-        : capScale ?? fontScale;
+        : (capScale ?? fontScale);
 
     const fontString = buildFontString(
       run.properties,
@@ -652,6 +653,17 @@ function wrapParagraph(
         ? ptToCanvasPx(hundredthsPtToPt(charSpacing), dpiScale)
         : 0;
 
+    // Fallback default tab size: 914400 EMU = 1 inch.
+    const effectiveTabSizePx = defaultTabSizePx ?? emuToScaledPx(914400, rctx);
+
+    // Sorted explicit tab stop positions in pixels.
+    const tabStopPositionsPx = tabStops
+      ? tabStops
+          .slice()
+          .sort((a, b) => a.position - b.position)
+          .map((ts) => emuToScaledPx(ts.position, rctx))
+      : [];
+
     // Track accumulated text within this run on the current line.
     // Measuring the full accumulated text preserves inter-word kerning pairs
     // that would be lost when measuring words individually and summing.
@@ -659,6 +671,74 @@ function wrapParagraph(
     let runAccWidth = 0;
 
     for (const word of words) {
+      // Check if this word contains tab characters.
+      if (word.indexOf('\t') >= 0) {
+        // Tabs break kerning context — reset the accumulator.
+        runAccText = '';
+        runAccWidth = 0;
+
+        // Split the word on tab boundaries, keeping tabs as separators.
+        const tabParts = word.split(/(\t)/);
+        for (const part of tabParts) {
+          if (part === '\t') {
+            // Tab character: advance to next tab stop position.
+            let nextTabPos: number | undefined;
+            for (const stopPx of tabStopPositionsPx) {
+              if (stopPx > currentLineWidth + 0.5) {
+                nextTabPos = stopPx;
+                break;
+              }
+            }
+            if (nextTabPos == null) {
+              nextTabPos =
+                Math.ceil((currentLineWidth + 0.5) / effectiveTabSizePx) * effectiveTabSizePx;
+            }
+            const tabAdvance = Math.max(0, nextTabPos - currentLineWidth);
+            currentFragments.push({
+              text: '\t',
+              fontString,
+              fillStyle,
+              widthPx: tabAdvance,
+              fontSizePt,
+              props: effectiveProps,
+            });
+            currentLineWidth += tabAdvance;
+            currentLineHeight = Math.max(currentLineHeight, fragmentHeightPx);
+            currentAscent = Math.max(currentAscent, ascentPx);
+          } else if (part.length > 0) {
+            let partWidth = measureFragment(
+              ctx,
+              part,
+              fontString,
+              rctx,
+              rawFamily,
+              fontSizePx,
+              run.properties.bold,
+              run.properties.italic
+            );
+            if (charSpacingPx !== 0) {
+              partWidth += charSpacingPx * part.length;
+            }
+            const lineAvail = getLineAvailableWidth();
+            if (currentLineWidth + partWidth > lineAvail && currentFragments.length > 0) {
+              commitLine();
+            }
+            currentFragments.push({
+              text: part,
+              fontString,
+              fillStyle,
+              widthPx: partWidth,
+              fontSizePt,
+              props: effectiveProps,
+            });
+            currentLineWidth += partWidth;
+            currentLineHeight = Math.max(currentLineHeight, fragmentHeightPx);
+            currentAscent = Math.max(currentAscent, ascentPx);
+          }
+        }
+        continue;
+      }
+
       // Measure accumulated text including this word for kerning-aware width.
       const testText = runAccText + word;
       let testWidth = measureFragment(
@@ -741,7 +821,11 @@ function wrapParagraph(
     const fontSizePt = getParagraphFontSizePt(paragraph, fontScale, rctx);
     const fontSizePxEmpty = ptToCanvasPx(fontSizePt, dpiScale);
     const emptyLhMul = getFontLineHeightMultiplier(
-      rctx, getParagraphFontFamily(paragraph, rctx), fontSizePxEmpty, false, false
+      rctx,
+      getParagraphFontFamily(paragraph, rctx),
+      fontSizePxEmpty,
+      false,
+      false
     );
     const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
     const heightPx =
@@ -764,16 +848,21 @@ function wrapParagraph(
     paragraph.endParaProperties?.fontSize != null &&
     lines.length === 1 &&
     paragraph.runs.length > 0 &&
-    paragraph.runs.every(r => r.kind === 'run' && r.text === '')
+    paragraph.runs.every((r) => r.kind === 'run' && r.text === '')
   ) {
     const endParaSizePt = hundredthsPtToPt(paragraph.endParaProperties.fontSize);
     const scaledSizePt = fontScale != null ? endParaSizePt * (fontScale / 100) : endParaSizePt;
     const endParaSizePx = ptToCanvasPx(scaledSizePt, dpiScale);
-    const endParaFamily = paragraph.endParaProperties.fontFamily
-      ?? paragraph.endParaProperties.latin
-      ?? getParagraphFontFamily(paragraph, rctx);
+    const endParaFamily =
+      paragraph.endParaProperties.fontFamily ??
+      paragraph.endParaProperties.latin ??
+      getParagraphFontFamily(paragraph, rctx);
     const endParaLhMul = getFontLineHeightMultiplier(
-      rctx, endParaFamily, endParaSizePx, false, false
+      rctx,
+      endParaFamily,
+      endParaSizePx,
+      false,
+      false
     );
     const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
     const heightPx =
@@ -1255,6 +1344,14 @@ export function renderTextBody(
     const bulletWidth = bullet ? bullet.widthPx : 0;
 
     const availableWidth = shouldWrap ? textAreaWidth - marginLeftPx - marginRightPx : Infinity;
+
+    // Resolve tab stops: paragraph-level → inherited from textDefaults.
+    const effectiveTabStops = paragraph.properties.tabStops ?? inheritedPProps?.tabStops;
+
+    // Convert defaultTabSize from EMU to px (body-level property).
+    const defaultTabSizePx =
+      body.defaultTabSize != null ? emuToScaledPx(body.defaultTabSize, rctx) : undefined;
+
     const lines = wrapParagraph(
       paragraph,
       rctx,
@@ -1263,7 +1360,9 @@ export function renderTextBody(
       fontScale,
       lnSpcReduction,
       indentPx,
-      effectiveLineSpacing
+      effectiveLineSpacing,
+      defaultTabSizePx,
+      effectiveTabStops
     );
 
     const alignment = paragraph.properties.alignment ?? inheritedPProps?.alignment ?? 'left';
@@ -1303,7 +1402,10 @@ export function renderTextBody(
     let maxLineWidth = 0;
     for (const layout of paragraphLayouts) {
       for (const line of layout.lines) {
-        const lineWidth = line.widthPx + layout.marginLeftPx + layout.marginRightPx +
+        const lineWidth =
+          line.widthPx +
+          layout.marginLeftPx +
+          layout.marginRightPx +
           (layout.bullet ? layout.bullet.widthPx : 0);
         maxLineWidth = Math.max(maxLineWidth, lineWidth);
       }
@@ -1438,10 +1540,16 @@ export function renderTextBody(
       let lineX = isFirst && !hangingIndent ? firstLineTextX : textBaseX;
 
       // Measure actual rendered line width using Canvas2D.
+      // Tab fragments use their pre-computed widthPx since measureText('\t')
+      // doesn't account for tab stop positioning.
       let renderedLineWidth = 0;
       for (const frag of line.fragments) {
-        ctx.font = frag.fontString;
-        renderedLineWidth += ctx.measureText(frag.text).width;
+        if (frag.text === '\t') {
+          renderedLineWidth += frag.widthPx;
+        } else {
+          ctx.font = frag.fontString;
+          renderedLineWidth += ctx.measureText(frag.text).width;
+        }
       }
       if (isFirst && layout.bullet && !hangingIndent) {
         ctx.font = layout.bullet.fontString;
@@ -1505,8 +1613,11 @@ export function renderTextBody(
             // Hanging indent RTL: bullet at the right margin area, mirroring
             // the LTR hanging indent position on the left.
             const rtlBulletX =
-              textAreaX + textAreaWidth - effectiveMarginRight -
-              Math.abs(layout.indentPx) + anchorCtrOffset;
+              textAreaX +
+              textAreaWidth -
+              effectiveMarginRight -
+              Math.abs(layout.indentPx) +
+              anchorCtrOffset;
             ctx.fillText(layout.bullet.text, rtlBulletX, baselineY);
           } else {
             // Normal RTL inline bullet: bullet at the right end of the rendered content.
@@ -1528,6 +1639,14 @@ export function renderTextBody(
       // Draw each text fragment in the line.
       for (let fi = 0; fi < line.fragments.length; fi++) {
         const frag = line.fragments[fi];
+
+        // Tab characters are invisible — advance by the pre-computed tab width
+        // without drawing anything.
+        if (frag.text === '\t') {
+          drawX += frag.widthPx;
+          continue;
+        }
+
         ctx.font = frag.fontString;
         ctx.fillStyle = frag.fillStyle;
 
@@ -1625,4 +1744,155 @@ export function renderTextBody(
   }
 
   ctx.restore();
+}
+
+// ---------------------------------------------------------------------------
+// Measurement API
+// ---------------------------------------------------------------------------
+
+/**
+ * Measure the total height a text body would occupy when rendered into the
+ * given bounds. Runs the same Phase 1 layout logic as renderTextBody()
+ * (paragraph wrapping, spacing, bullets) but returns the content height in
+ * pixels instead of drawing anything.
+ *
+ * Used by table-renderer to implement OOXML row auto-height (rows expand
+ * to fit their content).
+ *
+ * @param textBody - The text body IR to measure.
+ * @param rctx     - The shared render context.
+ * @param bounds   - The bounding rectangle in canvas pixel coordinates.
+ * @returns The total content height in pixels (including top/bottom insets).
+ */
+export function measureTextBodyHeight(
+  textBody: TextBodyIR,
+  rctx: RenderContext,
+  bounds: { x: number; y: number; width: number; height: number }
+): number {
+  const { dpiScale } = rctx;
+  const body = textBody.bodyProperties;
+
+  // Calculate text area by applying body insets.
+  const leftInset = emuToScaledPx(body.leftInset ?? DEFAULT_INSET_EMU, rctx);
+  const rightInset = emuToScaledPx(body.rightInset ?? DEFAULT_INSET_EMU, rctx);
+  const topInset = emuToScaledPx(body.topInset ?? DEFAULT_INSET_EMU, rctx);
+  const bottomInset = emuToScaledPx(body.bottomInset ?? DEFAULT_INSET_EMU, rctx);
+
+  const textAreaWidth = bounds.width - leftInset - rightInset;
+
+  // Bail out if text area is degenerate.
+  if (textAreaWidth <= 0) return topInset + bottomInset;
+
+  const shouldWrap = body.wrap !== 'none';
+
+  // Auto-fit: extract font scale and line spacing reduction for normAutofit.
+  const fontScale = body.autoFit === 'shrink' ? body.fontScale : undefined;
+  const lnSpcReduction = body.autoFit === 'shrink' ? body.lnSpcReduction : undefined;
+
+  let totalHeight = 0;
+
+  // Track auto-numbering counters per indent level.
+  const autoNumCounters = new Map<number, number>();
+
+  for (let pi = 0; pi < textBody.paragraphs.length; pi++) {
+    const paragraph = textBody.paragraphs[pi];
+    const fontSizePt = getParagraphFontSizePt(paragraph, fontScale, rctx);
+
+    // Resolve paragraph properties with inheritance from textDefaults.
+    const paragraphLevel = paragraph.properties.level ?? 0;
+    const inheritedPProps =
+      rctx.textDefaults?.levels[paragraphLevel]?.paragraphProperties ??
+      rctx.textDefaults?.defPPr?.paragraphProperties;
+
+    const effectiveMarginLeft = paragraph.properties.marginLeft ?? inheritedPProps?.marginLeft;
+    const effectiveMarginRight = paragraph.properties.marginRight ?? inheritedPProps?.marginRight;
+    const effectiveIndent = paragraph.properties.indent ?? inheritedPProps?.indent;
+    const effectiveSpaceBefore = paragraph.properties.spaceBefore ?? inheritedPProps?.spaceBefore;
+    const effectiveSpaceAfter = paragraph.properties.spaceAfter ?? inheritedPProps?.spaceAfter;
+    const effectiveLineSpacing = paragraph.properties.lineSpacing ?? inheritedPProps?.lineSpacing;
+
+    // Percentage-based space-before/after is relative to the font's "single
+    // spacing" (font size * lineHeight multiplier), not just font size alone.
+    const paraFamily = getParagraphFontFamily(paragraph, rctx);
+    const paraFontSizePx = ptToCanvasPx(fontSizePt, dpiScale);
+    const paraLhMul = getFontLineHeightMultiplier(rctx, paraFamily, paraFontSizePx, false, false);
+    const singleSpacingPt = fontSizePt * paraLhMul;
+    const spaceBeforePx = resolveSpacingPx(effectiveSpaceBefore, singleSpacingPt, dpiScale);
+    const spaceAfterPx = resolveSpacingPx(effectiveSpaceAfter, singleSpacingPt, dpiScale);
+
+    const marginLeftPx = effectiveMarginLeft ? emuToScaledPx(effectiveMarginLeft, rctx) : 0;
+    const marginRightPx = effectiveMarginRight ? emuToScaledPx(effectiveMarginRight, rctx) : 0;
+    const indentPx = effectiveIndent ? emuToScaledPx(effectiveIndent, rctx) : 0;
+
+    // Compute auto-number index if this paragraph uses autoNum bullets.
+    let autoNumIndex: number | undefined;
+    const hasVisibleText = paragraph.runs.some((r) => r.kind === 'run' && r.text.length > 0);
+    const bulletProps =
+      paragraph.bulletProperties ??
+      (hasVisibleText
+        ? (rctx.textDefaults?.levels[paragraphLevel]?.bulletProperties ??
+          rctx.textDefaults?.defPPr?.bulletProperties)
+        : undefined);
+    if (bulletProps?.type === 'autoNum') {
+      const level = paragraph.properties.level ?? 0;
+      for (const key of autoNumCounters.keys()) {
+        if (key > level) {
+          autoNumCounters.delete(key);
+        }
+      }
+      const startAt = bulletProps.startAt ?? 1;
+      const current = autoNumCounters.get(level);
+      if (current == null) {
+        autoNumIndex = startAt;
+      } else {
+        autoNumIndex = current + 1;
+      }
+      autoNumCounters.set(level, autoNumIndex);
+    } else {
+      const level = paragraph.properties.level ?? 0;
+      for (const key of autoNumCounters.keys()) {
+        if (key >= level) {
+          autoNumCounters.delete(key);
+        }
+      }
+    }
+
+    const bullet = measureBullet(paragraph, rctx, fontScale, autoNumIndex, bulletProps);
+    const bulletWidth = bullet ? bullet.widthPx : 0;
+
+    const availableWidth = shouldWrap ? textAreaWidth - marginLeftPx - marginRightPx : Infinity;
+
+    // Resolve tab stops: paragraph-level → inherited from textDefaults.
+    const effectiveTabStops = paragraph.properties.tabStops ?? inheritedPProps?.tabStops;
+
+    // Convert defaultTabSize from EMU to px (body-level property).
+    const defaultTabSizePx =
+      body.defaultTabSize != null ? emuToScaledPx(body.defaultTabSize, rctx) : undefined;
+
+    const lines = wrapParagraph(
+      paragraph,
+      rctx,
+      availableWidth,
+      bulletWidth,
+      fontScale,
+      lnSpcReduction,
+      indentPx,
+      effectiveLineSpacing,
+      defaultTabSizePx,
+      effectiveTabStops
+    );
+
+    const isFirstParagraph = pi === 0;
+    const isLastParagraph = pi === textBody.paragraphs.length - 1;
+    const applyFirstLastSpacing = body.spcFirstLastPara === true;
+    const paragraphHeight =
+      (isFirstParagraph && !applyFirstLastSpacing ? 0 : spaceBeforePx) +
+      lines.reduce((sum, l) => sum + l.heightPx, 0) +
+      (isLastParagraph && !applyFirstLastSpacing ? 0 : spaceAfterPx);
+
+    totalHeight += paragraphHeight;
+  }
+
+  // Return total content height including insets.
+  return topInset + totalHeight + bottomInset;
 }

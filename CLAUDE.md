@@ -156,6 +156,19 @@ Pre-approved for fetching:
 - Deleting production data or databases
 - Modifying secrets/credentials in production
 
+## Compact Instructions
+
+When compacting context, preserve in this priority order:
+1. **Current task** — what's being worked on, files being edited, decisions made
+2. **Test results** — pass/fail status, error messages, stack traces
+3. **Code changes** — diffs, new implementations, refactoring in progress
+4. **Architectural decisions** — why choices were made this session
+5. **Blockers/gotchas** — anything discovered that would be painful to rediscover
+
+Discard freely: exploratory file reads, intermediate search results, raw file contents (can be re-read), verbose build output, dependency resolution logs.
+
+After compaction, re-read `QUICKCONTEXT.md` and `TODO.md` to restore project context.
+
 ## Environment Variables
 
 ```bash

@@ -397,7 +397,11 @@ describe('parseParagraph', () => {
       const para = parseParagraph(el, TEST_THEME);
 
       expect(para.runs).toHaveLength(1);
-      const run = para.runs[0] as { kind: 'run'; text: string; properties: Record<string, unknown> };
+      const run = para.runs[0] as {
+        kind: 'run';
+        text: string;
+        properties: Record<string, unknown>;
+      };
       expect(run.text).toBe('7');
       expect(run.properties.fontSize).toBe(1200);
       expect(run.properties.bold).toBe(true);

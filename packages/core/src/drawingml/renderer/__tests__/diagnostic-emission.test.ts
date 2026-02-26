@@ -79,9 +79,7 @@ function makeSoftEdge(): SoftEdgeIR {
   };
 }
 
-function makePicture(overrides?: {
-  isVideoPlaceholder?: boolean;
-}): PictureIR {
+function makePicture(overrides?: { isVideoPlaceholder?: boolean }): PictureIR {
   const transform: TransformIR = {
     position: { x: 0, y: 0 },
     size: { width: 100 * EMU_PER_PX, height: 80 * EMU_PER_PX },
@@ -260,11 +258,7 @@ describe('fill-renderer — diagnostic emissions', () => {
   it('does not emit diagnostics for solid fill', () => {
     const { rctx, events } = createDiagnosticRenderContext();
 
-    applyFill(
-      { type: 'solid', color: { r: 0, g: 0, b: 0, a: 1 } },
-      rctx,
-      BOUNDS
-    );
+    applyFill({ type: 'solid', color: { r: 0, g: 0, b: 0, a: 1 } }, rctx, BOUNDS);
 
     expect(events).toHaveLength(0);
   });

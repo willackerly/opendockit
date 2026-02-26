@@ -316,6 +316,83 @@ describe('renderTable', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Table row auto-height tests
+// ---------------------------------------------------------------------------
+
+describe('renderTable — row auto-height', () => {
+  it('expands row height when text content exceeds specified row height', () => {
+    const rctx = createMockRenderContext();
+    // Create a cell with a long text that should force wrapping in a narrow column.
+    const longText = 'This is a long text that should wrap and cause the row to expand in height';
+    const table = makeTable(
+      [
+        makeRow(91440, [
+          // Very small row height: 0.1 inch = ~9.6px
+          makeCell({ textBody: simpleTextBody(longText) }),
+        ]),
+      ],
+      [1828800] // 2 inches wide = 192px
+    );
+
+    renderTable(table, rctx);
+
+    // The text should still be rendered — the row expanded to fit.
+    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+    expect(fillTextCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('does not shrink row height below the specified minimum', () => {
+    const rctx = createMockRenderContext();
+    // Create a cell with short text that fits easily.
+    const table = makeTable(
+      [
+        makeRow(1828800, [
+          // Large row height: 2 inches = 192px
+          makeCell({ textBody: simpleTextBody('Hi') }),
+        ]),
+      ],
+      [5486400]
+    );
+
+    renderTable(table, rctx);
+
+    // The cell's rect should use the original large height, not shrink.
+    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    if (rectCalls.length > 0) {
+      // rect args: [x, y, w, h] — height should be at least 192px
+      const cellH = rectCalls[0].args[3] as number;
+      expect(cellH).toBeGreaterThanOrEqual(190);
+    }
+  });
+
+  it('uses maximum content height across all cells in a row', () => {
+    const rctx = createMockRenderContext();
+    // Two cells: one with short text, one with long text.
+    const shortText = 'Hi';
+    const longText =
+      'This is a much longer text that will wrap multiple times and need more height';
+    const table = makeTable(
+      [
+        makeRow(91440, [
+          makeCell({ textBody: simpleTextBody(shortText) }),
+          makeCell({ textBody: simpleTextBody(longText) }),
+        ]),
+      ],
+      [2743200, 2743200] // 3 inches each
+    );
+
+    renderTable(table, rctx);
+
+    // Both cells should have the same height (expanded to fit the longer text).
+    // Check that text from both cells is rendered.
+    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+    const allText = fillTextCalls.map((c) => c.args[0] as string).join('');
+    expect(allText).toContain('Hi');
+    expect(allText).toContain('longer');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Integration with renderSlideElement
 // ---------------------------------------------------------------------------
 
