@@ -260,6 +260,18 @@ function parseBodyProperties(bodyPrElement: XmlElement): BodyPropertiesIR {
     props.spcFirstLastPara = parseBoolAttr(bodyPrElement, 'spcFirstLastPara');
   }
 
+  // Vertical text direction
+  const vert = bodyPrElement.attr('vert');
+  if (vert !== undefined) {
+    props.vert = vert;
+  }
+
+  // Default tab size in EMU
+  const defTabSz = parseIntAttr(bodyPrElement, 'defTabSz');
+  if (defTabSz !== undefined) {
+    props.defaultTabSize = defTabSz;
+  }
+
   // Auto-fit behavior
   if (bodyPrElement.child('a:spAutoFit')) {
     props.autoFit = 'spAutoFit';

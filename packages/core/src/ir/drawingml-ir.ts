@@ -416,6 +416,18 @@ export interface BodyPropertiesIR {
   rotation?: number;
   /** Apply space before first paragraph and space after last paragraph. */
   spcFirstLastPara?: boolean;
+  /** Text direction / vertical text mode (e.g. "horz", "vert", "vert270", "eaVert", "wordArtVert"). */
+  vert?: string;
+  /** Default tab size in EMU (from defTabSz attribute). */
+  defaultTabSize?: number;
+}
+
+/** A tab stop within a paragraph. */
+export interface TabStopIR {
+  /** Position in EMU from left margin. */
+  position: number;
+  /** Tab alignment: left (default), center, right, or decimal. */
+  alignment?: 'l' | 'ctr' | 'r' | 'dec';
 }
 
 /** Spacing value — either in points or as a percentage of font size. */
@@ -459,6 +471,8 @@ export interface ParagraphPropertiesIR {
   lineSpacing?: SpacingIR;
   /** Right-to-left text direction. */
   rtl?: boolean;
+  /** Explicit tab stops defined in the paragraph. */
+  tabStops?: TabStopIR[];
 }
 
 /** Underline style variants from ECMA-376 ST_TextUnderlineType. */

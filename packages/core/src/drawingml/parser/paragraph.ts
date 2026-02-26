@@ -14,6 +14,7 @@ import type {
   ParagraphPropertiesIR,
   BulletPropertiesIR,
   SpacingIR,
+  TabStopIR,
   RunIR,
   LineBreakIR,
 } from '../../ir/index.js';
@@ -173,6 +174,26 @@ export function parseParagraphProperties(pPrElement: XmlElement): ParagraphPrope
     const spacing = parseSpacing(spcAft);
     if (spacing) {
       props.spaceAfter = spacing;
+    }
+  }
+
+  // Tab stops
+  const tabLst = pPrElement.child('a:tabLst');
+  if (tabLst) {
+    const tabStops: TabStopIR[] = [];
+    for (const tabEl of tabLst.allChildren('a:tab')) {
+      const pos = parseIntAttr(tabEl, 'pos');
+      if (pos !== undefined) {
+        const tab: TabStopIR = { position: pos };
+        const algn = tabEl.attr('algn');
+        if (algn === 'l' || algn === 'ctr' || algn === 'r' || algn === 'dec') {
+          tab.alignment = algn;
+        }
+        tabStops.push(tab);
+      }
+    }
+    if (tabStops.length > 0) {
+      props.tabStops = tabStops;
     }
   }
 

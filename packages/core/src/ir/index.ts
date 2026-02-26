@@ -58,6 +58,7 @@ export type {
   // Text
   TextBodyIR,
   BodyPropertiesIR,
+  TabStopIR,
   SpacingIR,
   ParagraphIR,
   ParagraphPropertiesIR,
