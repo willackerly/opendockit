@@ -25,6 +25,7 @@ import type {
   RunIR,
   BulletPropertiesIR,
   CharacterPropertiesIR,
+  FillIR,
   SpacingIR,
   ResolvedColor,
   RgbaColor,
@@ -129,6 +130,20 @@ function resolveFieldText(run: RunIR, rctx: RenderContext): string {
 /** Format a ResolvedColor as a CSS rgba() string. */
 function colorToRgba(c: ResolvedColor): string {
   return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
+}
+
+/**
+ * Resolve the underline color from an underlineFill.
+ *
+ * Only solid fills produce a usable color string. Returns `undefined`
+ * for gradient, pattern, picture, or noFill — the caller should fall
+ * back to the text fill color.
+ */
+function resolveUnderlineFillColor(fill: FillIR | undefined): string | undefined {
+  if (fill && fill.type === 'solid') {
+    return colorToRgba(fill.color);
+  }
+  return undefined;
 }
 
 /**
@@ -1853,13 +1868,15 @@ export function renderTextBody(
 
         // Draw underline.
         if (frag.props.underline && frag.props.underline !== 'none') {
+          const ulColor =
+            resolveUnderlineFillColor(frag.props.underlineFill) ?? frag.fillStyle;
           drawUnderline(
             ctx,
             drawX,
             baselineY + baselineShift,
             renderedWidth,
             fontSizePx,
-            frag.fillStyle,
+            ulColor,
             frag.props.underline
           );
         }

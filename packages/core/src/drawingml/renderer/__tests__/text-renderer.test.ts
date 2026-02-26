@@ -378,6 +378,50 @@ describe('renderTextBody', () => {
     expect(fillRects).toHaveLength(0);
   });
 
+  it('uses underlineFill color for underline when present', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([
+      makeParagraph([
+        makeRun('CustomUL', {
+          underline: 'single',
+          color: { r: 0, g: 0, b: 0, a: 1 }, // text is black
+          underlineFill: {
+            type: 'solid',
+            color: { r: 255, g: 0, b: 0, a: 1 }, // underline is red
+          },
+        }),
+      ]),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    // Underline is drawn as a fillRect — should have been called.
+    const fillRects = filterCalls(rctx.ctx._calls, 'fillRect');
+    expect(fillRects.length).toBeGreaterThanOrEqual(1);
+    // The last fillStyle set should be the underline red color (since underline
+    // is drawn after fillText and is the last drawing operation).
+    expect(rctx.ctx.fillStyle).toBe('rgba(255, 0, 0, 1)');
+  });
+
+  it('falls back to text color when underlineFill is not set', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([
+      makeParagraph([
+        makeRun('DefaultUL', {
+          underline: 'single',
+          color: { r: 0, g: 128, b: 0, a: 1 }, // text is green
+        }),
+      ]),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    // Underline should use the text color (green).
+    const fillRects = filterCalls(rctx.ctx._calls, 'fillRect');
+    expect(fillRects.length).toBeGreaterThanOrEqual(1);
+    expect(rctx.ctx.fillStyle).toBe('rgba(0, 128, 0, 1)');
+  });
+
   // -------------------------------------------------------------------------
   // Strikethrough
   // -------------------------------------------------------------------------

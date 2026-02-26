@@ -20,6 +20,7 @@ import { resolveColorFromParent } from '../../theme/index.js';
 import { resolveThemeFont, isThemeFontRef } from '../../theme/index.js';
 import { parseIntAttr, parseBoolAttr } from '../../xml/index.js';
 import { parseLineFromParent } from './line.js';
+import { parseFill } from './fill.js';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -151,6 +152,17 @@ export function parseCharacterProperties(
   const outline = parseLineFromParent(rPrElement, theme, context);
   if (outline) {
     props.outline = outline;
+  }
+
+  // Underline fill — separate color for the underline decoration.
+  // <a:uFill> contains a fill child (e.g. <a:solidFill>).
+  // <a:uFillTx/> means "use text fill" (the default) — we ignore it.
+  const uFillEl = rPrElement.child('a:uFill');
+  if (uFillEl) {
+    const uFill = parseFill(uFillEl, theme, context);
+    if (uFill) {
+      props.underlineFill = uFill;
+    }
   }
 
   // Font references (latin, ea, cs)

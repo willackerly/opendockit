@@ -504,6 +504,17 @@ export interface CharacterPropertiesIR {
   bold?: boolean;
   italic?: boolean;
   underline?: UnderlineStyle;
+  /**
+   * Underline fill — separate color for the underline decoration.
+   *
+   * Parsed from `<a:uFill>` on `<a:rPr>`. When present, the underline
+   * uses this fill color instead of the text fill color. Only solid fills
+   * are practically useful; other fill types are parsed but ignored at
+   * render time.
+   *
+   * `<a:uFillTx/>` (use text fill) is the default and is NOT stored here.
+   */
+  underlineFill?: FillIR;
   strikethrough?: 'none' | 'single' | 'double';
   color?: ResolvedColor;
   highlight?: ResolvedColor;

@@ -284,6 +284,72 @@ describe('parseCharacterProperties', () => {
     expect(props.fontFamily).toBeUndefined();
   });
 
+  it('parses underline fill from a:uFill with solidFill', () => {
+    const el = parseXml(
+      `<a:rPr ${NS} u="sng">
+        <a:solidFill><a:srgbClr val="000000"/></a:solidFill>
+        <a:uFill>
+          <a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>
+        </a:uFill>
+      </a:rPr>`
+    );
+    const props = parseCharacterProperties(el, TEST_THEME);
+
+    expect(props.underline).toBe('single');
+    expect(props.color).toEqual({ r: 0, g: 0, b: 0, a: 1 });
+    expect(props.underlineFill).toBeDefined();
+    expect(props.underlineFill!.type).toBe('solid');
+    if (props.underlineFill!.type === 'solid') {
+      expect(props.underlineFill!.color.r).toBe(255);
+      expect(props.underlineFill!.color.g).toBe(0);
+      expect(props.underlineFill!.color.b).toBe(0);
+    }
+  });
+
+  it('parses underline fill from a:uFill with scheme color', () => {
+    const el = parseXml(
+      `<a:rPr ${NS} u="sng">
+        <a:uFill>
+          <a:solidFill><a:schemeClr val="accent2"/></a:solidFill>
+        </a:uFill>
+      </a:rPr>`
+    );
+    const props = parseCharacterProperties(el, TEST_THEME);
+
+    expect(props.underlineFill).toBeDefined();
+    expect(props.underlineFill!.type).toBe('solid');
+    if (props.underlineFill!.type === 'solid') {
+      expect(props.underlineFill!.color.r).toBe(237);
+      expect(props.underlineFill!.color.g).toBe(125);
+      expect(props.underlineFill!.color.b).toBe(49);
+    }
+  });
+
+  it('does not set underlineFill when a:uFillTx is present (follow text)', () => {
+    const el = parseXml(
+      `<a:rPr ${NS} u="sng">
+        <a:solidFill><a:srgbClr val="000000"/></a:solidFill>
+        <a:uFillTx/>
+      </a:rPr>`
+    );
+    const props = parseCharacterProperties(el, TEST_THEME);
+
+    expect(props.underline).toBe('single');
+    expect(props.underlineFill).toBeUndefined();
+  });
+
+  it('does not set underlineFill when no a:uFill is present', () => {
+    const el = parseXml(
+      `<a:rPr ${NS} u="sng">
+        <a:solidFill><a:srgbClr val="000000"/></a:solidFill>
+      </a:rPr>`
+    );
+    const props = parseCharacterProperties(el, TEST_THEME);
+
+    expect(props.underline).toBe('single');
+    expect(props.underlineFill).toBeUndefined();
+  });
+
   it('parses all character properties together', () => {
     const el = parseXml(
       `<a:rPr ${NS} sz="2400" b="1" i="1" u="sng" strike="sngStrike" baseline="30000" spc="50">
