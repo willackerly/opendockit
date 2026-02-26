@@ -139,8 +139,8 @@ Found by property-by-property audit of real-world PPTX XML vs parser/renderer.
 - [x] `vert` — text direction (`<a:bodyPr vert="vert270">`) parsed + rendered via canvas rotation (2026-02-25)
 - [x] `rtl` — now consumed by text renderer with alignment mirroring + bullet repositioning (2026-02-25)
 - [x] `defTabSz` / `a:tabLst` (tab stops) — parsed + rendered with explicit stops and default grid (2026-02-25)
-- [ ] `a:highlight` color — now rendered, but underline color from `<a:uFill>` not yet parsed
-- [ ] `a:ln` on `a:rPr` (text outline) — not parsed
+- [x] `a:uFill` — underline fill color parsed and rendered (2026-02-25)
+- [x] `a:ln` on `a:rPr` (text outline) — parsed and rendered via strokeText (2026-02-25)
 - [ ] `a:effectLst` on `a:rPr` (text shadow/glow/reflection) — not parsed
 - [ ] `numCol` / `spcCol` on `a:bodyPr` — parsed into IR but not consumed (multi-column text bodies)
 - [ ] Underline/strikethrough position — uses geometric heuristic (15%/30% of font size), not OS/2 font metrics
@@ -165,7 +165,7 @@ Deep investigation of top-10 RMSE slides confirms:
 
 ### Phase 4: Charts + Export
 
-- [ ] ChartML parser and renderer (bar, pie, line, scatter, combo)
+- [ ] ChartML parser and renderer (bar, pie, line, scatter, combo) — cached image fallback renders chart previews (2026-02-25)
 - [ ] CanvasKit WASM integration (3D effects, reflections, advanced filters)
 - [ ] Slide transitions (fade, push, wipe, etc.)
 - [ ] RenderBackend abstraction + PDF export
