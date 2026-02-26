@@ -18,3 +18,4 @@ export { parseGroup, parseShapeTreeChildren } from './group.js';
 export { parseStyleReference } from './style-reference.js';
 export { parseTable, parseTableRow, parseTableCell, parseTableCellBorders } from './table.js';
 export { parseHyperlink } from './run.js';
+export { parseDiagramDrawing, parseDiagramShapeTree } from './diagram-drawing.js';

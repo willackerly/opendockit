@@ -43,6 +43,10 @@ export const REL_VIEW_PROPS =
 export const REL_TABLE_STYLES =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles';
 export const REL_FONT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/font';
+export const REL_DIAGRAM_DATA =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
+export const REL_DIAGRAM_DRAWING =
+  'http://schemas.microsoft.com/office/2007/relationships/diagramDrawing';
 
 // ---------------------------------------------------------------------------
 // Public interfaces

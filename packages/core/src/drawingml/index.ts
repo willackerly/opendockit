@@ -29,6 +29,8 @@ export {
   parseTableRow,
   parseTableCell,
   parseTableCellBorders,
+  parseDiagramDrawing,
+  parseDiagramShapeTree,
 } from './parser/index.js';
 export type { GroupTransformResult } from './parser/index.js';
 

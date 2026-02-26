@@ -50,7 +50,10 @@ export function parseStyleReference(
   parentElement: XmlElement,
   theme: ThemeIR
 ): StyleReferenceIR | undefined {
-  const styleEl = parentElement.child('p:style') ?? parentElement.child('a:style');
+  const styleEl =
+    parentElement.child('p:style') ??
+    parentElement.child('a:style') ??
+    parentElement.child('dsp:style');
   if (!styleEl) {
     return undefined;
   }

@@ -31,6 +31,8 @@ export {
   REL_VIEW_PROPS,
   REL_TABLE_STYLES,
   REL_FONT,
+  REL_DIAGRAM_DATA,
+  REL_DIAGRAM_DRAWING,
 } from './relationship-resolver.js';
 export type { Relationship, RelationshipMap } from './relationship-resolver.js';
 

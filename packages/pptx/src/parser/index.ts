@@ -11,3 +11,4 @@ export { parseSlideLayout } from './slide-layout.js';
 export { parseSlide, parseNotesText, extractNotesText } from './slide.js';
 export { parseBackground } from './background.js';
 export { parseColorMap, parseColorMapOverride } from './color-map.js';
+export { resolveSmartArtFallbacks } from './smartart-fallback.js';

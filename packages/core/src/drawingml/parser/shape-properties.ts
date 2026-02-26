@@ -74,7 +74,10 @@ export function parseShapePropertiesFromParent(
   theme: ThemeIR,
   context?: ColorContext
 ): ShapePropertiesIR {
-  const spPr = parentElement.child('p:spPr') ?? parentElement.child('a:spPr');
+  const spPr =
+    parentElement.child('p:spPr') ??
+    parentElement.child('a:spPr') ??
+    parentElement.child('dsp:spPr');
   if (!spPr) {
     return { effects: [] };
   }

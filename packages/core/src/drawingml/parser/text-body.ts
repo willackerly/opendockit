@@ -132,7 +132,10 @@ export function parseTextBodyFromParent(
   theme: ThemeIR,
   context?: ColorContext
 ): TextBodyIR | undefined {
-  const txBody = parentElement.child('p:txBody') ?? parentElement.child('a:txBody');
+  const txBody =
+    parentElement.child('p:txBody') ??
+    parentElement.child('a:txBody') ??
+    parentElement.child('dsp:txBody');
   if (!txBody) {
     return undefined;
   }

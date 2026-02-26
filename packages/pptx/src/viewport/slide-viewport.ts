@@ -56,6 +56,7 @@ import type {
 } from '../model/index.js';
 import { parsePresentation } from '../parser/presentation.js';
 import { parseSlide, parseNotesText } from '../parser/slide.js';
+import { resolveSmartArtFallbacks } from '../parser/smartart-fallback.js';
 import { parseSlideLayout } from '../parser/slide-layout.js';
 import { parseSlideMaster } from '../parser/slide-master.js';
 import { renderSlide } from '../renderer/index.js';
@@ -687,6 +688,9 @@ export class SlideKit {
     const slideXml = await pkg.getPartXml(partUri);
     const theme = this._presentation!.theme;
     const slide = parseSlide(slideXml, partUri, layoutPartUri, masterPartUri, theme);
+
+    // Resolve SmartArt fallback drawings (replaces UnsupportedIR with GroupIR).
+    await resolveSmartArtFallbacks(slide, slideXml, pkg, partUri, theme);
 
     // Parse speaker notes (if present) from the notesSlide relationship.
     const notes = await parseNotesText(pkg, partUri);
