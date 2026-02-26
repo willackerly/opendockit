@@ -1290,6 +1290,16 @@ export class SlideKit {
       message: `Font "${fontName}" not loaded; using substitution`,
       context: { elementType: 'font' },
     });
+    // Also emit missing-font when the font has no metrics in the DB,
+    // which means text measurement will use Canvas2D approximations.
+    if (!this._fontMetricsDB.hasMetrics(fontName)) {
+      this._diagnostics.emit({
+        category: 'missing-font',
+        severity: 'warning',
+        message: `Font "${fontName}" not found in metrics database; text measurement may be inaccurate`,
+        context: { elementType: 'font' },
+      });
+    }
     return resolveFontName(fontName);
   }
 

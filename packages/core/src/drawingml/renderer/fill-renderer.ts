@@ -113,6 +113,12 @@ export function applyFill(
     case 'pattern': {
       // Simplified: fill with the foreground color. Full pattern rendering
       // (creating pattern canvases for each preset) is deferred.
+      rctx.diagnostics?.emit({
+        category: 'partial-rendering',
+        severity: 'info',
+        message: `Pattern fill "${fillIR.preset}" rendered as solid foreground color`,
+        context: { slideNumber: rctx.slideNumber, elementType: 'fill' },
+      });
       ctx.fillStyle = colorToRgba(fillIR.foreground);
       path ? ctx.fill(path) : ctx.fill();
       break;
@@ -121,6 +127,12 @@ export function applyFill(
     case 'picture': {
       // Picture fills require async image loading from the media cache.
       // For now, skip — the picture-renderer will handle image fills.
+      rctx.diagnostics?.emit({
+        category: 'partial-rendering',
+        severity: 'warning',
+        message: 'Picture fill not yet implemented; skipped',
+        context: { slideNumber: rctx.slideNumber, elementType: 'fill' },
+      });
       break;
     }
 

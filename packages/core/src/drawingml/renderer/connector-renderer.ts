@@ -150,6 +150,18 @@ export function renderConnector(connector: ConnectorIR, rctx: RenderContext): vo
   const w = emuToScaledPx(transform.size.width, rctx);
   const h = emuToScaledPx(transform.size.height, rctx);
 
+  // Emit diagnostic for non-snapped connectors — the connector has no
+  // connection reference to a shape, so endpoints are absolute positions
+  // rather than dynamically following the connected shapes.
+  if (!connector.startConnection && !connector.endConnection) {
+    rctx.diagnostics?.emit({
+      category: 'partial-rendering',
+      severity: 'info',
+      message: 'Connector has no snapped endpoints; rendered with absolute positions',
+      context: { slideNumber: rctx.slideNumber, elementType: 'connector' },
+    });
+  }
+
   ctx.save();
 
   // Apply rotation and flips if present.

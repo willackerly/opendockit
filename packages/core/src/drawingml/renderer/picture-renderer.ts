@@ -80,7 +80,19 @@ export function renderPicture(pictureIR: PictureIR, rctx: RenderContext): void {
 
   if (!media || !isDrawableImage(media)) {
     // Skip video poster frames when no image is available (or degenerate).
-    if (pictureIR.isVideoPlaceholder) return;
+    if (pictureIR.isVideoPlaceholder) {
+      rctx.diagnostics?.emit({
+        category: 'partial-rendering',
+        severity: 'info',
+        message: 'Video placeholder skipped (no image available)',
+        context: {
+          slideNumber: rctx.slideNumber,
+          shapeName: pictureIR.nonVisualProperties?.name,
+          elementType: 'video',
+        },
+      });
+      return;
+    }
     drawPlaceholder(ctx, dx, dy, dw, dh);
     return;
   }
@@ -94,7 +106,19 @@ export function renderPicture(pictureIR: PictureIR, rctx: RenderContext): void {
     // Skip if the poster image is tiny compared to the target area.
     // A real screenshot will have resolution close to the slide dimensions;
     // a degenerate placeholder will be much smaller (e.g., 240x240).
-    if (img.width < 480 && img.height < 480) return;
+    if (img.width < 480 && img.height < 480) {
+      rctx.diagnostics?.emit({
+        category: 'partial-rendering',
+        severity: 'info',
+        message: `Video placeholder skipped (degenerate poster ${img.width}x${img.height})`,
+        context: {
+          slideNumber: rctx.slideNumber,
+          shapeName: pictureIR.nonVisualProperties?.name,
+          elementType: 'video',
+        },
+      });
+      return;
+    }
   }
 
   const image = media as CanvasImageSource & {

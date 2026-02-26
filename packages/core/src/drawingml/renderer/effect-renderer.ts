@@ -109,17 +109,35 @@ export function applyEffects(
         // Canvas2D has no native inner shadow support. An inner shadow
         // can be faked using clip + inverted path + shadow, but this is
         // complex and deferred to a future WASM-accelerated path.
+        rctx.diagnostics?.emit({
+          category: 'partial-rendering',
+          severity: 'warning',
+          message: 'Inner shadow effect not supported by Canvas2D; skipped',
+          context: { slideNumber: rctx.slideNumber, elementType: 'effect' },
+        });
         break;
 
       case 'reflection':
         // Reflection requires drawing the shape a second time with a
         // vertical flip, gradient alpha mask, and offset. Deferred to
         // Phase 4 (WASM compositing).
+        rctx.diagnostics?.emit({
+          category: 'partial-rendering',
+          severity: 'warning',
+          message: 'Reflection effect not supported by Canvas2D; skipped',
+          context: { slideNumber: rctx.slideNumber, elementType: 'effect' },
+        });
         break;
 
       case 'softEdge':
         // Soft edge feathering requires per-pixel alpha manipulation,
         // best handled via OffscreenCanvas or WASM. Deferred.
+        rctx.diagnostics?.emit({
+          category: 'partial-rendering',
+          severity: 'warning',
+          message: 'Soft edge effect not supported by Canvas2D; skipped',
+          context: { slideNumber: rctx.slideNumber, elementType: 'effect' },
+        });
         break;
     }
   }
