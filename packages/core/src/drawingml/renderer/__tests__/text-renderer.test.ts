@@ -442,6 +442,116 @@ describe('renderTextBody', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Theme font placeholder resolution
+  // -------------------------------------------------------------------------
+
+  it('resolves +mj-lt theme font placeholder to major Latin font', () => {
+    const rctx = createMockRenderContext();
+    // Simulate an unresolved theme ref: fontFamily not set, latin has placeholder.
+    const body = makeTextBody([
+      makeParagraph([makeRun('ThemeFont', { fontFamily: undefined, latin: '+mj-lt' })]),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    // The mock theme has majorLatin: 'Calibri Light'.
+    // Since resolveFont is identity, the font string should contain 'Calibri Light'.
+    expect(rctx.ctx.font).toContain('Calibri Light');
+    expect(rctx.ctx.font).not.toContain('+mj-lt');
+  });
+
+  it('resolves +mn-lt theme font placeholder to minor Latin font', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([
+      makeParagraph([makeRun('MinorFont', { fontFamily: undefined, latin: '+mn-lt' })]),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    // The mock theme has minorLatin: 'Calibri'.
+    expect(rctx.ctx.font).toContain('Calibri');
+    expect(rctx.ctx.font).not.toContain('+mn-lt');
+  });
+
+  it('resolves theme font placeholder in fontFamily field', () => {
+    const rctx = createMockRenderContext();
+    // Even if fontFamily itself has the placeholder (edge case).
+    const body = makeTextBody([
+      makeParagraph([makeRun('ThemeFamilyRef', { fontFamily: '+mj-lt', latin: undefined })]),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    expect(rctx.ctx.font).toContain('Calibri Light');
+    expect(rctx.ctx.font).not.toContain('+mj-lt');
+  });
+
+  it('passes through unresolvable theme font ref gracefully', () => {
+    const rctx = createMockRenderContext();
+    // +mn-cs is not defined in the minimal mock theme (no minorComplexScript).
+    const body = makeTextBody([
+      makeParagraph([makeRun('CSFont', { fontFamily: undefined, latin: '+mn-cs' })]),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    // Should fall through to the original placeholder (not crash), since the
+    // theme doesn't have minorComplexScript defined.
+    const allText = allFillTexts(rctx.ctx._calls);
+    expect(allText).toContain('CSFont');
+  });
+
+  it('resolves theme font placeholder in textDefaults', () => {
+    const rctx = createMockRenderContext();
+    // Set textDefaults with a theme font ref in defaultCharacterProperties.
+    rctx.textDefaults = {
+      levels: {
+        0: {
+          defaultCharacterProperties: {
+            fontFamily: undefined,
+            latin: '+mj-lt',
+            fontSize: 1800,
+          },
+        },
+      },
+    };
+    // Run with no explicit font — should inherit from textDefaults.
+    const body = makeTextBody([
+      makeParagraph([makeRun('Inherited', { fontFamily: undefined, latin: undefined })]),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    expect(rctx.ctx.font).toContain('Calibri Light');
+    expect(rctx.ctx.font).not.toContain('+mj-lt');
+  });
+
+  it('resolves theme font placeholder in bullet font', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([
+      makeParagraph([makeRun('BulletItem')], 'left', {
+        bulletProperties: {
+          type: 'char',
+          char: '\u2022',
+          font: '+mn-lt',
+        },
+      }),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    // The bullet should render, and its font should be resolved.
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const bulletCall = fillTexts.find((c) => (c.args[0] as string).includes('\u2022'));
+    expect(bulletCall).toBeDefined();
+    // The bullet's font shouldn't contain the raw placeholder.
+    // Note: We can't easily check the bullet's font string directly since
+    // ctx.font is overwritten by subsequent runs, but we verify no crash.
+    const allText = allFillTexts(rctx.ctx._calls);
+    expect(allText).toContain('BulletItem');
+  });
+
+  // -------------------------------------------------------------------------
   // Space before/after
   // -------------------------------------------------------------------------
 

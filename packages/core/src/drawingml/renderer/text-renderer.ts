@@ -33,6 +33,8 @@ import type {
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
 import { hundredthsPtToPt } from '../../units/index.js';
+import { resolveThemeFont } from '../../theme/font-resolver.js';
+import type { ThemeIR } from '../../ir/index.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -58,6 +60,28 @@ const DEFAULT_LINE_SPACING_PCT = 100;
 
 /** Default hyperlink color (OOXML hlink theme color fallback). */
 const DEFAULT_HYPERLINK_COLOR = 'rgba(5, 99, 193, 1)';
+
+// ---------------------------------------------------------------------------
+// Theme font placeholder resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a font family name that may be a theme font placeholder.
+ *
+ * OOXML allows typeface values like `+mj-lt` (major Latin), `+mn-lt`
+ * (minor Latin), `+mn-cs` (minor Complex Script), etc. These must be
+ * resolved to actual font names from the theme's font scheme before
+ * being passed to the font resolver or Canvas2D.
+ *
+ * @param family - The raw font family string (may be a theme placeholder)
+ * @param theme - The presentation theme (optional; if absent, returns as-is)
+ * @returns The resolved font name, or the original string if not a placeholder
+ */
+function resolveThemeFontFamily(family: string, theme?: ThemeIR): string {
+  if (!theme || !family) return family;
+  const resolved = resolveThemeFont(family, theme);
+  return resolved ?? family;
+}
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -183,6 +207,8 @@ function buildFontString(
       td.defPPr?.defaultCharacterProperties?.latin;
   }
   family = family || 'sans-serif';
+  // Resolve theme font placeholders (+mj-lt, +mn-lt, etc.) to actual names.
+  family = resolveThemeFontFamily(family, rctx?.theme);
   const resolved = resolveFont(family);
   // Do NOT wrap resolved in quotes — resolveFontName() already returns a
   // properly formatted CSS font-family string (e.g. `'Barlow Light', sans-serif`
@@ -354,22 +380,22 @@ function getParagraphFontSizePt(
 function getParagraphFontFamily(paragraph: ParagraphIR, rctx?: RenderContext): string {
   for (const run of paragraph.runs) {
     const family = run.properties.fontFamily ?? run.properties.latin;
-    if (family) return family;
+    if (family) return resolveThemeFontFamily(family, rctx?.theme);
   }
   // For empty paragraphs, use the end-of-paragraph font family.
   if (paragraph.endParaProperties) {
     const family = paragraph.endParaProperties.fontFamily ?? paragraph.endParaProperties.latin;
-    if (family) return family;
+    if (family) return resolveThemeFontFamily(family, rctx?.theme);
   }
   const level = paragraph.properties.level ?? 0;
   const inherited = rctx?.textDefaults;
-  return (
+  const raw =
     inherited?.levels[level]?.defaultCharacterProperties?.fontFamily ??
     inherited?.levels[level]?.defaultCharacterProperties?.latin ??
     inherited?.defPPr?.defaultCharacterProperties?.fontFamily ??
     inherited?.defPPr?.defaultCharacterProperties?.latin ??
-    'sans-serif'
-  );
+    'sans-serif';
+  return resolveThemeFontFamily(raw, rctx?.theme);
 }
 
 /**
@@ -620,6 +646,8 @@ function wrapParagraph(
         td.defPPr?.defaultCharacterProperties?.latin;
     }
     rawFamily = rawFamily || 'sans-serif';
+    // Resolve theme font placeholders (+mj-lt, +mn-lt, etc.) to actual names.
+    rawFamily = resolveThemeFontFamily(rawFamily, rctx.theme);
     const fontSizePx = ptToCanvasPx(fontSizePt, dpiScale);
 
     // Compute line height using the font's natural line height multiplier.
@@ -853,10 +881,12 @@ function wrapParagraph(
     const endParaSizePt = hundredthsPtToPt(paragraph.endParaProperties.fontSize);
     const scaledSizePt = fontScale != null ? endParaSizePt * (fontScale / 100) : endParaSizePt;
     const endParaSizePx = ptToCanvasPx(scaledSizePt, dpiScale);
-    const endParaFamily =
-      paragraph.endParaProperties.fontFamily ??
-      paragraph.endParaProperties.latin ??
-      getParagraphFontFamily(paragraph, rctx);
+    const endParaFamily = resolveThemeFontFamily(
+      paragraph.endParaProperties.fontFamily
+        ?? paragraph.endParaProperties.latin
+        ?? getParagraphFontFamily(paragraph, rctx),
+      rctx.theme
+    );
     const endParaLhMul = getFontLineHeightMultiplier(
       rctx,
       endParaFamily,
@@ -1006,7 +1036,7 @@ function measureBullet(
     ? bullet.sizePoints
     : paragraphFontSizePt * ((bullet.sizePercent ?? 100) / 100);
 
-  const fontFamily = bullet.font || 'sans-serif';
+  const fontFamily = resolveThemeFontFamily(bullet.font || 'sans-serif', rctx.theme);
   const resolved = rctx.resolveFont(fontFamily);
   const bulletFontSizePx = ptToCanvasPx(bulletFontSizePt, rctx.dpiScale);
   const fontString = `${bulletFontSizePx}px "${resolved}"`;
