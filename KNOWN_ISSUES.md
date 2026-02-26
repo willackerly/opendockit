@@ -1,6 +1,6 @@
 # Known Issues
 
-**Last updated:** 2026-02-25
+**Last updated:** 2026-02-26
 
 ## Active Blockers
 
@@ -14,12 +14,6 @@ None.
 - Visual impact: connector start/end points may be a few pixels off
 - Fix requires: shape position registry + connection site geometry lookup per preset shape
 
-### Placeholder Inherited Content — DONE (2026-02-25)
-
-- ~~Slide elements referencing placeholders inherit text defaults but not text content~~
-- Empty slide placeholders now inherit text content (paragraphs) from layout/master cascade
-- `hasTextContent()` detects meaningful content vs. empty text bodies
-
 ### Text Property Gaps (from XML audit)
 
 - `<a:buSzPts>` (absolute bullet size) — parsed (2026-02-24)
@@ -32,6 +26,14 @@ None.
 - `cap` (capitalization) — now parsed with all-caps and small-caps support (2026-02-24)
 - Space-after on last paragraph — now correctly omitted per spec (2026-02-24)
 - `a:endParaRPr` — now parsed for correct empty paragraph sizing (2026-02-24)
+- `a:uFill` — underline fill color parsed and rendered (2026-02-26)
+- `a:ln` on `a:rPr` (text outline) — parsed and rendered via strokeText (2026-02-26)
+- **Remaining gaps:** `a:effectLst` on `a:rPr` (text shadow/glow/reflection), `numCol`/`spcCol` (multi-column text bodies), underline/strikethrough positioning (geometric heuristic, not OS/2 metrics)
+
+### SmartArt & Charts
+
+- **SmartArt fallback** — DONE (2026-02-25): pre-rendered DrawingML from `dsp:drawing`/`dsp:spTree` parts parsed and rendered. Full layout engine deferred.
+- **Chart cached image fallback** — DONE (2026-02-26): follows slide→chart→cached raster image relationship chain. Full ChartML parser deferred to Phase 4.
 
 ### Visual Regression Targets (IC CISO deck)
 

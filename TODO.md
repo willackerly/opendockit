@@ -1,6 +1,6 @@
 # TODO
 
-**Last synced:** 2026-02-24
+**Last synced:** 2026-02-26
 
 ## Completed
 
@@ -107,6 +107,11 @@ fixed, and verified with RMSE improvement before moving to other work.
 - [x] **Placeholder inherited content** — empty slide placeholders inherit text content from layout/master cascade (2026-02-25)
 - [x] **Theme font placeholders** — resolve +mj-lt/+mn-lt/+mn-cs to actual font names via theme (2026-02-25)
 - [x] **SmartArt fallback rendering** — parse pre-rendered DrawingML from diagram drawing parts (2026-02-25)
+- [x] **Chart cached image fallback** — follow relationship chain slide→chart→cached raster image (2026-02-26)
+- [x] **Text outline rendering** — `a:ln` on `a:rPr` parsed as LineIR, rendered via strokeText (2026-02-26)
+- [x] **Underline fill color** — `a:uFill` on `a:rPr` provides separate underline color from text fill (2026-02-26)
+- [x] **Corpus visual regression pipeline** — 10-file self-referential baseline system with `pnpm test:visual:corpus` (2026-02-26)
+- [x] **Element inspector** — click-to-highlight in viewer with z-order hit testing, group recursion, tooltip (2026-02-26)
 
 ## Deferred (Not Blocking)
 
@@ -165,12 +170,11 @@ Deep investigation of top-10 RMSE slides confirms:
 
 ### Phase 4: Charts + Export
 
-- [ ] ChartML parser and renderer (bar, pie, line, scatter, combo) — cached image fallback renders chart previews (2026-02-25)
+- [ ] Full ChartML parser and renderer (bar, pie, line, scatter, combo) — cached image fallback already renders chart previews (2026-02-26)
 - [ ] CanvasKit WASM integration (3D effects, reflections, advanced filters)
 - [ ] Slide transitions (fade, push, wipe, etc.)
 - [ ] RenderBackend abstraction + PDF export
 - [ ] SVG export
-- [ ] SmartArt (dgm:relIds -> diagram layout engine — very complex, may need dedicated WASM)
 
 ### Phase 5: DOCX
 

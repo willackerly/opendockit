@@ -111,14 +111,15 @@ Multiple agents work async on this codebase. Docs drift when agents complete wor
 
 `test-data/` holds PPTX/DOCX/XLSX test fixtures. `docs/` mirrors the project hierarchy.
 
-## Active Workstreams (2026-02-17)
+## Active Workstreams (2026-02-26)
 
 - **Phase 0: Core Foundation (COMPLETE)** — OPC reader, XML parser, units, IR types, theme engine, color resolver, font resolver
 - **Phase 1: DrawingML Pipeline (COMPLETE)** — All parsers, 187 preset geometries, Canvas2D renderers, media cache
 - **Phase 2: PPTX Integration (COMPLETE)** — PresentationML parser, slide renderer, SlideKit API
-- **Phase 3: Progressive Fidelity (IN PROGRESS)** — Capability registry, WASM loader, tables, connectors, auto-fit done; placeholder resolution + style refs remaining
-- **Visual Validation (IN PROGRESS)** — Dev harness page for loading PPTX and rendering slides
-- **Phase 4: Charts + Export (planned)** — ChartML, CanvasKit WASM, transitions, PDF/SVG export
+- **Phase 3: Progressive Fidelity (COMPLETE)** — Capability registry, WASM loader, tables, connectors, auto-fit, placeholder resolution, style refs, hyperlinks, notes, visual regression pipeline
+- **Phase 3.5: Diagnostics & Polish (COMPLETE)** — DiagnosticEmitter, vert/RTL text, tab stops, table auto-height, spAutoFit, placeholder content inheritance, theme fonts, SmartArt fallback, chart cached image fallback, text outline, underline fill, element inspector
+- **Visual Validation (COMPLETE)** — Dev harness with element inspector, 54-slide PDF-referenced regression (`pnpm test:visual`), 10-file corpus self-referential regression (`pnpm test:visual:corpus`), 1,435 tests passing
+- **Phase 4: Charts + Export (planned)** — Full ChartML parser (cached image fallback already done), CanvasKit WASM, transitions, PDF/SVG export
 - **DOCX support (future)** — WordprocessingML parser + page layout engine, reuses ~40% of core
 - **XLSX support (future)** — SpreadsheetML parser + grid layout, reuses ~35% of core
 

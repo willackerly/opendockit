@@ -1,8 +1,8 @@
 # Quick Context
 
-**Last updated:** 2026-02-25
+**Last updated:** 2026-02-26
 **Branch:** main
-**Phase:** 3.5 complete — diagnostics, vert text, RTL, tab stops, table auto-height, spAutoFit, placeholder content, theme fonts, SmartArt fallback all landed
+**Phase:** 3.5 complete — all diagnostics, text features, SmartArt/chart fallbacks, inspector landed
 
 ## What Is This?
 
@@ -13,9 +13,10 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer. It reads 
 The full PPTX rendering pipeline is implemented, tested, and visually validated:
 
 - **1,435 tests** passing (1,322 core + 113 pptx), typecheck clean
-- **Visual regression**: 54-slide real-world PPTX with per-slide RMSE baselines and regression guard (`pnpm test:visual`). Visual-compare uses bundled WOFF2 fonts (same as production) for accurate comparison.
-- **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (42 families, 130 faces) + bundled WOFF2 fonts (42 families, ~5MB, 100% offline), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks, video placeholder detection, field codes), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation + font-metric-based line height + ascender baseline positioning, media cache, capability registry, WASM module loader
-- **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance + table textDefaults), SlideKit viewport API (hyperlinks, notes)
+- **Visual regression**: 54-slide real-world PPTX with per-slide RMSE baselines (`pnpm test:visual`) + 10-file corpus (67 slides) with self-referential regression guard (`pnpm test:visual:corpus`)
+- **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (42 families, 130 faces) + bundled WOFF2 fonts (42 families, ~5MB, 100% offline), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks, video placeholder detection, field codes, diagram drawing), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation + font-metric-based line height + ascender baseline positioning + text outline + underline fill color, media cache, capability registry, WASM module loader, diagnostics system (DiagnosticEmitter + RenderContext wiring)
+- **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance + table textDefaults), SlideKit viewport API (hyperlinks, notes, element inspector), SmartArt fallback renderer, chart cached image fallback renderer
+- **Dev tools**: Element inspector in viewer (click-to-highlight with z-order hit testing, group recursion, tooltip with kind/name/position/layer)
 
 ### Font System
 
@@ -31,29 +32,29 @@ Precomputed font metrics for accurate text layout without actual fonts installed
 - Coverage: all major Office fonts (via OFL substitutes), Google Fonts families, and common presentation fonts
 - Gaps (no OFL replacement): Verdana, Trebuchet MS, Tahoma, Aptos, Corbel/Candara/Constantia
 - Extraction: `scripts/extract-font-metrics.mjs` | Bundling: `scripts/bundle-woff2-fonts.py`
+- Theme font placeholders (`+mj-lt`, `+mn-lt`, `+mn-cs`) resolved to actual font names via theme
 
 ### Visual Regression Pipeline
 
-- Script: `pnpm test:visual` (or `node scripts/visual-compare.mjs`)
-- Renders 54-slide PPTX via headless Chromium, compares against PDF reference PNGs using ImageMagick RMSE
-- Per-slide baselines with regression guard: fails on RMSE increase > 0.008 threshold
-- `--update-baselines` flag to lock in improvements after intentional changes
+- **PDF-referenced**: `pnpm test:visual` — renders 54-slide PPTX via headless Chromium, compares against PDF reference PNGs using ImageMagick RMSE. Per-slide baselines with regression guard (fails on RMSE increase > 0.008 threshold). `--update-baselines` flag to lock in improvements.
+- **Self-referential corpus**: `pnpm test:visual:corpus` — renders 10 corpus PPTX files (67 slides), bootstraps baselines on first run, detects regressions on subsequent runs (RMSE threshold 0.003). Baselines stored in `test-data/corpus-baselines/` (gitignored).
 
 ## What's Next
 
 ### Deferred (not blocking — tackle when needed)
 
 1. **Connector routing** — shape-to-shape endpoint resolution via connection sites (current: connectors render but endpoints are edge-of-bounding-box, not snapped to connection site geometry)
-2. **Broader visual test corpus** — 10 corpus PPTX files exist, need RMSE baselines + regression guard script
-3. **Corpus visual regression** — infrastructure 90% in place, needs self-referential baseline script (~2h)
+2. **Text effects on runs** — `a:effectLst` on `a:rPr` (text shadow/glow/reflection) not parsed
+3. **Multi-column text bodies** — `numCol`/`spcCol` parsed into IR but not consumed
+4. **Synthetic test fixtures** — PPTX files targeting specific features in isolation
 
 ### Phase 4: Charts + Export (future)
 
-7. **ChartML** parser and renderer
-8. **CanvasKit** WASM integration (3D effects, reflections, advanced filters)
-9. **Slide transitions**
-10. **PDF export** via RenderBackend abstraction
-11. **SVG export**
+1. **Full ChartML** parser and renderer (bar, pie, line, scatter, combo) — cached image fallback already renders chart previews
+2. **CanvasKit** WASM integration (3D effects, reflections, advanced filters)
+3. **Slide transitions**
+4. **PDF export** via RenderBackend abstraction
+5. **SVG export**
 
 ## Key Architecture Decisions
 
