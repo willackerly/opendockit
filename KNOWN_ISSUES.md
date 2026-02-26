@@ -1,6 +1,6 @@
 # Known Issues
 
-**Last updated:** 2026-02-24
+**Last updated:** 2026-02-25
 
 ## Active Blockers
 
@@ -32,7 +32,7 @@ None.
 - Table cell margins (`marL/marR/marT/marB` on `<a:tcPr>`) — now parsed with OOXML defaults (2026-02-23)
 - Table cell vertical alignment (`anchor` on `<a:tcPr>`) — now parsed (2026-02-23)
 - `anchorCtr` — now consumed by text renderer for horizontal centering (2026-02-24)
-- `vert` (text direction) not parsed — vertical/rotated text renders horizontal
+- ~~`vert` (text direction)~~ DONE: parsed + rendered via canvas rotation (vert/vert270 full, eaVert/wordArtVert approximated)
 - `marR` (right paragraph margin) — now parsed and rendered (2026-02-24)
 - `cap` (capitalization) — now parsed with all-caps and small-caps support (2026-02-24)
 - Space-after on last paragraph — now correctly omitted per spec (2026-02-24)
@@ -51,11 +51,10 @@ User-flagged issues from visual diff review (2026-02-24):
 - ~~**Page numbers** — Not rendering~~ FIXED: placeholder content inheritance from `<a:fld>` elements
 - ~~**Arrow shapes** — Rendering artifacts~~ FIXED: `buildPresetPaths()` preserves per-path fill/stroke metadata
 
-### No Diagnostic/Warning System (next priority)
+### Diagnostic/Warning System — DONE (2026-02-25)
 
-- Library silently falls back when features are unsupported (missing fonts, unknown elements)
-- No way for consuming apps to know what the current PPTX needs that we can't render
-- The capability registry already categorizes unsupported elements — needs to be wired into an app-facing event system
+- DiagnosticEmitter + RenderContext wiring + SlideKit `onDiagnostic` callback
+- Emissions in: effect-renderer, fill-renderer, picture-renderer, connector-renderer, text-renderer (vert approximation), slide-viewport (missing font)
 
 ## Gotchas & Warnings
 
@@ -75,11 +74,11 @@ User-flagged issues from visual diff review (2026-02-24):
 - Text measurement now uses Canvas2D directly (includes kerning/shaping when fonts are loaded). Metrics DB used only for vertical metrics (ascent, descent, line height).
 - Line spacing uses the font's declared line height metric (e.g., Barlow lineHeight=1.2), matching PowerPoint's interpretation of "single spacing".
 
-### Table Row Auto-Height (cosmetic)
+### Table Row Auto-Height — DONE (2026-02-25)
 
-- OOXML table row heights are minimums — rows should expand to fit content text.
-- Currently rows render at the declared height; text that is taller than the row overflows visually.
-- Impact: small-row tables show text overlapping rather than expanding.
+- ~~OOXML table row heights are minimums — rows should expand to fit content text.~~
+- Implemented via `measureTextBodyHeight()` + row expansion in table-renderer.
+- Multi-row-span cell expansion not yet handled.
 
 ### Canvas2D Limitations
 

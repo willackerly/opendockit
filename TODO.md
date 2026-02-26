@@ -97,13 +97,12 @@ fixed, and verified with RMSE improvement before moving to other work.
 
 ### Phase 3.5: Diagnostics & Observability
 
-- [ ] **Structured logging/warning system** — library-wide diagnostic events that apps subscribe to
-  - Warning categories: missing font, unsupported element type, partial rendering, fallback used
-  - Each warning includes: category, severity (info/warning/error), human-readable message, element context (slide number, shape name/id, XML element type)
-  - App-facing callback: `onDiagnostic?: (event: DiagnosticEvent) => void` on SlideKit options
-  - Per-presentation summary: "This PPTX uses 3 features we can't fully render: [charts, 3D effects, embedded video]"
-  - Existing capability registry already categorizes unsupported elements — wire it into the diagnostic system
-  - Font warnings: "Font 'Verdana' not in metrics bundle — using Canvas2D measurement (may affect line breaks)"
+- [x] **Structured logging/warning system** — DiagnosticEmitter + RenderContext wiring + SlideKit callback (2026-02-25)
+- [x] **Diagnostic emission expansion** — wired into effect-renderer, fill-renderer, picture-renderer, connector-renderer, slide-viewport (2026-02-25)
+- [x] **Vertical text direction** — vert/vert270 via canvas rotation, eaVert/wordArtVert approximated (2026-02-25)
+- [x] **RTL text rendering** — alignment mirroring, fragment reversal, bullet positioning (2026-02-25)
+- [x] **Tab stops** — explicit tabStops + defaultTabSize + 1-inch fallback grid (2026-02-25)
+- [x] **Table row auto-height** — measureTextBodyHeight + row expansion to fit content (2026-02-25)
 
 ## Deferred (Not Blocking)
 
@@ -124,12 +123,10 @@ These are known gaps. They can be tackled opportunistically or when a real-world
 - Impact: shapes with spAutoFit may clip text or have excess whitespace
 - Rare in real-world PPTX files
 
-### Table Row Auto-Height
+### Table Row Auto-Height — DONE (2026-02-25)
 
-- OOXML table row heights are minimums — rows should expand to fit content
-- Currently rows render at the declared height; text taller than the row overflows visually
-- Fix requires: measure cell text content height, expand row to max across cells
-- Impact: small-row tables show text overlapping rather than cleanly expanding
+- ~~OOXML table row heights are minimums — rows should expand to fit content~~
+- Implemented via `measureTextBodyHeight()` + row expansion in table-renderer
 
 ### Placeholder Inherited Content
 
@@ -155,12 +152,12 @@ Found by property-by-property audit of real-world PPTX XML vs parser/renderer.
 - [x] LineHeight fallback improved to 1.2 for unknown fonts (2026-02-24)
 
 **Remaining:**
-- [ ] `vert` — text direction (`<a:bodyPr vert="vert270">`) not parsed (MODERATE: vertical/rotated text renders horizontal)
-- [ ] `rtl` — parsed into IR but NOT consumed by text renderer (MODERATE: Arabic/Hebrew text renders LTR)
+- [x] `vert` — text direction (`<a:bodyPr vert="vert270">`) parsed + rendered via canvas rotation (2026-02-25)
+- [x] `rtl` — now consumed by text renderer with alignment mirroring + bullet repositioning (2026-02-25)
+- [x] `defTabSz` / `a:tabLst` (tab stops) — parsed + rendered with explicit stops and default grid (2026-02-25)
 - [ ] `a:highlight` color — now rendered, but underline color from `<a:uFill>` not yet parsed
 - [ ] `a:ln` on `a:rPr` (text outline) — not parsed
 - [ ] `a:effectLst` on `a:rPr` (text shadow/glow/reflection) — not parsed
-- [ ] `defTabSz` / `a:tabLst` (tab stops) — not parsed; tabs render as spaces
 - [ ] `numCol` / `spcCol` on `a:bodyPr` — parsed into IR but not consumed (multi-column text bodies)
 - [ ] Underline/strikethrough position — uses geometric heuristic (15%/30% of font size), not OS/2 font metrics
 
@@ -219,6 +216,6 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 
 - [ ] Connector routing via connection sites (deferred - needs shape registry for endpoint lookup)
 - [ ] spAutoFit text (shape resize to fit text - needs layout feedback loop)
-- [ ] Table row auto-height (rows should expand to fit content text)
+- [x] Table row auto-height (rows expand to fit content text — 2026-02-25)
 - [ ] Media LRU cache size limits (currently unbounded)
-- [ ] Text direction `vert` attribute not parsed
+- [x] Text direction `vert` attribute parsed + rendered (2026-02-25)

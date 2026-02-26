@@ -1,8 +1,8 @@
 # Quick Context
 
-**Last updated:** 2026-02-23
+**Last updated:** 2026-02-25
 **Branch:** main
-**Phase:** 3 complete — moving to Phase 3.5 (diagnostics) then Phase 4
+**Phase:** 3.5 complete — diagnostics, vert text, RTL, tab stops, table auto-height all landed
 
 ## What Is This?
 
@@ -12,7 +12,7 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer. It reads 
 
 The full PPTX rendering pipeline is implemented, tested, and visually validated:
 
-- **1,307 tests** passing (1,225 core + 82 pptx), typecheck clean, lint clean
+- **1,373 tests** passing (1,291 core + 82 pptx), typecheck clean
 - **Visual regression**: 54-slide real-world PPTX with per-slide RMSE baselines and regression guard (`pnpm test:visual`). Visual-compare uses bundled WOFF2 fonts (same as production) for accurate comparison.
 - **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (42 families, 130 faces) + bundled WOFF2 fonts (42 families, ~5MB, 100% offline), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks, video placeholder detection, field codes), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation + font-metric-based line height + ascender baseline positioning, media cache, capability registry, WASM module loader
 - **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance + table textDefaults), SlideKit viewport API (hyperlinks, notes)
@@ -41,17 +41,12 @@ Precomputed font metrics for accurate text layout without actual fonts installed
 
 ## What's Next
 
-### Phase 3.5: Diagnostics & Observability (next up)
-
-1. **Structured logging/warning system** — library-wide diagnostic messages that consuming apps can subscribe to. Warnings for unsupported features in the current PPTX (missing fonts, unimplemented elements, partial rendering). App decides how to display: console, toast/dismiss UI, diagnostic panel, etc.
-
 ### Deferred (not blocking — tackle when needed)
 
-2. **Connector routing** — shape-to-shape endpoint resolution via connection sites (current: connectors render but endpoints are edge-of-bounding-box, not snapped to connection site geometry)
-3. **spAutoFit text** — shape resize to fit text (current: parsed but renders at normal size; needs layout feedback loop)
-4. **Table row auto-height** — OOXML row heights are minimums; rows should expand for content. Currently text overflows small rows.
-5. **Placeholder inherited content** — empty slide placeholders don't show layout/master placeholder text (properties already inherit correctly)
-6. **Broader visual test corpus** — more PPTX files covering edge cases
+1. **Connector routing** — shape-to-shape endpoint resolution via connection sites (current: connectors render but endpoints are edge-of-bounding-box, not snapped to connection site geometry)
+2. **spAutoFit text** — shape resize to fit text (current: parsed but renders at normal size; needs layout feedback loop)
+3. **Placeholder inherited content** — empty slide placeholders don't show layout/master placeholder text (properties already inherit correctly)
+4. **Broader visual test corpus** — more PPTX files covering edge cases
 
 ### Phase 4: Charts + Export (future)
 
