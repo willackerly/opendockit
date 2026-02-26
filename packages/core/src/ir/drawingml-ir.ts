@@ -507,6 +507,8 @@ export interface CharacterPropertiesIR {
   strikethrough?: 'none' | 'single' | 'double';
   color?: ResolvedColor;
   highlight?: ResolvedColor;
+  /** Text outline (stroke) from `<a:ln>` on `<a:rPr>`. */
+  outline?: LineIR;
   /** Superscript/subscript baseline offset percentage (-100 to +100). */
   baseline?: number;
   /** Capitalization style: 'all' for ALL CAPS, 'small' for Small Caps. */

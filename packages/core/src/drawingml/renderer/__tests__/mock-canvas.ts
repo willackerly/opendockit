@@ -81,6 +81,8 @@ export function createMockContext(): MockContext {
       calls.push({ method: 'strokeRect', args: [x, y, w, h] }),
     fillText: (text: string, x: number, y: number) =>
       calls.push({ method: 'fillText', args: [text, x, y] }),
+    strokeText: (text: string, x: number, y: number) =>
+      calls.push({ method: 'strokeText', args: [text, x, y] }),
     drawImage: (...args: unknown[]) => calls.push({ method: 'drawImage', args }),
     scale: (x: number, y: number) => calls.push({ method: 'scale', args: [x, y] }),
     rect: (x: number, y: number, w: number, h: number) =>

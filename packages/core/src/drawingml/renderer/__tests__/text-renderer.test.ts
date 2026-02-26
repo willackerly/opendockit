@@ -948,6 +948,53 @@ describe('renderTextBody', () => {
 
     expect(bulletTexts).toEqual(['a. ', 'b. ', 'c. ']);
   });
+
+  it('renders text outline (strokeText before fillText)', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([
+      makeParagraph([
+        makeRun('Outlined', {
+          outline: {
+            width: 19050, // ~1.5pt in EMU
+            color: { r: 255, g: 0, b: 0, a: 1 },
+          },
+        }),
+      ]),
+    ]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const calls = rctx.ctx._calls;
+    const strokeCalls = filterCalls(calls, 'strokeText');
+    const fillCalls = filterCalls(calls, 'fillText');
+
+    // There should be exactly one strokeText call for the outlined text.
+    expect(strokeCalls.length).toBe(1);
+    expect(strokeCalls[0].args[0]).toBe('Outlined');
+
+    // There should be exactly one fillText call for the outlined text.
+    const outlinedFillCalls = fillCalls.filter((c) => c.args[0] === 'Outlined');
+    expect(outlinedFillCalls.length).toBe(1);
+
+    // strokeText must come BEFORE fillText (stroke behind fill).
+    const strokeIdx = calls.findIndex(
+      (c) => c.method === 'strokeText' && c.args[0] === 'Outlined'
+    );
+    const fillIdx = calls.findIndex(
+      (c) => c.method === 'fillText' && c.args[0] === 'Outlined'
+    );
+    expect(strokeIdx).toBeLessThan(fillIdx);
+  });
+
+  it('does not render strokeText when no outline is set', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([makeParagraph([makeRun('Plain text')])]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const strokeCalls = filterCalls(rctx.ctx._calls, 'strokeText');
+    expect(strokeCalls.length).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -310,6 +310,48 @@ describe('parseCharacterProperties', () => {
     expect(props.complexScript).toBe('Times New Roman');
     expect(props.fontFamily).toBe('Arial');
   });
+
+  it('parses text outline from a:ln child', () => {
+    const el = parseXml(
+      `<a:rPr ${NS} sz="4800">
+        <a:ln w="19050">
+          <a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>
+        </a:ln>
+      </a:rPr>`
+    );
+    const props = parseCharacterProperties(el, TEST_THEME);
+
+    expect(props.outline).toBeDefined();
+    expect(props.outline!.width).toBe(19050);
+    expect(props.outline!.color).toBeDefined();
+    expect(props.outline!.color!.r).toBe(255);
+    expect(props.outline!.color!.g).toBe(0);
+    expect(props.outline!.color!.b).toBe(0);
+  });
+
+  it('parses text outline with scheme color', () => {
+    const el = parseXml(
+      `<a:rPr ${NS}>
+        <a:ln w="12700">
+          <a:solidFill><a:schemeClr val="accent1"/></a:solidFill>
+        </a:ln>
+      </a:rPr>`
+    );
+    const props = parseCharacterProperties(el, TEST_THEME);
+
+    expect(props.outline).toBeDefined();
+    expect(props.outline!.width).toBe(12700);
+    expect(props.outline!.color!.r).toBe(68);
+    expect(props.outline!.color!.g).toBe(114);
+    expect(props.outline!.color!.b).toBe(196);
+  });
+
+  it('omits outline when no a:ln child is present', () => {
+    const el = parseXml(`<a:rPr ${NS} sz="1800"/>`);
+    const props = parseCharacterProperties(el, TEST_THEME);
+
+    expect(props.outline).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

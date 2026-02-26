@@ -19,6 +19,7 @@ import type { ColorContext } from '../../theme/index.js';
 import { resolveColorFromParent } from '../../theme/index.js';
 import { resolveThemeFont, isThemeFontRef } from '../../theme/index.js';
 import { parseIntAttr, parseBoolAttr } from '../../xml/index.js';
+import { parseLineFromParent } from './line.js';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -144,6 +145,12 @@ export function parseCharacterProperties(
     if (highlightColor) {
       props.highlight = highlightColor;
     }
+  }
+
+  // Text outline (stroke) from a:ln child
+  const outline = parseLineFromParent(rPrElement, theme, context);
+  if (outline) {
+    props.outline = outline;
   }
 
   // Font references (latin, ea, cs)

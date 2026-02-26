@@ -1826,6 +1826,19 @@ export function renderTextBody(
           ctx.fillStyle = frag.fillStyle;
         }
 
+        // Draw text outline (stroke) behind fill for correct visual stacking.
+        if (frag.props.outline && frag.props.outline.width != null) {
+          const savedStrokeStyle = ctx.strokeStyle;
+          const savedLineWidth = ctx.lineWidth;
+          ctx.lineWidth = emuToScaledPx(frag.props.outline.width, rctx);
+          ctx.strokeStyle = frag.props.outline.color
+            ? colorToRgba(frag.props.outline.color)
+            : frag.fillStyle;
+          ctx.strokeText(frag.text, drawX, baselineY + baselineShift);
+          ctx.strokeStyle = savedStrokeStyle;
+          ctx.lineWidth = savedLineWidth;
+        }
+
         ctx.fillText(frag.text, drawX, baselineY + baselineShift);
 
         // Measure the ACTUAL rendered width using Canvas2D for draw advancement.
