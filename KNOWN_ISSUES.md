@@ -14,10 +14,11 @@ None.
 - Visual impact: connector start/end points may be a few pixels off
 - Fix requires: shape position registry + connection site geometry lookup per preset shape
 
-### Placeholder Inherited Content (moderate)
+### Placeholder Inherited Content — DONE (2026-02-25)
 
-- Slide elements referencing placeholders inherit text defaults, visual properties, and body properties from layout -> master cascade
-- Remaining gap: inherited text _content_ (empty slide placeholders don't show layout/master placeholder text)
+- ~~Slide elements referencing placeholders inherit text defaults but not text content~~
+- Empty slide placeholders now inherit text content (paragraphs) from layout/master cascade
+- `hasTextContent()` detects meaningful content vs. empty text bodies
 
 ### Text Property Gaps (from XML audit)
 

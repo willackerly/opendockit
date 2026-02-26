@@ -103,6 +103,8 @@ fixed, and verified with RMSE improvement before moving to other work.
 - [x] **RTL text rendering** — alignment mirroring, fragment reversal, bullet positioning (2026-02-25)
 - [x] **Tab stops** — explicit tabStops + defaultTabSize + 1-inch fallback grid (2026-02-25)
 - [x] **Table row auto-height** — measureTextBodyHeight + row expansion to fit content (2026-02-25)
+- [x] **spAutoFit text** — shape height auto-grows to fit text content via measureTextBodyHeight (2026-02-25)
+- [x] **Placeholder inherited content** — empty slide placeholders inherit text content from layout/master cascade (2026-02-25)
 
 ## Deferred (Not Blocking)
 
@@ -114,26 +116,6 @@ These are known gaps. They can be tackled opportunistically or when a real-world
 - True routing needs a shape position registry that connectors query for connection site coordinates
 - Impact: connectors may start/end a few pixels off from where the original places them
 - Requires: shape registry built during slide parse, connection site geometry lookup per preset shape
-
-### spAutoFit Text
-
-- `spAutoFit` (shape-auto-fit) is parsed but renders at normal size
-- True implementation requires a layout feedback loop (render text -> measure overflow -> resize shape -> re-render)
-- `normAutofit` (shrink text to fit) works correctly with fontScale/lnSpcReduction
-- Impact: shapes with spAutoFit may clip text or have excess whitespace
-- Rare in real-world PPTX files
-
-### Table Row Auto-Height — DONE (2026-02-25)
-
-- ~~OOXML table row heights are minimums — rows should expand to fit content~~
-- Implemented via `measureTextBodyHeight()` + row expansion in table-renderer
-
-### Placeholder Inherited Content
-
-- Slide elements referencing placeholders correctly inherit text defaults, visual properties, and body properties from layout -> master cascade
-- Remaining gap: inherited text _content_ — empty slide placeholders don't show layout/master placeholder text
-- Impact: slides with intentionally-empty placeholders (expecting to show layout title/subtitle) render blank
-- Common in template-heavy presentations
 
 ### Text Property Gaps (from XML audit + code audit 2026-02-24)
 
@@ -215,7 +197,7 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 ## Code Debt
 
 - [ ] Connector routing via connection sites (deferred - needs shape registry for endpoint lookup)
-- [ ] spAutoFit text (shape resize to fit text - needs layout feedback loop)
+- [x] spAutoFit text (shape height auto-grows via measureTextBodyHeight — 2026-02-25)
 - [x] Table row auto-height (rows expand to fit content text — 2026-02-25)
 - [ ] Media LRU cache size limits (currently unbounded)
 - [x] Text direction `vert` attribute parsed + rendered (2026-02-25)
