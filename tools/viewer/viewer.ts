@@ -7,12 +7,14 @@
 
 import { SlideKit, type LoadedPresentation } from '@opendockit/pptx';
 import { emuToPx } from '@opendockit/core';
+import type { SlideElementIR, GroupIR, TransformIR } from '@opendockit/core';
 
 // ---------------------------------------------------------------------------
 // DOM references
 // ---------------------------------------------------------------------------
 
 const btnOpen = document.getElementById('btn-open') as HTMLButtonElement;
+const btnInspect = document.getElementById('btn-inspect') as HTMLButtonElement;
 const fileInput = document.getElementById('file-input') as HTMLInputElement;
 const fileName = document.getElementById('file-name') as HTMLSpanElement;
 const dropZone = document.getElementById('drop-zone') as HTMLDivElement;
@@ -38,6 +40,11 @@ let offscreenCanvas: HTMLCanvasElement | null = null;
 
 /** Rendered slide images by index — used for live updates on invalidation. */
 let slideImages: Map<number, HTMLImageElement> = new Map();
+
+/** Inspector mode state. */
+let inspectorActive = false;
+let activeHighlight: HTMLDivElement | null = null;
+let activeTooltip: HTMLDivElement | null = null;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -194,18 +201,28 @@ async function loadFile(file: File): Promise<void> {
 
       await kit.renderSlide(i);
 
-      // Snapshot the offscreen canvas into a visible <img>.
+      // Snapshot the offscreen canvas into a visible <img> inside
+      // a container div (needed for inspector overlay positioning).
+      const imgContainer = document.createElement('div');
+      imgContainer.className = 'slide-image-container';
+
       const img = document.createElement('img');
       img.src = offscreenCanvas!.toDataURL('image/png');
       img.alt = `Slide ${i + 1}`;
       img.className = 'slide-image';
 
+      imgContainer.appendChild(img);
+
       // Track the image for live updates on invalidation.
       slideImages.set(i, img);
 
-      // Replace the skeleton with the rendered image.
+      // Wire up inspector click handler.
+      const slideIdx = i;
+      img.addEventListener('click', (e) => handleInspectorClick(img, slideIdx, e));
+
+      // Replace the skeleton with the rendered image container.
       const { wrapper, skeleton } = slots[i];
-      wrapper.replaceChild(img, skeleton);
+      wrapper.replaceChild(imgContainer, skeleton);
 
       // Enable the Save PNG button now that we have image data.
       const saveBtn = wrapper.querySelector('.btn-sm') as HTMLButtonElement;
@@ -269,8 +286,243 @@ function saveSlideAsPng(img: HTMLImageElement, index: number): void {
 }
 
 // ---------------------------------------------------------------------------
+// Inspector mode
+// ---------------------------------------------------------------------------
+
+function toggleInspector(): void {
+  inspectorActive = !inspectorActive;
+  btnInspect.classList.toggle('active', inspectorActive);
+
+  // Toggle crosshair cursor on all slide wrappers
+  document.querySelectorAll('.slide-wrapper').forEach((w) => {
+    w.classList.toggle('inspector-active', inspectorActive);
+  });
+
+  if (!inspectorActive) {
+    clearInspectorOverlay();
+  }
+}
+
+function clearInspectorOverlay(): void {
+  if (activeHighlight) {
+    activeHighlight.remove();
+    activeHighlight = null;
+  }
+  if (activeTooltip) {
+    activeTooltip.remove();
+    activeTooltip = null;
+  }
+}
+
+/** Extract a short text preview from an element. */
+function getTextPreview(element: SlideElementIR): string | undefined {
+  if (element.kind !== 'shape') return undefined;
+  const shape = element as any;
+  if (!shape.textBody?.paragraphs) return undefined;
+  const texts: string[] = [];
+  for (const para of shape.textBody.paragraphs) {
+    if (!para.runs) continue;
+    for (const run of para.runs) {
+      if (run.text) texts.push(run.text);
+    }
+  }
+  const full = texts.join('').trim();
+  if (!full) return undefined;
+  return full.length > 80 ? full.slice(0, 77) + '...' : full;
+}
+
+/** Get transform from any element type. */
+function getTransform(el: SlideElementIR): TransformIR | undefined {
+  if (el.kind === 'unsupported') {
+    const u = el as any;
+    if (u.bounds) {
+      return {
+        position: { x: u.bounds.x, y: u.bounds.y },
+        size: { width: u.bounds.width, height: u.bounds.height },
+      };
+    }
+    return undefined;
+  }
+  return (el as any).properties?.transform;
+}
+
+/** Hit-test a point (in EMU) against an element, handling groups recursively.
+ *  Returns the deepest matching element (highest specificity). */
+function hitTestElement(
+  el: SlideElementIR,
+  layer: 'master' | 'layout' | 'slide',
+  emuX: number,
+  emuY: number,
+  offsetX: number,
+  offsetY: number
+): { element: SlideElementIR; layer: 'master' | 'layout' | 'slide'; transform: TransformIR } | null {
+  const transform = getTransform(el);
+  if (!transform) return null;
+
+  const absX = offsetX + transform.position.x;
+  const absY = offsetY + transform.position.y;
+  const w = transform.size.width;
+  const h = transform.size.height;
+
+  // For groups, check children first (deeper = higher priority)
+  if (el.kind === 'group') {
+    const group = el as GroupIR;
+    const childOffset = group.childOffset;
+    const childExtent = group.childExtent;
+
+    if (childOffset && childExtent && w > 0 && h > 0) {
+      // Map point from parent space into group's child coordinate space
+      const scaleX = childExtent.width / w;
+      const scaleY = childExtent.height / h;
+      const localX = (emuX - absX) * scaleX + childOffset.x;
+      const localY = (emuY - absY) * scaleY + childOffset.y;
+
+      // Check children in reverse order (later = on top)
+      for (let i = group.children.length - 1; i >= 0; i--) {
+        const hit = hitTestElement(group.children[i], layer, localX, localY, 0, 0);
+        if (hit) return hit;
+      }
+    }
+  }
+
+  // Check if point is inside this element's bounds
+  if (emuX >= absX && emuX <= absX + w && emuY >= absY && emuY <= absY + h) {
+    return {
+      element: el,
+      layer,
+      transform: {
+        ...transform,
+        position: { x: absX, y: absY },
+      },
+    };
+  }
+
+  return null;
+}
+
+async function handleInspectorClick(img: HTMLImageElement, slideIndex: number, event: MouseEvent): Promise<void> {
+  if (!inspectorActive || !kit || !presentation) return;
+
+  // Get click position relative to the image
+  const rect = img.getBoundingClientRect();
+  const clickX = event.clientX - rect.left;
+  const clickY = event.clientY - rect.top;
+
+  // Convert CSS pixels to EMU
+  const scaleX = presentation.slideWidth / rect.width;
+  const scaleY = presentation.slideHeight / rect.height;
+  const emuX = clickX * scaleX;
+  const emuY = clickY * scaleY;
+
+  // Get all elements for this slide
+  const data = await kit.getSlideElements(slideIndex);
+
+  // Hit test in reverse render order (topmost first)
+  let hit: { element: SlideElementIR; layer: 'master' | 'layout' | 'slide'; transform: TransformIR } | null = null;
+
+  for (let i = data.elements.length - 1; i >= 0; i--) {
+    const { element, layer } = data.elements[i];
+    const result = hitTestElement(element, layer, emuX, emuY, 0, 0);
+    if (result) {
+      hit = result;
+      break;
+    }
+  }
+
+  clearInspectorOverlay();
+
+  if (!hit) return;
+
+  const container = img.parentElement!;
+  const { transform, element, layer } = hit;
+
+  // Convert element bounds to CSS pixels relative to the image
+  const left = transform.position.x / scaleX;
+  const top = transform.position.y / scaleY;
+  const width = transform.size.width / scaleX;
+  const height = transform.size.height / scaleY;
+
+  // Create highlight overlay
+  const highlight = document.createElement('div');
+  highlight.className = 'inspector-highlight';
+  highlight.style.left = `${left}px`;
+  highlight.style.top = `${top}px`;
+  highlight.style.width = `${width}px`;
+  highlight.style.height = `${height}px`;
+  container.appendChild(highlight);
+  activeHighlight = highlight;
+
+  // Create tooltip
+  const tooltip = document.createElement('div');
+  tooltip.className = 'inspector-tooltip';
+
+  const kindLabel = document.createElement('div');
+  kindLabel.className = 'tooltip-kind';
+  kindLabel.textContent = element.kind;
+  tooltip.appendChild(kindLabel);
+
+  const name = (element as any).name;
+  if (name) {
+    const nameLabel = document.createElement('div');
+    nameLabel.className = 'tooltip-name';
+    nameLabel.textContent = name;
+    tooltip.appendChild(nameLabel);
+  }
+
+  // Position and size details
+  const detail = document.createElement('div');
+  detail.className = 'tooltip-detail';
+  const posX = Math.round(emuToPx(transform.position.x));
+  const posY = Math.round(emuToPx(transform.position.y));
+  const szW = Math.round(emuToPx(transform.size.width));
+  const szH = Math.round(emuToPx(transform.size.height));
+  detail.textContent = `${posX}, ${posY}  ${szW} x ${szH} px`;
+  tooltip.appendChild(detail);
+
+  // Text preview
+  const textPreview = getTextPreview(element);
+  if (textPreview) {
+    const textEl = document.createElement('div');
+    textEl.className = 'tooltip-text';
+    textEl.textContent = `"${textPreview}"`;
+    tooltip.appendChild(textEl);
+  }
+
+  // Layer badge
+  const layerEl = document.createElement('div');
+  layerEl.className = 'tooltip-layer';
+  layerEl.textContent = `${layer} layer`;
+  tooltip.appendChild(layerEl);
+
+  // Position tooltip near the click, but keep it in view
+  let tooltipLeft = left + width + 8;
+  let tooltipTop = top;
+
+  // If tooltip would go off the right edge, position to the left
+  if (tooltipLeft + 200 > rect.width) {
+    tooltipLeft = left - 208;
+    if (tooltipLeft < 0) tooltipLeft = 8;
+  }
+
+  tooltip.style.left = `${tooltipLeft}px`;
+  tooltip.style.top = `${tooltipTop}px`;
+  container.appendChild(tooltip);
+  activeTooltip = tooltip;
+}
+
+// ---------------------------------------------------------------------------
 // Event handlers
 // ---------------------------------------------------------------------------
+
+// Inspector toggle
+btnInspect.addEventListener('click', () => toggleInspector());
+
+// Escape to dismiss inspector highlight
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    clearInspectorOverlay();
+  }
+});
 
 // File picker
 btnOpen.addEventListener('click', () => {

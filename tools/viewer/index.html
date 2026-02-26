@@ -285,12 +285,92 @@
         border-radius: 3px;
         color: #aaa;
       }
+
+      /* Inspector mode */
+      .btn-inspector.active {
+        background: #e94560;
+        border-color: #e94560;
+        color: #fff;
+      }
+
+      .slide-wrapper.inspector-active .slide-image {
+        cursor: crosshair;
+      }
+
+      .slide-image-container {
+        position: relative;
+        max-width: 960px;
+        width: 100%;
+      }
+
+      .inspector-highlight {
+        position: absolute;
+        border: 2px solid #e94560;
+        background: rgba(233, 69, 96, 0.12);
+        pointer-events: none;
+        z-index: 5;
+        transition: all 0.1s ease;
+      }
+
+      .inspector-tooltip {
+        position: absolute;
+        z-index: 10;
+        background: #16213e;
+        border: 1px solid #0f3460;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 12px;
+        color: #e0e0e0;
+        pointer-events: none;
+        white-space: nowrap;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        max-width: 400px;
+      }
+
+      .inspector-tooltip .tooltip-kind {
+        color: #e94560;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 10px;
+        letter-spacing: 0.5px;
+      }
+
+      .inspector-tooltip .tooltip-name {
+        font-weight: 500;
+        margin-top: 2px;
+      }
+
+      .inspector-tooltip .tooltip-detail {
+        color: #999;
+        font-size: 11px;
+        margin-top: 4px;
+        font-family: 'SF Mono', 'Fira Code', monospace;
+      }
+
+      .inspector-tooltip .tooltip-text {
+        color: #bbb;
+        font-size: 11px;
+        margin-top: 4px;
+        white-space: normal;
+        max-width: 350px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .inspector-tooltip .tooltip-layer {
+        color: #666;
+        font-size: 10px;
+        margin-top: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
     </style>
   </head>
   <body>
     <header>
       <h1>OpenDocKit Viewer</h1>
       <div class="file-controls">
+        <button id="btn-inspect" class="btn btn-inspector" title="Toggle element inspector (click slides to inspect)">Inspect</button>
         <button id="btn-open" class="btn btn-primary">Choose PPTX File</button>
         <input id="file-input" type="file" accept=".pptx" />
         <span id="file-name" style="font-size: 13px; color: #999"></span>

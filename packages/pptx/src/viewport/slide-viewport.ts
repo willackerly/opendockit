@@ -493,6 +493,56 @@ export class SlideKit {
   }
 
   /**
+   * Get all rendered elements for a slide, in render order (master first,
+   * then layout, then slide). Useful for hit testing and element inspection.
+   *
+   * Each element carries its transform (position/size in EMU). Groups
+   * contain children with transforms relative to the group's coordinate space.
+   *
+   * @param slideIndex - Zero-based slide index.
+   * @returns Object with elements array, slide dimensions in EMU, and layer info.
+   */
+  async getSlideElements(
+    slideIndex: number
+  ): Promise<{
+    elements: { element: SlideElementIR; layer: 'master' | 'layout' | 'slide' }[];
+    slideWidth: number;
+    slideHeight: number;
+  }> {
+    this._assertNotDisposed();
+    this._assertLoaded();
+
+    const pres = this._presentation!;
+    if (slideIndex < 0 || slideIndex >= pres.slideCount) {
+      throw new RangeError(`Slide index ${slideIndex} is out of range (0-${pres.slideCount - 1}).`);
+    }
+
+    const enriched = await this._getOrParseSlide(slideIndex);
+    const elements: { element: SlideElementIR; layer: 'master' | 'layout' | 'slide' }[] = [];
+
+    // Master elements (lowest z-order)
+    for (const el of enriched.master.elements) {
+      elements.push({ element: el, layer: 'master' });
+    }
+
+    // Layout elements
+    for (const el of enriched.layout.elements) {
+      elements.push({ element: el, layer: 'layout' });
+    }
+
+    // Slide elements (highest z-order)
+    for (const el of enriched.slide.elements) {
+      elements.push({ element: el, layer: 'slide' });
+    }
+
+    return {
+      elements,
+      slideWidth: pres.slideWidth,
+      slideHeight: pres.slideHeight,
+    };
+  }
+
+  /**
    * Get the diagnostic emitter for this SlideKit instance.
    *
    * Use this to retrieve collected diagnostics after rendering:
