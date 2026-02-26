@@ -20,6 +20,7 @@ import type {
 } from '../../../ir/index.js';
 import { renderTextBody, toRoman, toAlpha, formatAutoNumber } from '../text-renderer.js';
 import { createMockRenderContext } from './mock-canvas.js';
+import { DiagnosticEmitter } from '../../../diagnostics/index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -956,5 +957,158 @@ describe('formatAutoNumber', () => {
 
   it('defaults to arabicPeriod for unknown type', () => {
     expect(formatAutoNumber('unknownType', 5)).toBe('5.');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Vertical text direction
+// ---------------------------------------------------------------------------
+
+describe('renderTextBody — vertical text direction', () => {
+  it('applies 90° CW rotation for vert mode', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([makeParagraph([makeRun('Hello')])], { vert: 'vert' });
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    // Should have translate-rotate-translate sequence for 90° CW
+    const rotateCalls = filterCalls(rctx.ctx._calls, 'rotate');
+    expect(rotateCalls.length).toBeGreaterThanOrEqual(1);
+    // The vert rotation should be PI/2 (90° CW)
+    expect(rotateCalls.some((c) => Math.abs((c.args[0] as number) - Math.PI / 2) < 0.001)).toBe(
+      true
+    );
+  });
+
+  it('applies 90° CCW rotation for vert270 mode', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([makeParagraph([makeRun('Hello')])], { vert: 'vert270' });
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const rotateCalls = filterCalls(rctx.ctx._calls, 'rotate');
+    expect(rotateCalls.length).toBeGreaterThanOrEqual(1);
+    // The vert270 rotation should be -PI/2 (90° CCW)
+    expect(rotateCalls.some((c) => Math.abs((c.args[0] as number) + Math.PI / 2) < 0.001)).toBe(
+      true
+    );
+  });
+
+  it('does not apply rotation for horz mode', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([makeParagraph([makeRun('Hello')])], { vert: 'horz' });
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const rotateCalls = filterCalls(rctx.ctx._calls, 'rotate');
+    // No rotation should be applied (only body rotation would add rotate calls,
+    // and we haven't set body.rotation)
+    expect(rotateCalls.length).toBe(0);
+  });
+
+  it('does not apply rotation when vert is undefined', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([makeParagraph([makeRun('Hello')])]);
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const rotateCalls = filterCalls(rctx.ctx._calls, 'rotate');
+    expect(rotateCalls.length).toBe(0);
+  });
+
+  it('applies 90° CW rotation for eaVert mode (approximation)', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([makeParagraph([makeRun('Hello')])], { vert: 'eaVert' });
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const rotateCalls = filterCalls(rctx.ctx._calls, 'rotate');
+    expect(rotateCalls.length).toBeGreaterThanOrEqual(1);
+    expect(rotateCalls.some((c) => Math.abs((c.args[0] as number) - Math.PI / 2) < 0.001)).toBe(
+      true
+    );
+  });
+
+  it('applies 90° CW rotation for wordArtVert mode (approximation)', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([makeParagraph([makeRun('Hello')])], { vert: 'wordArtVert' });
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const rotateCalls = filterCalls(rctx.ctx._calls, 'rotate');
+    expect(rotateCalls.length).toBeGreaterThanOrEqual(1);
+    expect(rotateCalls.some((c) => Math.abs((c.args[0] as number) - Math.PI / 2) < 0.001)).toBe(
+      true
+    );
+  });
+
+  it('emits diagnostic for eaVert approximation', () => {
+    const events: Array<{ category: string; message: string }> = [];
+    const emitter = new DiagnosticEmitter((e: { category: string; message: string }) =>
+      events.push(e)
+    );
+    const rctx = createMockRenderContext();
+    rctx.diagnostics = emitter;
+    const body = makeTextBody([makeParagraph([makeRun('Hello')])], { vert: 'eaVert' });
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    expect(events.some((e) => e.category === 'partial-rendering' && e.message.includes('eaVert'))).toBe(true);
+  });
+
+  it('emits diagnostic for wordArtVert approximation', () => {
+    const events: Array<{ category: string; message: string }> = [];
+    const emitter = new DiagnosticEmitter((e: { category: string; message: string }) =>
+      events.push(e)
+    );
+    const rctx = createMockRenderContext();
+    rctx.diagnostics = emitter;
+    const body = makeTextBody([makeParagraph([makeRun('Hello')])], { vert: 'wordArtVert' });
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    expect(events.some((e) => e.category === 'partial-rendering' && e.message.includes('wordArtVert'))).toBe(true);
+  });
+
+  it('does not emit diagnostic for vert mode (fully supported)', () => {
+    const events: Array<{ category: string; message: string }> = [];
+    const emitter = new DiagnosticEmitter((e: { category: string; message: string }) =>
+      events.push(e)
+    );
+    const rctx = createMockRenderContext();
+    rctx.diagnostics = emitter;
+    const body = makeTextBody([makeParagraph([makeRun('Hello')])], { vert: 'vert' });
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    expect(events.some((e) => e.category === 'partial-rendering')).toBe(false);
+  });
+
+  it('translates around bounds center for vert rotation', () => {
+    const rctx = createMockRenderContext();
+    const bounds = { x: 100, y: 50, width: 200, height: 300 };
+    const body = makeTextBody([makeParagraph([makeRun('Hello')])], { vert: 'vert' });
+
+    renderTextBody(body, rctx, bounds);
+
+    // Center of bounds: cx=200, cy=200
+    const translateCalls = filterCalls(rctx.ctx._calls, 'translate');
+    // Should have translate(cx, cy) before rotate and translate(-cx, -cy) after
+    expect(translateCalls.length).toBeGreaterThanOrEqual(2);
+    // First translate should be to center (200, 200)
+    expect(translateCalls[0].args).toEqual([200, 200]);
+    // Second translate should be back (-200, -200)
+    expect(translateCalls[1].args).toEqual([-200, -200]);
+  });
+
+  it('still renders text after vert rotation', () => {
+    const rctx = createMockRenderContext();
+    const body = makeTextBody([makeParagraph([makeRun('Vertical')])], { vert: 'vert' });
+
+    renderTextBody(body, rctx, BOUNDS);
+
+    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    expect(fillTexts.length).toBeGreaterThanOrEqual(1);
+    expect(fillTexts.some((c) => c.args[0] === 'Vertical')).toBe(true);
   });
 });
