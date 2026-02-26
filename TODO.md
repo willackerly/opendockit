@@ -154,11 +154,12 @@ Deep investigation of top-10 RMSE slides confirms:
 - **pdfbox-ts peer repo** (`/Users/will/dev/pdfbox-ts/`) has reusable: font metric extraction (OS/2 tables), glyph width data, matrix math, CMYK→RGB conversion, text layout word-wrap
 - Current metrics bundle is correct (OS/2 sTypoAscender/Descender, USE_TYPO_METRICS verified)
 
-### Broader Visual Test Corpus
+### Broader Visual Test Corpus — DONE (2026-02-25)
 
-- Current: 1 real-world PPTX (54 slides), per-slide RMSE baselines with regression guard
-- Want: 5-10 PPTX files covering edge cases (charts, SmartArt, heavy animation, CJK text, RTL, complex tables)
-- Want: synthetic fixture PPTX files targeting specific features in isolation
+- ~~Current: 1 real-world PPTX (54 slides)~~
+- 10 corpus PPTX files (67 slides) with self-referential regression guard (`pnpm test:visual:corpus`)
+- Plus 1 real-world PPTX (54 slides) with PDF-referenced RMSE baselines (`pnpm test:visual`)
+- Still want: synthetic fixture PPTX files targeting specific features in isolation
 
 ## Planned
 
