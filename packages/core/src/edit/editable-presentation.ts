@@ -187,9 +187,16 @@ export class EditablePresentation {
     return false;
   }
 
-  /** Get the current slide order (part URIs). */
+  /** Get the current slide order (part URIs), excluding deleted slides. */
   getSlideOrder(): string[] {
-    return [...this.slideOrder];
+    // Build set of deleted slide part URIs
+    const deletedPartUris = new Set<string>();
+    for (const idx of this.deletedSlides) {
+      if (idx < this.slides.length) {
+        deletedPartUris.add(this.slides[idx].partUri);
+      }
+    }
+    return this.slideOrder.filter((uri) => !deletedPartUris.has(uri));
   }
 
   /** Get deleted slide indices. */
