@@ -41,6 +41,9 @@ export interface XmlElement {
 
   /** Check if this element has the given tag name. */
   is(tagName: string): boolean;
+
+  /** Get all attribute names (without the @_ prefix used internally). */
+  attributeNames(): string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +170,12 @@ class XmlElementImpl implements XmlElement {
 
   is(tagName: string): boolean {
     return this.name === tagName;
+  }
+
+  attributeNames(): string[] {
+    return Object.keys(this._attrs)
+      .filter((k) => k.startsWith('@_'))
+      .map((k) => k.substring(2));
   }
 }
 

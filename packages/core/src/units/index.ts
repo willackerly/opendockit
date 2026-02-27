@@ -2,10 +2,14 @@
  * Unit conversion utilities for OOXML coordinate systems.
  *
  * Re-exports all conversion functions and constants from:
+ * - {@link ./branded} — Branded unit types (EMU, HundredthsPt, Pixels)
  * - {@link ./emu} — EMU (English Metric Units)
  * - {@link ./dxa} — DXA (Twentieths of a Point)
  * - {@link ./half-points} — Half-points, hundredths, angles, percentages
  */
+
+export type { EMU, HundredthsPt, Pixels } from './branded.js';
+export { emu, hundredthsPt, pixels, isValidEmu, emuChecked } from './branded.js';
 
 export {
   // Constants

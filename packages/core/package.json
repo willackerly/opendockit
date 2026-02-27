@@ -68,11 +68,12 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
+    "@xmldom/xmldom": "^0.8.11",
     "fast-xml-parser": "^4.5.0",
     "jszip": "^3.10.0"
   },
   "devDependencies": {
-    "vitest": "^2.1.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
   }
 }

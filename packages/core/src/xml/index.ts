@@ -9,6 +9,7 @@
 
 export { parseXml } from './fast-parser.js';
 export type { XmlElement } from './fast-parser.js';
+export { serializeXmlElement } from './xml-serializer.js';
 
 export {
   // DrawingML
