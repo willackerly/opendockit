@@ -337,6 +337,90 @@ export class SlideKit {
     this._emitProgress('rendering', 2, 2, 'Render complete');
   }
 
+  /**
+   * Re-render a single slide with element overrides.
+   *
+   * Takes a map of element substitutions (keyed by the shape's numeric ID)
+   * and renders the slide with those elements replaced. Elements not in the
+   * map render normally from the cached parse. Deleted elements (mapped to
+   * `null`) are skipped entirely.
+   *
+   * This enables instant visual feedback during editing without requiring
+   * a full save → reload cycle.
+   *
+   * @param index - Zero-based slide index.
+   * @param overrides - Map of shape ID → replacement IR (or null to hide).
+   */
+  async renderSlideWithOverrides(
+    index: number,
+    overrides: Map<number, SlideElementIR | null>
+  ): Promise<void> {
+    this._assertNotDisposed();
+    this._assertLoaded();
+
+    const pres = this._presentation!;
+    if (index < 0 || index >= pres.slideCount) {
+      throw new RangeError(`Slide index ${index} is out of range (0-${pres.slideCount - 1}).`);
+    }
+
+    const enriched = await this._getOrParseSlide(index);
+
+    // Build a modified slide element list with overrides applied.
+    const modifiedElements: SlideElementIR[] = [];
+    for (const el of enriched.slide.elements) {
+      const shapeId = (el as any).id as number | undefined;
+      if (shapeId !== undefined && overrides.has(shapeId)) {
+        const replacement = overrides.get(shapeId)!;
+        if (replacement !== null) {
+          modifiedElements.push(replacement);
+        }
+        // null = deleted, skip entirely
+      } else {
+        modifiedElements.push(el);
+      }
+    }
+
+    // Build enriched data with substituted elements.
+    const modifiedEnriched = {
+      ...enriched,
+      slide: { ...enriched.slide, elements: modifiedElements },
+    };
+
+    // Render using the standard pipeline.
+    const ctx = this._getCanvasContext();
+    if (!ctx) return;
+
+    const slideWidthPx = emuToPx(pres.slideWidth, 96 * this._dpiScale);
+    const slideHeightPx = emuToPx(pres.slideHeight, 96 * this._dpiScale);
+
+    this._sizeCanvas(slideWidthPx, slideHeightPx);
+
+    const colorMap: ColorMapOverride = {
+      ...enriched.master.colorMap,
+      ...(enriched.layout.colorMap ?? {}),
+      ...(enriched.slide.colorMap ?? {}),
+    };
+
+    const loadingKinds = this._getLoadingKinds();
+
+    const rctx: RenderContext = {
+      ctx,
+      dpiScale: this._dpiScale,
+      theme: pres.theme,
+      mediaCache: this._mediaCache,
+      resolveFont: (name: string) => this._resolveFont(name),
+      dynamicRenderers: this._dynamicRenderers.size > 0 ? this._dynamicRenderers : undefined,
+      colorMap,
+      fontMetricsDB: this._fontMetricsDB,
+      loadingModuleKinds: loadingKinds.size > 0 ? loadingKinds : undefined,
+      slideNumber: index + 1,
+      diagnostics: this._diagnostics,
+    };
+
+    ctx.clearRect(0, 0, slideWidthPx, slideHeightPx);
+    renderSlide(modifiedEnriched, rctx, slideWidthPx, slideHeightPx);
+  }
+
   /** Get the current slide index (0-based). */
   get currentSlide(): number {
     return this._currentSlide;

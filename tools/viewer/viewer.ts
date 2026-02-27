@@ -8,7 +8,7 @@
 
 import { SlideKit, EditableSlideKit, type LoadedPresentation } from '@opendockit/pptx';
 import { emuToPx } from '@opendockit/core';
-import { makeElementId } from '@opendockit/core/edit';
+import { makeElementId, getShapeIdFromElementId, deriveIR } from '@opendockit/core/edit';
 import type { SlideElementIR, GroupIR, TransformIR, EditableElement, EditableParagraph } from '@opendockit/core';
 
 // ---------------------------------------------------------------------------
@@ -779,8 +779,6 @@ async function applyEdits(): Promise<void> {
     return;
   }
 
-  setEditStatus('Applying...');
-
   try {
     // Check for position changes
     const newX = inchesToEmu(parseFloat(editX.value));
@@ -810,8 +808,10 @@ async function applyEdits(): Promise<void> {
       }
     }
 
-    // Save and re-render
-    await saveAndReRender();
+    // Instant re-render of just this slide
+    await reRenderEditedSlide(selectedSlideIndex);
+    updateEditHighlight();
+    btnSave.disabled = false;
     setEditStatus('Applied');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -822,12 +822,14 @@ async function applyEdits(): Promise<void> {
 
 /** Delete the currently selected element. */
 async function deleteSelected(): Promise<void> {
-  if (!editKit || !selectedElementId) return;
+  if (!editKit || !selectedElementId || selectedSlideIndex === null) return;
 
+  const slideIdx = selectedSlideIndex;
   try {
     editKit.deleteElement(selectedElementId);
     clearEditSelection();
-    await saveAndReRender();
+    await reRenderEditedSlide(slideIdx);
+    btnSave.disabled = false;
     setStatus('Element deleted');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -838,11 +840,14 @@ async function deleteSelected(): Promise<void> {
 
 /** Nudge the selected element by a delta. */
 async function nudgeSelected(dx: number, dy: number): Promise<void> {
-  if (!editKit || !selectedElementId) return;
+  if (!editKit || !selectedElementId || selectedSlideIndex === null) return;
 
   try {
     editKit.moveElement(selectedElementId, dx, dy);
-    await saveAndReRender();
+    await reRenderEditedSlide(selectedSlideIndex);
+    updateEditHighlight();
+    updateEditPanelValues();
+    btnSave.disabled = false;
   } catch (err) {
     console.error('Nudge error:', err);
   }
@@ -850,7 +855,7 @@ async function nudgeSelected(dx: number, dy: number): Promise<void> {
 
 /** Center the selected element on the slide. */
 async function centerSelected(): Promise<void> {
-  if (!editKit || !selectedElementId || !presentation) return;
+  if (!editKit || !selectedElementId || !presentation || selectedSlideIndex === null) return;
 
   const editable = editKit.getElement(selectedElementId);
   if (!editable) return;
@@ -862,72 +867,127 @@ async function centerSelected(): Promise<void> {
 
   if (dx !== 0 || dy !== 0) {
     editKit.moveElement(selectedElementId, dx, dy);
-    await saveAndReRender();
+    await reRenderEditedSlide(selectedSlideIndex);
+    updateEditHighlight();
+    updateEditPanelValues();
+    btnSave.disabled = false;
   }
 }
 
 /**
- * Save the current edits, re-load both kits from the saved bytes,
- * and re-render all slides.
+ * Re-render a single slide with edits applied via deriveIR.
+ *
+ * Builds an overrides map from the edit model's dirty elements,
+ * calls renderSlideWithOverrides on the rendering SlideKit, and
+ * hot-swaps the affected slide image. No save/reload needed.
  */
-async function saveAndReRender(): Promise<void> {
-  if (!editKit || !offscreenCanvas) return;
+async function reRenderEditedSlide(slideIndex: number): Promise<void> {
+  if (!editKit || !kit || !offscreenCanvas || !presentation) return;
 
-  setLoading(true, 'Saving changes...');
+  // Build overrides map: shapeId → derived IR (or null for deleted)
+  const overrides = new Map<number, SlideElementIR | null>();
+  const slides = editKit.presentation.getSlides();
+  if (slideIndex >= slides.length) return;
 
-  try {
-    // Save to new bytes
-    const bytes = await editKit.save();
-    currentFileBytes = bytes.buffer as ArrayBuffer;
-    btnSave.disabled = false;
+  for (const el of slides[slideIndex].elements) {
+    const shapeId = parseInt(getShapeIdFromElementId(el.id), 10);
+    const derived = deriveIR(el);
+    if (derived.kind === 'unsupported' && (derived as any).elementType === 'deleted') {
+      overrides.set(shapeId, null);
+    } else if (derived !== el.originalIR) {
+      // Only add to overrides if actually changed (deriveIR returns originalIR for clean elements)
+      overrides.set(shapeId, derived);
+    }
+  }
 
-    // Re-load edit kit from new bytes
-    editKit = new EditableSlideKit();
-    await editKit.load(currentFileBytes);
+  // Render with overrides (only if there are any edits on this slide)
+  if (overrides.size > 0) {
+    await kit.renderSlideWithOverrides(slideIndex, overrides);
+  } else {
+    await kit.renderSlide(slideIndex);
+  }
 
-    // Re-load render kit from new bytes
-    if (kit) kit.dispose();
-    kit = new SlideKit({
-      canvas: offscreenCanvas,
-      onProgress: (event) => {
-        const msg = event.message ?? `${event.phase} ${event.current}/${event.total}`;
-        setLoading(true, msg);
-      },
-      onSlideInvalidated: (indices) => reRenderSlides(indices),
-    });
-
-    presentation = await kit.load(currentFileBytes);
-    updateSlideInfo();
-
-    // Clear selection (element IDs may have shifted)
-    clearEditSelection();
-
-    // Re-render all slides
-    await renderAllSlides();
-
-  } catch (err) {
-    setLoading(false);
-    const message = err instanceof Error ? err.message : String(err);
-    showError(`Save/re-render failed: ${message}`);
-    console.error('Save error:', err);
+  // Hot-swap just this slide's image
+  const img = slideImages.get(slideIndex);
+  if (img) {
+    img.src = offscreenCanvas.toDataURL('image/png');
   }
 }
 
-/** Download the current file as PPTX. */
-async function downloadPptx(): Promise<void> {
-  if (!currentFileBytes) return;
+/** Update the edit highlight position from the current editable transform. */
+function updateEditHighlight(): void {
+  if (!editHighlight || !editKit || !selectedElementId || !presentation) return;
 
-  const blob = new Blob([currentFileBytes], {
-    type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  const baseName = currentFileName.replace(/\.pptx$/i, '');
-  a.download = `${baseName}_edited.pptx`;
-  a.click();
-  URL.revokeObjectURL(url);
-  setStatus(`Downloaded ${a.download}`);
+  const editable = editKit.getElement(selectedElementId);
+  if (!editable) return;
+
+  // Find the slide image to get scale factors
+  const img = selectedSlideIndex !== null ? slideImages.get(selectedSlideIndex) : null;
+  if (!img) return;
+
+  const rect = img.getBoundingClientRect();
+  const scaleX = presentation.slideWidth / rect.width;
+  const scaleY = presentation.slideHeight / rect.height;
+
+  editHighlight.style.left = `${editable.transform.x / scaleX}px`;
+  editHighlight.style.top = `${editable.transform.y / scaleY}px`;
+  editHighlight.style.width = `${editable.transform.width / scaleX}px`;
+  editHighlight.style.height = `${editable.transform.height / scaleY}px`;
+}
+
+/** Update the edit panel input values from the current editable element. */
+function updateEditPanelValues(): void {
+  if (!editKit || !selectedElementId) return;
+
+  const editable = editKit.getElement(selectedElementId);
+  if (!editable) return;
+
+  editX.value = String(emuToInches(editable.transform.x));
+  editY.value = String(emuToInches(editable.transform.y));
+  editW.value = String(emuToInches(editable.transform.width));
+  editH.value = String(emuToInches(editable.transform.height));
+}
+
+/**
+ * Save and download the edited PPTX.
+ *
+ * Calls editKit.save() to produce patched bytes, then re-loads the
+ * edit kit from the saved bytes (new baseline for subsequent edits).
+ */
+async function downloadPptx(): Promise<void> {
+  if (!editKit || !currentFileBytes) return;
+
+  setLoading(true, 'Saving PPTX...');
+
+  try {
+    // Save to get patched bytes
+    const bytes = await editKit.save();
+
+    // Download
+    const blob = new Blob([bytes as BlobPart], {
+      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const baseName = currentFileName.replace(/\.pptx$/i, '');
+    a.download = `${baseName}_edited.pptx`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    // Re-load edit kit from saved bytes so subsequent edits build on this baseline
+    currentFileBytes = bytes.buffer as ArrayBuffer;
+    await loadEditKit(currentFileBytes);
+
+    setLoading(false);
+    btnSave.disabled = true;
+    setStatus(`Downloaded ${a.download}`);
+  } catch (err) {
+    setLoading(false);
+    const message = err instanceof Error ? err.message : String(err);
+    showError(`Save failed: ${message}`);
+    console.error('Save error:', err);
+  }
 }
 
 // ---------------------------------------------------------------------------
