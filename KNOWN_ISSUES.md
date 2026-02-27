@@ -1,16 +1,17 @@
 # Known Issues
 
-**Last updated:** 2026-02-28
+**Last updated:** 2026-02-27
 
 ## Active Bugs (Priority)
 
 None currently.
 
-### Resolved: Viewer Edit Mode Bugs (2026-02-26)
+### Resolved: Viewer Edit Mode Bugs (2026-02-27)
 
+- **Pictures not selectable in edit mode** — FIXED: `handleEditClick` used `(element as any).id` to find editable elements, but `.id` only exists on shapes. Pictures use `nonVisualProperties.name`, tables use position-based IDs. Fix: `editModeHitTest` now returns the `editableId` directly from the edit model iteration, eliminating the need to reconstruct composite IDs from kind-specific IR fields.
 - **Hit-test regression** — FIXED: Edit mode now uses `editModeHitTest()` that builds element list from `deriveIR()` (current edit model positions) for slide-layer elements, and cached IR for master/layout layers. After edits, clicking at the new position correctly re-selects the moved element.
 - **Nudge doesn't update canvas** — FIXED: Root cause was string/number type mismatch in `renderSlideWithOverrides()`. IR elements store `.id` as string (from XML parsing), but the overrides map used numeric keys. `Map.has("42")` when key is `42` (number) always returned false. Fixed by converting with `Number(rawId)` before lookup.
-- **E2E test coverage** — DONE: 18 Playwright E2E tests covering click-to-select, nudge (button + keyboard), apply changes, delete, text edit, escape, save PPTX, inspector scan, grouped elements. All passing.
+- **E2E test coverage** — DONE: 19 Playwright E2E tests covering click-to-select, nudge (button + keyboard), apply changes, delete, text edit, escape, save PPTX, inspector scan, grouped elements, picture selection. All passing.
 
 ## Active Blockers
 

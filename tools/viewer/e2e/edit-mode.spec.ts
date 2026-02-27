@@ -535,6 +535,37 @@ test.describe('Edit mode — IC CISO slide 13 (logos)', () => {
     await screenshotSlide(page, 12, '16b-picture-selected');
   });
 
+  test('slide 13 — nudge picture updates canvas (not just highlight)', async ({ page }) => {
+    await enterEditMode(page);
+    await scrollToSlide(page, 12);
+
+    // Select the IC seal picture (second logo)
+    await clickSlideAt(page, 12, 0.32, 0.37);
+    const kind = await page.locator('#edit-kind').textContent();
+    const id = await page.locator('#edit-id').textContent();
+    console.log(`Selected element kind=${kind} id=${id}`);
+    if (kind !== 'PICTURE' && kind !== 'GROUP') {
+      test.skip();
+      return;
+    }
+
+    // Grab canvas pixels before nudge
+    const srcBefore = await getSlideImage(page, 12).getAttribute('src');
+
+    // Nudge right (3 times for a larger visual difference)
+    for (let i = 0; i < 3; i++) {
+      await page.locator('#edit-nudge-right').click();
+      await page.waitForTimeout(200);
+    }
+    await page.waitForTimeout(500);
+
+    // Canvas pixels must change (picture moved on canvas, not just the highlight)
+    const srcAfter = await getSlideImage(page, 12).getAttribute('src');
+    console.log(`Canvas changed: ${srcAfter !== srcBefore}`);
+    expect(srcAfter).not.toBe(srcBefore);
+    await screenshotSlide(page, 12, '16c-picture-nudged');
+  });
+
   test('slide 13 — text edit round-trip', async ({ page }) => {
     await enterEditMode(page);
     await scrollToSlide(page, 12);

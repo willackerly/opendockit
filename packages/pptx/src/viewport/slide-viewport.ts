@@ -349,7 +349,9 @@ export class SlideKit {
    * a full save → reload cycle.
    *
    * @param index - Zero-based slide index.
-   * @param overrides - Map of shape ID → replacement IR (or null to hide).
+   * @param overrides - Map of element array index → replacement IR (or null to delete).
+   *   Indices correspond to the slide's elements array from parsing. The editable
+   *   model preserves this order, so indices map 1:1.
    */
   async renderSlideWithOverrides(
     index: number,
@@ -366,18 +368,17 @@ export class SlideKit {
     const enriched = await this._getOrParseSlide(index);
 
     // Build a modified slide element list with overrides applied.
+    // Keys are element array indices (stable — editable model preserves order).
     const modifiedElements: SlideElementIR[] = [];
-    for (const el of enriched.slide.elements) {
-      const rawId = (el as any).id;
-      const shapeId = rawId !== undefined ? Number(rawId) : undefined;
-      if (shapeId !== undefined && !isNaN(shapeId) && overrides.has(shapeId)) {
-        const replacement = overrides.get(shapeId)!;
+    for (let i = 0; i < enriched.slide.elements.length; i++) {
+      if (overrides.has(i)) {
+        const replacement = overrides.get(i)!;
         if (replacement !== null) {
           modifiedElements.push(replacement);
         }
         // null = deleted, skip entirely
       } else {
-        modifiedElements.push(el);
+        modifiedElements.push(enriched.slide.elements[i]);
       }
     }
 

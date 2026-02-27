@@ -18,7 +18,7 @@ The full PPTX rendering pipeline is implemented, tested, and visually validated.
 - **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance + table textDefaults), SlideKit viewport API (hyperlinks, notes, element inspector), SmartArt fallback renderer, chart cached image fallback renderer
 - **@opendockit/core edit module**: Branded EMU types (compile-time unit safety), EditablePresentation with dirty tracking (WeakSet-based, mirrors pdfbox-ts COSUpdateTracker), element ID registry (`partUri#shapeId`), XML reconstitution engine (surgical DOM patching via @xmldom/xmldom), OPC Package Writer (JSZip-based, unchanged parts copied as raw bytes), IR re-derivation engine (zero-alloc fast path for clean elements)
 - **@opendockit/pptx edit module**: EditableSlideKit API (load/edit/save), editable builder (IR → mutable model), save pipeline (dirty part patching → OPC writer → ZIP)
-- **Dev tools**: Element inspector in viewer (click-to-highlight with z-order hit testing, group recursion, tooltip with kind/name/position/layer), interactive edit mode (click-to-select, move/resize/text/delete, nudge arrows, save PPTX download), instant edit feedback via deriveIR + renderSlideWithOverrides (single-slide re-render, no save/reload cycle)
+- **Dev tools**: Element inspector in viewer (click-to-highlight with z-order hit testing, group recursion, tooltip with kind/name/position/layer), interactive edit mode (click-to-select any element kind including pictures/tables, move/resize/text/delete, nudge arrows, save PPTX download), instant edit feedback via deriveIR + renderSlideWithOverrides (single-slide re-render, no save/reload cycle)
 
 ### Font System
 

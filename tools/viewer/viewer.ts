@@ -8,7 +8,7 @@
 
 import { SlideKit, EditableSlideKit, type LoadedPresentation } from '@opendockit/pptx';
 import { emuToPx } from '@opendockit/core';
-import { makeElementId, getShapeIdFromElementId, deriveIR } from '@opendockit/core/edit';
+import { deriveIR } from '@opendockit/core/edit';
 import type { SlideElementIR, GroupIR, TransformIR, EditableElement, EditableParagraph } from '@opendockit/core';
 
 // ---------------------------------------------------------------------------
@@ -464,7 +464,27 @@ function hitTestElement(
       // Check children in reverse order (later = on top)
       for (let i = group.children.length - 1; i >= 0; i--) {
         const hit = hitTestElement(group.children[i], layer, localX, localY, 0, 0);
-        if (hit) return hit;
+        if (hit) {
+          // Inverse-map child-space coordinates back to parent (slide) space.
+          // Forward: localX = (emuX - absX) * scaleX + childOffset.x
+          // Inverse: slideX = (childX - childOffset.x) / scaleX + absX
+          const cp = hit.transform.position;
+          const cs = hit.transform.size;
+          return {
+            ...hit,
+            transform: {
+              ...hit.transform,
+              position: {
+                x: (cp.x - childOffset.x) / scaleX + absX,
+                y: (cp.y - childOffset.y) / scaleY + absY,
+              },
+              size: {
+                width: cs.width / scaleX,
+                height: cs.height / scaleY,
+              },
+            },
+          };
+        }
       }
     }
   }
@@ -750,7 +770,7 @@ async function handleEditClick(img: HTMLImageElement, slideIndex: number, event:
 
   if (!hit) return;
 
-  const { element, layer, transform, editableId } = hit;
+  const { element, layer, editableId } = hit;
 
   // Only allow editing slide-layer elements
   if (layer !== 'slide') {
@@ -774,16 +794,17 @@ async function handleEditClick(img: HTMLImageElement, slideIndex: number, event:
   selectedElementId = editableId;
   selectedSlideIndex = slideIndex;
 
-  // Show highlight on the slide
+  // Show highlight on the slide — use the editable's transform so the highlight
+  // matches the element being edited (for groups, the group bounding box).
   const container = img.parentElement!;
   const rect = img.getBoundingClientRect();
   const scaleX = presentation.slideWidth / rect.width;
   const scaleY = presentation.slideHeight / rect.height;
 
-  const left = transform.position.x / scaleX;
-  const top = transform.position.y / scaleY;
-  const width = transform.size.width / scaleX;
-  const height = transform.size.height / scaleY;
+  const left = editable.transform.x / scaleX;
+  const top = editable.transform.y / scaleY;
+  const width = editable.transform.width / scaleX;
+  const height = editable.transform.height / scaleY;
 
   const highlight = document.createElement('div');
   highlight.className = 'edit-highlight';
@@ -946,19 +967,22 @@ async function centerSelected(): Promise<void> {
 async function reRenderEditedSlide(slideIndex: number): Promise<void> {
   if (!editKit || !kit || !offscreenCanvas || !presentation) return;
 
-  // Build overrides map: shapeId → derived IR (or null for deleted)
+  // Build overrides map: element index → derived IR (or null for deleted).
+  // Indices correspond to the slide's elements array from parsing — the editable
+  // model preserves this order, so index i maps to the i-th parsed element.
   const overrides = new Map<number, SlideElementIR | null>();
   const slides = editKit.presentation.getSlides();
   if (slideIndex >= slides.length) return;
 
-  for (const el of slides[slideIndex].elements) {
-    const shapeId = parseInt(getShapeIdFromElementId(el.id), 10);
+  const elements = slides[slideIndex].elements;
+  for (let i = 0; i < elements.length; i++) {
+    const el = elements[i];
     const derived = deriveIR(el);
     if (derived.kind === 'unsupported' && (derived as any).elementType === 'deleted') {
-      overrides.set(shapeId, null);
+      overrides.set(i, null);
     } else if (derived !== el.originalIR) {
       // Only add to overrides if actually changed (deriveIR returns originalIR for clean elements)
-      overrides.set(shapeId, derived);
+      overrides.set(i, derived);
     }
   }
 
