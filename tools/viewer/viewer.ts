@@ -1,13 +1,25 @@
 /**
- * OpenDocKit Viewer — dev tool for visual inspection of PPTX rendering.
+ * OpenDocKit Viewer — dev tool for visual inspection and editing of PPTX rendering.
  *
  * Loads a PPTX file via file picker or drag-and-drop, renders ALL slides
- * vertically in a scrollable layout with slide labels and PNG export.
+ * vertically in a scrollable layout with slide labels, PNG export, element
+ * inspector, and basic editing (move, resize, text edit, delete, save).
  */
 
-import { SlideKit, type LoadedPresentation } from '@opendockit/pptx';
+import { SlideKit, EditableSlideKit, type LoadedPresentation } from '@opendockit/pptx';
 import { emuToPx } from '@opendockit/core';
-import type { SlideElementIR, GroupIR, TransformIR } from '@opendockit/core';
+import { makeElementId } from '@opendockit/core/edit';
+import type { SlideElementIR, GroupIR, TransformIR, EditableElement, EditableParagraph } from '@opendockit/core';
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** EMU per inch. */
+const EMU_PER_INCH = 914400;
+
+/** Nudge distance in EMU (0.25 inches). */
+const NUDGE_EMU = EMU_PER_INCH / 4;
 
 // ---------------------------------------------------------------------------
 // DOM references
@@ -15,6 +27,8 @@ import type { SlideElementIR, GroupIR, TransformIR } from '@opendockit/core';
 
 const btnOpen = document.getElementById('btn-open') as HTMLButtonElement;
 const btnInspect = document.getElementById('btn-inspect') as HTMLButtonElement;
+const btnEdit = document.getElementById('btn-edit') as HTMLButtonElement;
+const btnSave = document.getElementById('btn-save') as HTMLButtonElement;
 const fileInput = document.getElementById('file-input') as HTMLInputElement;
 const fileName = document.getElementById('file-name') as HTMLSpanElement;
 const dropZone = document.getElementById('drop-zone') as HTMLDivElement;
@@ -25,6 +39,27 @@ const loadingIndicator = document.getElementById('loading') as HTMLSpanElement;
 const loadingMsg = document.getElementById('loading-msg') as HTMLSpanElement;
 const statusEl = document.getElementById('status') as HTMLDivElement;
 const slideInfo = document.getElementById('slide-info') as HTMLSpanElement;
+
+// Edit panel DOM
+const editPanel = document.getElementById('edit-panel') as HTMLDivElement;
+const editKindEl = document.getElementById('edit-kind') as HTMLDivElement;
+const editNameEl = document.getElementById('edit-name') as HTMLDivElement;
+const editIdEl = document.getElementById('edit-id') as HTMLDivElement;
+const editClose = document.getElementById('edit-close') as HTMLButtonElement;
+const editX = document.getElementById('edit-x') as HTMLInputElement;
+const editY = document.getElementById('edit-y') as HTMLInputElement;
+const editW = document.getElementById('edit-w') as HTMLInputElement;
+const editH = document.getElementById('edit-h') as HTMLInputElement;
+const editTextGroup = document.getElementById('edit-text-group') as HTMLDivElement;
+const editText = document.getElementById('edit-text') as HTMLTextAreaElement;
+const editDelete = document.getElementById('edit-delete') as HTMLButtonElement;
+const editApply = document.getElementById('edit-apply') as HTMLButtonElement;
+const editStatusEl = document.getElementById('edit-status') as HTMLDivElement;
+const editNudgeUp = document.getElementById('edit-nudge-up') as HTMLButtonElement;
+const editNudgeDown = document.getElementById('edit-nudge-down') as HTMLButtonElement;
+const editNudgeLeft = document.getElementById('edit-nudge-left') as HTMLButtonElement;
+const editNudgeRight = document.getElementById('edit-nudge-right') as HTMLButtonElement;
+const editNudgeCenter = document.getElementById('edit-nudge-center') as HTMLButtonElement;
 
 // ---------------------------------------------------------------------------
 // State
@@ -45,6 +80,15 @@ let slideImages: Map<number, HTMLImageElement> = new Map();
 let inspectorActive = false;
 let activeHighlight: HTMLDivElement | null = null;
 let activeTooltip: HTMLDivElement | null = null;
+
+/** Edit mode state. */
+let editMode = false;
+let editKit: EditableSlideKit | null = null;
+let currentFileBytes: ArrayBuffer | null = null;
+let selectedElementId: string | null = null;
+let selectedSlideIndex: number | null = null;
+let editHighlight: HTMLDivElement | null = null;
+// Whether Save PPTX button should be active (tracked via btnSave.disabled)
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -74,6 +118,15 @@ function setStatus(text: string): void {
   statusEl.textContent = text;
 }
 
+function setEditStatus(text: string): void {
+  editStatusEl.textContent = text;
+  if (text) {
+    setTimeout(() => {
+      if (editStatusEl.textContent === text) editStatusEl.textContent = '';
+    }, 3000);
+  }
+}
+
 function updateSlideInfo(): void {
   if (!presentation) {
     slideInfo.textContent = '';
@@ -83,6 +136,14 @@ function updateSlideInfo(): void {
   const wPx = Math.round(emuToPx(presentation.slideWidth));
   const hPx = Math.round(emuToPx(presentation.slideHeight));
   slideInfo.textContent = `${presentation.slideCount} slides | ${wPx} x ${hPx} px @ 96 dpi | Theme: ${presentation.theme.name}`;
+}
+
+function emuToInches(emu: number): number {
+  return Math.round((emu / EMU_PER_INCH) * 100) / 100;
+}
+
+function inchesToEmu(inches: number): number {
+  return Math.round(inches * EMU_PER_INCH);
 }
 
 // ---------------------------------------------------------------------------
@@ -106,13 +167,18 @@ async function loadFile(file: File): Promise<void> {
   }
 
   clearError();
+  clearEditSelection();
 
-  // Dispose previous instance
+  // Dispose previous instances
   if (kit) {
     kit.dispose();
     kit = null;
     presentation = null;
   }
+  editKit = null;
+  currentFileBytes = null;
+  btnSave.disabled = true;
+
   if (offscreenCanvas) {
     offscreenCanvas.remove();
     offscreenCanvas = null;
@@ -135,6 +201,7 @@ async function loadFile(file: File): Promise<void> {
 
   try {
     const arrayBuffer = await file.arrayBuffer();
+    currentFileBytes = arrayBuffer;
 
     // Create a hidden offscreen canvas — kept alive for re-rendering
     // invalidated slides when deferred capabilities load.
@@ -157,86 +224,11 @@ async function loadFile(file: File): Promise<void> {
     presentation = await kit.load(arrayBuffer);
     updateSlideInfo();
 
-    const { slideCount } = presentation;
+    // Load edit kit in parallel (non-blocking, for when edit mode is needed)
+    loadEditKit(arrayBuffer);
 
-    // Calculate the aspect ratio for skeleton placeholders.
-    const slideAspect = emuToPx(presentation.slideHeight) / emuToPx(presentation.slideWidth);
+    await renderAllSlides();
 
-    // Phase 1: Create all slide slots with skeleton placeholders immediately.
-    // This gives the user the full scrollable layout right away.
-    const slots: { wrapper: HTMLDivElement; skeleton: HTMLDivElement }[] = [];
-    for (let i = 0; i < slideCount; i++) {
-      const slideWrapper = document.createElement('div');
-      slideWrapper.className = 'slide-wrapper';
-      slideWrapper.dataset.slideIndex = String(i);
-
-      const label = document.createElement('div');
-      label.className = 'slide-label';
-      label.textContent = `Slide ${i + 1}`;
-
-      const saveBtn = document.createElement('button');
-      saveBtn.className = 'btn btn-sm';
-      saveBtn.textContent = 'Save PNG';
-      saveBtn.disabled = true;
-      label.appendChild(saveBtn);
-
-      const skeleton = document.createElement('div');
-      skeleton.className = 'slide-skeleton';
-      skeleton.style.aspectRatio = `1 / ${slideAspect}`;
-
-      slideWrapper.appendChild(label);
-      slideWrapper.appendChild(skeleton);
-      slidesContainer.appendChild(slideWrapper);
-      slots.push({ wrapper: slideWrapper, skeleton });
-    }
-
-    // Yield so the browser paints all the skeleton placeholders.
-    await yieldToBrowser();
-
-    // Phase 2: Render each slide incrementally, replacing skeletons as we go.
-    const t0 = performance.now();
-    for (let i = 0; i < slideCount; i++) {
-      setLoading(true, `Rendering slide ${i + 1} of ${slideCount}...`);
-      setStatus(`Rendering slide ${i + 1} of ${slideCount}...`);
-
-      await kit.renderSlide(i);
-
-      // Snapshot the offscreen canvas into a visible <img> inside
-      // a container div (needed for inspector overlay positioning).
-      const imgContainer = document.createElement('div');
-      imgContainer.className = 'slide-image-container';
-
-      const img = document.createElement('img');
-      img.src = offscreenCanvas!.toDataURL('image/png');
-      img.alt = `Slide ${i + 1}`;
-      img.className = 'slide-image';
-
-      imgContainer.appendChild(img);
-
-      // Track the image for live updates on invalidation.
-      slideImages.set(i, img);
-
-      // Wire up inspector click handler.
-      const slideIdx = i;
-      img.addEventListener('click', (e) => handleInspectorClick(img, slideIdx, e));
-
-      // Replace the skeleton with the rendered image container.
-      const { wrapper, skeleton } = slots[i];
-      wrapper.replaceChild(imgContainer, skeleton);
-
-      // Enable the Save PNG button now that we have image data.
-      const saveBtn = wrapper.querySelector('.btn-sm') as HTMLButtonElement;
-      saveBtn.disabled = false;
-      const slideIndex = i;
-      saveBtn.addEventListener('click', () => saveSlideAsPng(img, slideIndex));
-
-      // Yield to browser between slides so each one appears immediately.
-      await yieldToBrowser();
-    }
-
-    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
-    setLoading(false);
-    setStatus(`Rendered ${slideCount} slides in ${elapsed}s.`);
   } catch (err) {
     setLoading(false);
     const message = err instanceof Error ? err.message : String(err);
@@ -246,12 +238,108 @@ async function loadFile(file: File): Promise<void> {
   }
 }
 
+/** Load the editing kit from file bytes. */
+async function loadEditKit(bytes: ArrayBuffer): Promise<void> {
+  try {
+    editKit = new EditableSlideKit();
+    await editKit.load(bytes);
+  } catch (err) {
+    console.warn('Failed to load edit kit:', err);
+    editKit = null;
+  }
+}
+
+/** Render all slides from the current SlideKit. */
+async function renderAllSlides(): Promise<void> {
+  if (!kit || !presentation || !offscreenCanvas) return;
+
+  const { slideCount } = presentation;
+
+  // Calculate the aspect ratio for skeleton placeholders.
+  const slideAspect = emuToPx(presentation.slideHeight) / emuToPx(presentation.slideWidth);
+
+  // Phase 1: Create all slide slots with skeleton placeholders immediately.
+  const slots: { wrapper: HTMLDivElement; skeleton: HTMLDivElement }[] = [];
+  slidesContainer.innerHTML = '';
+  slideImages.clear();
+
+  for (let i = 0; i < slideCount; i++) {
+    const slideWrapper = document.createElement('div');
+    slideWrapper.className = 'slide-wrapper';
+    if (editMode) slideWrapper.classList.add('edit-active');
+    slideWrapper.dataset.slideIndex = String(i);
+
+    const label = document.createElement('div');
+    label.className = 'slide-label';
+    label.textContent = `Slide ${i + 1}`;
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-sm';
+    saveBtn.textContent = 'Save PNG';
+    saveBtn.disabled = true;
+    label.appendChild(saveBtn);
+
+    const skeleton = document.createElement('div');
+    skeleton.className = 'slide-skeleton';
+    skeleton.style.aspectRatio = `1 / ${slideAspect}`;
+
+    slideWrapper.appendChild(label);
+    slideWrapper.appendChild(skeleton);
+    slidesContainer.appendChild(slideWrapper);
+    slots.push({ wrapper: slideWrapper, skeleton });
+  }
+
+  // Yield so the browser paints all the skeleton placeholders.
+  await yieldToBrowser();
+
+  // Phase 2: Render each slide incrementally, replacing skeletons as we go.
+  const t0 = performance.now();
+  for (let i = 0; i < slideCount; i++) {
+    setLoading(true, `Rendering slide ${i + 1} of ${slideCount}...`);
+    setStatus(`Rendering slide ${i + 1} of ${slideCount}...`);
+
+    await kit.renderSlide(i);
+
+    // Snapshot the offscreen canvas into a visible <img> inside
+    // a container div (needed for inspector/edit overlay positioning).
+    const imgContainer = document.createElement('div');
+    imgContainer.className = 'slide-image-container';
+
+    const img = document.createElement('img');
+    img.src = offscreenCanvas!.toDataURL('image/png');
+    img.alt = `Slide ${i + 1}`;
+    img.className = 'slide-image';
+
+    imgContainer.appendChild(img);
+
+    // Track the image for live updates on invalidation.
+    slideImages.set(i, img);
+
+    // Wire up click handler for inspector and edit mode.
+    const slideIdx = i;
+    img.addEventListener('click', (e) => handleSlideClick(img, slideIdx, e));
+
+    // Replace the skeleton with the rendered image container.
+    const { wrapper, skeleton } = slots[i];
+    wrapper.replaceChild(imgContainer, skeleton);
+
+    // Enable the Save PNG button now that we have image data.
+    const saveBtn = wrapper.querySelector('.btn-sm') as HTMLButtonElement;
+    saveBtn.disabled = false;
+    const slideIndex = i;
+    saveBtn.addEventListener('click', () => saveSlideAsPng(img, slideIndex));
+
+    // Yield to browser between slides so each one appears immediately.
+    await yieldToBrowser();
+  }
+
+  const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+  setLoading(false);
+  setStatus(`Rendered ${slideCount} slides in ${elapsed}s.`);
+}
+
 /**
  * Re-render specific slides after a capability becomes available.
- *
- * Called by SlideKit's `onSlideInvalidated` callback when a WASM
- * module finishes loading. Re-renders each affected slide and
- * hot-swaps the image src — no DOM rebuild needed.
  */
 async function reRenderSlides(indices: number[]): Promise<void> {
   if (!kit || !offscreenCanvas) return;
@@ -286,33 +374,8 @@ function saveSlideAsPng(img: HTMLImageElement, index: number): void {
 }
 
 // ---------------------------------------------------------------------------
-// Inspector mode
+// Shared hit-testing
 // ---------------------------------------------------------------------------
-
-function toggleInspector(): void {
-  inspectorActive = !inspectorActive;
-  btnInspect.classList.toggle('active', inspectorActive);
-
-  // Toggle crosshair cursor on all slide wrappers
-  document.querySelectorAll('.slide-wrapper').forEach((w) => {
-    w.classList.toggle('inspector-active', inspectorActive);
-  });
-
-  if (!inspectorActive) {
-    clearInspectorOverlay();
-  }
-}
-
-function clearInspectorOverlay(): void {
-  if (activeHighlight) {
-    activeHighlight.remove();
-    activeHighlight = null;
-  }
-  if (activeTooltip) {
-    activeTooltip.remove();
-    activeTooltip = null;
-  }
-}
 
 /** Extract a short text preview from an element. */
 function getTextPreview(element: SlideElementIR): string | undefined {
@@ -329,6 +392,24 @@ function getTextPreview(element: SlideElementIR): string | undefined {
   const full = texts.join('').trim();
   if (!full) return undefined;
   return full.length > 80 ? full.slice(0, 77) + '...' : full;
+}
+
+/** Extract full text from an element (newline per paragraph). */
+function getFullText(element: SlideElementIR): string | undefined {
+  if (element.kind !== 'shape') return undefined;
+  const shape = element as any;
+  if (!shape.textBody?.paragraphs) return undefined;
+  const lines: string[] = [];
+  for (const para of shape.textBody.paragraphs) {
+    const texts: string[] = [];
+    if (para.runs) {
+      for (const run of para.runs) {
+        if (run.text) texts.push(run.text);
+      }
+    }
+    lines.push(texts.join(''));
+  }
+  return lines.join('\n');
 }
 
 /** Get transform from any element type. */
@@ -400,10 +481,23 @@ function hitTestElement(
   return null;
 }
 
-async function handleInspectorClick(img: HTMLImageElement, slideIndex: number, event: MouseEvent): Promise<void> {
-  if (!inspectorActive || !kit || !presentation) return;
+/** Dispatch click on a slide image to inspector or edit mode. */
+async function handleSlideClick(img: HTMLImageElement, slideIndex: number, event: MouseEvent): Promise<void> {
+  if (editMode) {
+    await handleEditClick(img, slideIndex, event);
+  } else if (inspectorActive) {
+    await handleInspectorClick(img, slideIndex, event);
+  }
+}
 
-  // Get click position relative to the image
+/** Perform hit-test on a slide and return the result. */
+async function hitTestSlide(
+  img: HTMLImageElement,
+  slideIndex: number,
+  event: MouseEvent
+): Promise<{ element: SlideElementIR; layer: 'master' | 'layout' | 'slide'; transform: TransformIR } | null> {
+  if (!kit || !presentation) return null;
+
   const rect = img.getBoundingClientRect();
   const clickX = event.clientX - rect.left;
   const clickY = event.clientY - rect.top;
@@ -418,23 +512,58 @@ async function handleInspectorClick(img: HTMLImageElement, slideIndex: number, e
   const data = await kit.getSlideElements(slideIndex);
 
   // Hit test in reverse render order (topmost first)
-  let hit: { element: SlideElementIR; layer: 'master' | 'layout' | 'slide'; transform: TransformIR } | null = null;
-
   for (let i = data.elements.length - 1; i >= 0; i--) {
     const { element, layer } = data.elements[i];
     const result = hitTestElement(element, layer, emuX, emuY, 0, 0);
-    if (result) {
-      hit = result;
-      break;
-    }
+    if (result) return result;
   }
 
-  clearInspectorOverlay();
+  return null;
+}
 
+// ---------------------------------------------------------------------------
+// Inspector mode
+// ---------------------------------------------------------------------------
+
+function toggleInspector(): void {
+  // Turn off edit mode if active
+  if (editMode) toggleEditMode();
+
+  inspectorActive = !inspectorActive;
+  btnInspect.classList.toggle('active', inspectorActive);
+
+  document.querySelectorAll('.slide-wrapper').forEach((w) => {
+    w.classList.toggle('inspector-active', inspectorActive);
+  });
+
+  if (!inspectorActive) {
+    clearInspectorOverlay();
+  }
+}
+
+function clearInspectorOverlay(): void {
+  if (activeHighlight) {
+    activeHighlight.remove();
+    activeHighlight = null;
+  }
+  if (activeTooltip) {
+    activeTooltip.remove();
+    activeTooltip = null;
+  }
+}
+
+async function handleInspectorClick(img: HTMLImageElement, slideIndex: number, event: MouseEvent): Promise<void> {
+  if (!inspectorActive || !kit || !presentation) return;
+
+  const hit = await hitTestSlide(img, slideIndex, event);
+  clearInspectorOverlay();
   if (!hit) return;
 
   const container = img.parentElement!;
   const { transform, element, layer } = hit;
+  const rect = img.getBoundingClientRect();
+  const scaleX = presentation.slideWidth / rect.width;
+  const scaleY = presentation.slideHeight / rect.height;
 
   // Convert element bounds to CSS pixels relative to the image
   const left = transform.position.x / scaleX;
@@ -469,7 +598,6 @@ async function handleInspectorClick(img: HTMLImageElement, slideIndex: number, e
     tooltip.appendChild(nameLabel);
   }
 
-  // Position and size details
   const detail = document.createElement('div');
   detail.className = 'tooltip-detail';
   const posX = Math.round(emuToPx(transform.position.x));
@@ -479,7 +607,6 @@ async function handleInspectorClick(img: HTMLImageElement, slideIndex: number, e
   detail.textContent = `${posX}, ${posY}  ${szW} x ${szH} px`;
   tooltip.appendChild(detail);
 
-  // Text preview
   const textPreview = getTextPreview(element);
   if (textPreview) {
     const textEl = document.createElement('div');
@@ -488,17 +615,13 @@ async function handleInspectorClick(img: HTMLImageElement, slideIndex: number, e
     tooltip.appendChild(textEl);
   }
 
-  // Layer badge
   const layerEl = document.createElement('div');
   layerEl.className = 'tooltip-layer';
   layerEl.textContent = `${layer} layer`;
   tooltip.appendChild(layerEl);
 
-  // Position tooltip near the click, but keep it in view
   let tooltipLeft = left + width + 8;
   let tooltipTop = top;
-
-  // If tooltip would go off the right edge, position to the left
   if (tooltipLeft + 200 > rect.width) {
     tooltipLeft = left - 208;
     if (tooltipLeft < 0) tooltipLeft = 8;
@@ -511,16 +634,367 @@ async function handleInspectorClick(img: HTMLImageElement, slideIndex: number, e
 }
 
 // ---------------------------------------------------------------------------
+// Edit mode
+// ---------------------------------------------------------------------------
+
+function toggleEditMode(): void {
+  // Turn off inspector if active
+  if (inspectorActive) {
+    inspectorActive = false;
+    btnInspect.classList.remove('active');
+    document.querySelectorAll('.slide-wrapper').forEach((w) => {
+      w.classList.remove('inspector-active');
+    });
+    clearInspectorOverlay();
+  }
+
+  editMode = !editMode;
+  btnEdit.classList.toggle('active', editMode);
+
+  document.querySelectorAll('.slide-wrapper').forEach((w) => {
+    w.classList.toggle('edit-active', editMode);
+  });
+
+  if (!editMode) {
+    clearEditSelection();
+  }
+}
+
+function clearEditSelection(): void {
+  selectedElementId = null;
+  selectedSlideIndex = null;
+  editPanel.classList.remove('visible');
+
+  if (editHighlight) {
+    editHighlight.remove();
+    editHighlight = null;
+  }
+}
+
+async function handleEditClick(img: HTMLImageElement, slideIndex: number, event: MouseEvent): Promise<void> {
+  if (!editMode || !kit || !presentation || !editKit) return;
+
+  const hit = await hitTestSlide(img, slideIndex, event);
+
+  // Clear previous selection
+  clearEditSelection();
+
+  if (!hit) return;
+
+  const { element, layer, transform } = hit;
+
+  // Only allow editing slide-layer elements
+  if (layer !== 'slide') {
+    setEditStatus(`Cannot edit ${layer}-layer elements`);
+    return;
+  }
+
+  // Get the element's numeric ID
+  const shapeId = (element as any).id;
+  if (shapeId === undefined) {
+    setEditStatus('Element has no ID');
+    return;
+  }
+
+  // Build the composite element ID
+  const slides = editKit.presentation.getSlides();
+  if (slideIndex >= slides.length) return;
+  const partUri = slides[slideIndex].partUri;
+  const compositeId = makeElementId(partUri, shapeId);
+
+  // Look up the editable element
+  const editable = editKit.getElement(compositeId);
+  if (!editable) {
+    setEditStatus(`Element not found in edit model: ${compositeId}`);
+    return;
+  }
+
+  selectedElementId = compositeId;
+  selectedSlideIndex = slideIndex;
+
+  // Show highlight on the slide
+  const container = img.parentElement!;
+  const rect = img.getBoundingClientRect();
+  const scaleX = presentation.slideWidth / rect.width;
+  const scaleY = presentation.slideHeight / rect.height;
+
+  const left = transform.position.x / scaleX;
+  const top = transform.position.y / scaleY;
+  const width = transform.size.width / scaleX;
+  const height = transform.size.height / scaleY;
+
+  const highlight = document.createElement('div');
+  highlight.className = 'edit-highlight';
+  highlight.style.left = `${left}px`;
+  highlight.style.top = `${top}px`;
+  highlight.style.width = `${width}px`;
+  highlight.style.height = `${height}px`;
+
+  // Add corner handles
+  for (const pos of ['tl', 'tr', 'bl', 'br']) {
+    const handle = document.createElement('div');
+    handle.className = `edit-handle ${pos}`;
+    highlight.appendChild(handle);
+  }
+
+  container.appendChild(highlight);
+  editHighlight = highlight;
+
+  // Populate the edit panel
+  populateEditPanel(editable, element);
+}
+
+function populateEditPanel(editable: EditableElement, irElement: SlideElementIR): void {
+  editKindEl.textContent = editable.kind.toUpperCase();
+  editNameEl.textContent = (irElement as any).name ?? '';
+  editIdEl.textContent = editable.id;
+
+  // Position & size in inches
+  editX.value = String(emuToInches(editable.transform.x));
+  editY.value = String(emuToInches(editable.transform.y));
+  editW.value = String(emuToInches(editable.transform.width));
+  editH.value = String(emuToInches(editable.transform.height));
+
+  // Text (shapes only)
+  const fullText = getFullText(irElement);
+  if (fullText !== undefined && editable.kind === 'shape') {
+    editTextGroup.style.display = '';
+    editText.value = fullText;
+  } else {
+    editTextGroup.style.display = 'none';
+    editText.value = '';
+  }
+
+  editStatusEl.textContent = '';
+  editPanel.classList.add('visible');
+}
+
+/** Apply the current edit panel values to the editable element. */
+async function applyEdits(): Promise<void> {
+  if (!editKit || !selectedElementId || selectedSlideIndex === null) return;
+
+  const editable = editKit.getElement(selectedElementId);
+  if (!editable) {
+    setEditStatus('Element no longer exists');
+    return;
+  }
+
+  setEditStatus('Applying...');
+
+  try {
+    // Check for position changes
+    const newX = inchesToEmu(parseFloat(editX.value));
+    const newY = inchesToEmu(parseFloat(editY.value));
+    const dx = newX - editable.transform.x;
+    const dy = newY - editable.transform.y;
+    if (dx !== 0 || dy !== 0) {
+      editKit.moveElement(selectedElementId, dx, dy);
+    }
+
+    // Check for size changes
+    const newW = inchesToEmu(parseFloat(editW.value));
+    const newH = inchesToEmu(parseFloat(editH.value));
+    if (newW !== editable.transform.width || newH !== editable.transform.height) {
+      editKit.resizeElement(selectedElementId, newW, newH);
+    }
+
+    // Check for text changes (shapes only)
+    if (editable.kind === 'shape' && editTextGroup.style.display !== 'none') {
+      const newText = editText.value;
+      const originalText = getFullText(editable.originalIR);
+      if (newText !== originalText) {
+        const paragraphs: EditableParagraph[] = newText.split('\n').map((line) => ({
+          runs: [{ text: line }],
+        }));
+        editKit.setText(selectedElementId, paragraphs);
+      }
+    }
+
+    // Save and re-render
+    await saveAndReRender();
+    setEditStatus('Applied');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    setEditStatus(`Error: ${message}`);
+    console.error('Apply error:', err);
+  }
+}
+
+/** Delete the currently selected element. */
+async function deleteSelected(): Promise<void> {
+  if (!editKit || !selectedElementId) return;
+
+  try {
+    editKit.deleteElement(selectedElementId);
+    clearEditSelection();
+    await saveAndReRender();
+    setStatus('Element deleted');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    setEditStatus(`Delete error: ${message}`);
+    console.error('Delete error:', err);
+  }
+}
+
+/** Nudge the selected element by a delta. */
+async function nudgeSelected(dx: number, dy: number): Promise<void> {
+  if (!editKit || !selectedElementId) return;
+
+  try {
+    editKit.moveElement(selectedElementId, dx, dy);
+    await saveAndReRender();
+  } catch (err) {
+    console.error('Nudge error:', err);
+  }
+}
+
+/** Center the selected element on the slide. */
+async function centerSelected(): Promise<void> {
+  if (!editKit || !selectedElementId || !presentation) return;
+
+  const editable = editKit.getElement(selectedElementId);
+  if (!editable) return;
+
+  const centerX = (presentation.slideWidth - editable.transform.width) / 2;
+  const centerY = (presentation.slideHeight - editable.transform.height) / 2;
+  const dx = Math.round(centerX) - editable.transform.x;
+  const dy = Math.round(centerY) - editable.transform.y;
+
+  if (dx !== 0 || dy !== 0) {
+    editKit.moveElement(selectedElementId, dx, dy);
+    await saveAndReRender();
+  }
+}
+
+/**
+ * Save the current edits, re-load both kits from the saved bytes,
+ * and re-render all slides.
+ */
+async function saveAndReRender(): Promise<void> {
+  if (!editKit || !offscreenCanvas) return;
+
+  setLoading(true, 'Saving changes...');
+
+  try {
+    // Save to new bytes
+    const bytes = await editKit.save();
+    currentFileBytes = bytes.buffer as ArrayBuffer;
+    btnSave.disabled = false;
+
+    // Re-load edit kit from new bytes
+    editKit = new EditableSlideKit();
+    await editKit.load(currentFileBytes);
+
+    // Re-load render kit from new bytes
+    if (kit) kit.dispose();
+    kit = new SlideKit({
+      canvas: offscreenCanvas,
+      onProgress: (event) => {
+        const msg = event.message ?? `${event.phase} ${event.current}/${event.total}`;
+        setLoading(true, msg);
+      },
+      onSlideInvalidated: (indices) => reRenderSlides(indices),
+    });
+
+    presentation = await kit.load(currentFileBytes);
+    updateSlideInfo();
+
+    // Clear selection (element IDs may have shifted)
+    clearEditSelection();
+
+    // Re-render all slides
+    await renderAllSlides();
+
+  } catch (err) {
+    setLoading(false);
+    const message = err instanceof Error ? err.message : String(err);
+    showError(`Save/re-render failed: ${message}`);
+    console.error('Save error:', err);
+  }
+}
+
+/** Download the current file as PPTX. */
+async function downloadPptx(): Promise<void> {
+  if (!currentFileBytes) return;
+
+  const blob = new Blob([currentFileBytes], {
+    type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const baseName = currentFileName.replace(/\.pptx$/i, '');
+  a.download = `${baseName}_edited.pptx`;
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus(`Downloaded ${a.download}`);
+}
+
+// ---------------------------------------------------------------------------
 // Event handlers
 // ---------------------------------------------------------------------------
 
 // Inspector toggle
 btnInspect.addEventListener('click', () => toggleInspector());
 
-// Escape to dismiss inspector highlight
+// Edit mode toggle
+btnEdit.addEventListener('click', () => toggleEditMode());
+
+// Save PPTX button
+btnSave.addEventListener('click', () => downloadPptx());
+
+// Edit panel: close
+editClose.addEventListener('click', () => clearEditSelection());
+
+// Edit panel: apply
+editApply.addEventListener('click', () => applyEdits());
+
+// Edit panel: delete
+editDelete.addEventListener('click', () => deleteSelected());
+
+// Edit panel: nudge buttons
+editNudgeUp.addEventListener('click', () => nudgeSelected(0, -NUDGE_EMU));
+editNudgeDown.addEventListener('click', () => nudgeSelected(0, NUDGE_EMU));
+editNudgeLeft.addEventListener('click', () => nudgeSelected(-NUDGE_EMU, 0));
+editNudgeRight.addEventListener('click', () => nudgeSelected(NUDGE_EMU, 0));
+editNudgeCenter.addEventListener('click', () => centerSelected());
+
+// Escape to dismiss selection / inspector
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     clearInspectorOverlay();
+    clearEditSelection();
+  }
+});
+
+// Arrow keys for nudging in edit mode
+document.addEventListener('keydown', (e) => {
+  if (!editMode || !selectedElementId) return;
+  // Don't capture if typing in an input
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+  switch (e.key) {
+    case 'ArrowUp':
+      e.preventDefault();
+      nudgeSelected(0, -NUDGE_EMU);
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      nudgeSelected(0, NUDGE_EMU);
+      break;
+    case 'ArrowLeft':
+      e.preventDefault();
+      nudgeSelected(-NUDGE_EMU, 0);
+      break;
+    case 'ArrowRight':
+      e.preventDefault();
+      nudgeSelected(NUDGE_EMU, 0);
+      break;
+    case 'Delete':
+    case 'Backspace':
+      e.preventDefault();
+      deleteSelected();
+      break;
   }
 });
 

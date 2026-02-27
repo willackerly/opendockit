@@ -45,6 +45,10 @@ export default defineConfig({
         replacement: resolve(coreBase, 'media'),
       },
       {
+        find: '@opendockit/core/edit',
+        replacement: resolve(coreBase, 'edit'),
+      },
+      {
         find: '@opendockit/core/wasm',
         replacement: resolve(coreBase, 'wasm'),
       },
