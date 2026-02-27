@@ -1,6 +1,6 @@
 # Known Issues
 
-**Last updated:** 2026-02-26
+**Last updated:** 2026-02-27
 
 ## Active Blockers
 

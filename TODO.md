@@ -1,6 +1,6 @@
 # TODO
 
-**Last synced:** 2026-02-26
+**Last synced:** 2026-02-27
 
 ## Completed
 
@@ -112,6 +112,21 @@ fixed, and verified with RMSE improvement before moving to other work.
 - [x] **Underline fill color** — `a:uFill` on `a:rPr` provides separate underline color from text fill (2026-02-26)
 - [x] **Corpus visual regression pipeline** — 10-file self-referential baseline system with `pnpm test:visual:corpus` (2026-02-26)
 - [x] **Element inspector** — click-to-highlight in viewer with z-order hit testing, group recursion, tooltip (2026-02-26)
+
+### Phase Edit: Mutable Object Model (complete 2026-02-27)
+
+- [x] **Phase 0** — Branded EMU types (compile-time unit safety, zero runtime cost) (2026-02-26)
+- [x] **Phase 1A** — OPC Package Writer (JSZip-based, unchanged parts as raw bytes) (2026-02-26)
+- [x] **Phase 1B** — Flat Edit Model + Dirty Tracking (EditablePresentation, EditTracker with WeakSet) (2026-02-26)
+- [x] **Phase 1C** — XML Reconstitution Engine (surgical DOM patching via @xmldom/xmldom) (2026-02-26)
+- [x] **Phase 1D** — XML Serializer utility (XmlElement → XML string round-trip) (2026-02-26)
+- [x] **Phase 2E** — IR Re-derivation Engine (zero-alloc fast path for clean elements) (2026-02-27)
+- [x] **Phase 2F** — EditableSlideKit API (load/edit/save public API) (2026-02-27)
+- [x] **Phase 2G** — Round-Trip Test Suite (24 tests: no-op, move, resize, text, delete, reorder, slide delete, multi-edit, fixture, dirty state) (2026-02-27)
+- [x] **Phase 3H** — Visual Regression for Edits (6 tests: move/text/delete/resize/no-edit/combined via mock canvas) (2026-02-27)
+- [x] **Phase 3I** — pdfbox-ts Cross-Project Alignment (branded Points type, COSUpdateTracker + branded types pattern docs) (2026-02-27)
+
+**Bug fixed during implementation:** `EditablePresentation.getSlideOrder()` wasn't filtering out deleted slides, causing slide deletion to leave stale entries in `<p:sldIdLst>`. Caught by round-trip tests, fixed immediately.
 
 ## Deferred (Not Blocking)
 
