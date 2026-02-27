@@ -87,7 +87,7 @@ function mergeListStyleLevel(
  * master txStyles category so that explicit shape-level overrides win
  * while master defaults fill in the gaps.
  */
-function mergeListStyles(
+export function mergeListStyles(
   higher: ListStyleIR | undefined,
   lower: ListStyleIR | undefined
 ): ListStyleIR | undefined {
@@ -134,7 +134,7 @@ function findMatchingPlaceholder(
  *
  * Returns undefined for non-shape elements or when no defaults exist.
  */
-function buildTextDefaults(
+export function buildTextDefaults(
   element: SlideElementIR,
   data: EnrichedSlideData
 ): ListStyleIR | undefined {
