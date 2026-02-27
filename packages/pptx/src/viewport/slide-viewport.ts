@@ -382,6 +382,12 @@ export class SlideKit {
       }
     }
 
+    // Resolve media URIs on override elements (the editable model's IR may
+    // still have raw rId references instead of absolute OPC paths). This also
+    // ensures images are in the media cache.
+    const slidePartUri = pres.slides[index].partUri;
+    await this._loadSlideMedia(modifiedElements, slidePartUri);
+
     // Build enriched data with substituted elements.
     const modifiedEnriched = {
       ...enriched,
