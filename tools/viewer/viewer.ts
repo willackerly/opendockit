@@ -593,7 +593,7 @@ async function handleInspectorClick(img: HTMLImageElement, slideIndex: number, e
   kindLabel.textContent = element.kind;
   tooltip.appendChild(kindLabel);
 
-  const name = (element as any).name;
+  const name = (element as any).name ?? (element as any).nonVisualProperties?.name;
   if (name) {
     const nameLabel = document.createElement('div');
     nameLabel.className = 'tooltip-name';
@@ -680,12 +680,20 @@ function clearEditSelection(): void {
  * After edits, SlideKit's cached IR has stale positions. This function
  * builds an augmented element list: master/layout from cache (read-only),
  * slide-layer elements from deriveIR (current edit model positions).
+ *
+ * Returns the editable element ID alongside the hit, so callers don't
+ * need to reconstruct composite IDs from IR fields (which vary by kind).
  */
 async function editModeHitTest(
   img: HTMLImageElement,
   slideIndex: number,
   event: MouseEvent
-): Promise<{ element: SlideElementIR; layer: 'master' | 'layout' | 'slide'; transform: TransformIR } | null> {
+): Promise<{
+  element: SlideElementIR;
+  layer: 'master' | 'layout' | 'slide';
+  transform: TransformIR;
+  editableId?: string;
+} | null> {
   if (!kit || !presentation || !editKit) return null;
 
   const rect = img.getBoundingClientRect();
@@ -700,8 +708,8 @@ async function editModeHitTest(
   // Get original elements for master/layout layers
   const data = await kit.getSlideElements(slideIndex);
 
-  // Build augmented element list
-  const elements: { element: SlideElementIR; layer: 'master' | 'layout' | 'slide' }[] = [];
+  // Build augmented element list, tracking editable IDs for slide-layer elements
+  const elements: { element: SlideElementIR; layer: 'master' | 'layout' | 'slide'; editableId?: string }[] = [];
 
   // Master + layout elements (from cache — read-only, no edits possible)
   for (const item of data.elements) {
@@ -716,15 +724,15 @@ async function editModeHitTest(
     for (const editable of slides[slideIndex].elements) {
       if (editable.deleted) continue;
       const derived = deriveIR(editable);
-      elements.push({ element: derived, layer: 'slide' as const });
+      elements.push({ element: derived, layer: 'slide' as const, editableId: editable.id });
     }
   }
 
   // Hit-test in reverse order (topmost = last = highest z-order)
   for (let i = elements.length - 1; i >= 0; i--) {
-    const { element, layer } = elements[i];
+    const { element, layer, editableId } = elements[i];
     const result = hitTestElement(element, layer, emuX, emuY, 0, 0);
-    if (result) return result;
+    if (result) return { ...result, editableId };
   }
 
   return null;
@@ -742,7 +750,7 @@ async function handleEditClick(img: HTMLImageElement, slideIndex: number, event:
 
   if (!hit) return;
 
-  const { element, layer, transform } = hit;
+  const { element, layer, transform, editableId } = hit;
 
   // Only allow editing slide-layer elements
   if (layer !== 'slide') {
@@ -750,27 +758,20 @@ async function handleEditClick(img: HTMLImageElement, slideIndex: number, event:
     return;
   }
 
-  // Get the element's numeric ID
-  const shapeId = (element as any).id;
-  if (shapeId === undefined) {
-    setEditStatus('Element has no ID');
+  // Use the editable ID returned by editModeHitTest
+  if (!editableId) {
+    setEditStatus('Element has no editable ID');
     return;
   }
-
-  // Build the composite element ID
-  const slides = editKit.presentation.getSlides();
-  if (slideIndex >= slides.length) return;
-  const partUri = slides[slideIndex].partUri;
-  const compositeId = makeElementId(partUri, shapeId);
 
   // Look up the editable element
-  const editable = editKit.getElement(compositeId);
+  const editable = editKit.getElement(editableId);
   if (!editable) {
-    setEditStatus(`Element not found in edit model: ${compositeId}`);
+    setEditStatus(`Element not found in edit model: ${editableId}`);
     return;
   }
 
-  selectedElementId = compositeId;
+  selectedElementId = editableId;
   selectedSlideIndex = slideIndex;
 
   // Show highlight on the slide
@@ -807,7 +808,7 @@ async function handleEditClick(img: HTMLImageElement, slideIndex: number, event:
 
 function populateEditPanel(editable: EditableElement, irElement: SlideElementIR): void {
   editKindEl.textContent = editable.kind.toUpperCase();
-  editNameEl.textContent = (irElement as any).name ?? '';
+  editNameEl.textContent = (irElement as any).name ?? (irElement as any).nonVisualProperties?.name ?? '';
   editIdEl.textContent = editable.id;
 
   // Position & size in inches
@@ -1175,5 +1176,14 @@ dropZone.addEventListener('click', (e) => {
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
+
+// Expose debug helpers for E2E tests and diagnostic tooling
+(window as any).__debug = {
+  get kit() { return kit; },
+  get presentation() { return presentation; },
+  get editKit() { return editKit; },
+  get inspectorActive() { return inspectorActive; },
+  get editMode() { return editMode; },
+};
 
 setStatus('No file loaded. Open a PPTX file to begin.');

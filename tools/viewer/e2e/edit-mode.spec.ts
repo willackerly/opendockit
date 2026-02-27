@@ -495,6 +495,46 @@ test.describe('Edit mode — IC CISO slide 13 (logos)', () => {
     expect(srcAfter).not.toBe(srcBefore);
   });
 
+  test('slide 13 — pictures are selectable in edit mode', async ({ page }) => {
+    await enterEditMode(page);
+    await scrollToSlide(page, 12);
+
+    // Pictures on slide 13 are the logo images (IC seal, DoW, NATO, etc.)
+    // Positions from diagnostic data (CSS centers / image dimensions):
+    //   484 (Private Sector): CSS(124, 209) → pct(0.13, 0.39)
+    //   479 (IC seal): CSS(303, 202) → pct(0.32, 0.37)
+    //   481 (DoW eagle): CSS(481, 203) → pct(0.50, 0.38)
+    //   480 (NATO): CSS(656, 202) → pct(0.68, 0.37)
+    //   482 (FVEYs): CSS(829, 203) → pct(0.86, 0.38)
+    const picturePositions = [
+      { x: 0.13, y: 0.39, name: 'Private Sector logo' },
+      { x: 0.32, y: 0.37, name: 'IC seal' },
+      { x: 0.50, y: 0.38, name: 'DoW eagle' },
+      { x: 0.68, y: 0.37, name: 'NATO compass' },
+      { x: 0.86, y: 0.38, name: 'FVEYs flags' },
+    ];
+
+    let pictureHits = 0;
+    for (const pos of picturePositions) {
+      await clickSlideAt(page, 12, pos.x, pos.y);
+      const isVisible = await page.locator('#edit-panel').evaluate((el) => el.classList.contains('visible'));
+      if (isVisible) {
+        const kind = await page.locator('#edit-kind').textContent();
+        if (kind === 'PICTURE') {
+          pictureHits++;
+          console.log(`  HIT picture: ${pos.name} at (${pos.x}, ${pos.y})`);
+        } else {
+          console.log(`  Hit ${kind} instead of picture at ${pos.name}`);
+        }
+      } else {
+        console.log(`  MISS at ${pos.name} (${pos.x}, ${pos.y})`);
+      }
+    }
+    // Should hit at least 3 of the 5 pictures (some positions might be slightly off)
+    expect(pictureHits).toBeGreaterThanOrEqual(3);
+    await screenshotSlide(page, 12, '16b-picture-selected');
+  });
+
   test('slide 13 — text edit round-trip', async ({ page }) => {
     await enterEditMode(page);
     await scrollToSlide(page, 12);
