@@ -1,8 +1,8 @@
 # Quick Context
 
-**Last updated:** 2026-02-27
+**Last updated:** 2026-02-28
 **Branch:** main
-**Phase:** 3.5 complete + PPTX editing infrastructure (mutable object model, save pipeline, round-trip tested)
+**Phase:** 3.5 complete + PPTX editing infrastructure + interactive viewer edit mode
 
 ## What Is This?
 
@@ -18,7 +18,7 @@ The full PPTX rendering pipeline is implemented, tested, and visually validated.
 - **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance + table textDefaults), SlideKit viewport API (hyperlinks, notes, element inspector), SmartArt fallback renderer, chart cached image fallback renderer
 - **@opendockit/core edit module**: Branded EMU types (compile-time unit safety), EditablePresentation with dirty tracking (WeakSet-based, mirrors pdfbox-ts COSUpdateTracker), element ID registry (`partUri#shapeId`), XML reconstitution engine (surgical DOM patching via @xmldom/xmldom), OPC Package Writer (JSZip-based, unchanged parts copied as raw bytes), IR re-derivation engine (zero-alloc fast path for clean elements)
 - **@opendockit/pptx edit module**: EditableSlideKit API (load/edit/save), editable builder (IR → mutable model), save pipeline (dirty part patching → OPC writer → ZIP)
-- **Dev tools**: Element inspector in viewer (click-to-highlight with z-order hit testing, group recursion, tooltip with kind/name/position/layer)
+- **Dev tools**: Element inspector in viewer (click-to-highlight with z-order hit testing, group recursion, tooltip with kind/name/position/layer), interactive edit mode (click-to-select, move/resize/text/delete, nudge arrows, save PPTX download), instant edit feedback via deriveIR + renderSlideWithOverrides (single-slide re-render, no save/reload cycle)
 
 ### Font System
 
@@ -53,6 +53,14 @@ Supported operations: moveElement, resizeElement, setText, deleteElement, reorde
 Cross-project alignment with pdfbox-ts: EditTracker mirrors COSUpdateTracker pattern, branded types shared (EMU in OpenDocKit, Points in pdfbox-ts).
 
 ## What's Next
+
+### PRIORITY: Viewer Edit Mode E2E Tests & Bug Fixes
+
+Two interaction bugs in edit mode (see KNOWN_ISSUES.md):
+1. **Hit-test regression** — click-to-select misses master/layout layer elements; post-edit hit-testing reads stale positions
+2. **Nudge doesn't update slide image** — arrow key moves highlight but canvas doesn't re-render (shape ID matching issue)
+
+Needs Playwright E2E tests: click accuracy, nudge visual feedback, apply changes, text round-trip, delete feedback, save fidelity.
 
 ### Deferred (not blocking — tackle when needed)
 
@@ -90,3 +98,8 @@ packages/
 ## Blockers
 
 None currently.
+
+## Active Bugs
+
+- **Edit mode hit-test regression** — see KNOWN_ISSUES.md
+- **Edit mode nudge doesn't update canvas** — see KNOWN_ISSUES.md

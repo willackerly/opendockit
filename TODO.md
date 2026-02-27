@@ -1,6 +1,6 @@
 # TODO
 
-**Last synced:** 2026-02-27
+**Last synced:** 2026-02-28
 
 ## Completed
 
@@ -112,6 +112,8 @@ fixed, and verified with RMSE improvement before moving to other work.
 - [x] **Underline fill color** — `a:uFill` on `a:rPr` provides separate underline color from text fill (2026-02-26)
 - [x] **Corpus visual regression pipeline** — 10-file self-referential baseline system with `pnpm test:visual:corpus` (2026-02-26)
 - [x] **Element inspector** — click-to-highlight in viewer with z-order hit testing, group recursion, tooltip (2026-02-26)
+- [x] **Viewer edit mode** — interactive editing in dev harness: click-to-select, move/resize/text/delete, nudge, save PPTX download (2026-02-27)
+- [x] **Edit mode perf optimization** — deriveIR + renderSlideWithOverrides for instant single-slide re-render (no save/reload cycle) (2026-02-27)
 
 ### Phase Edit: Mutable Object Model (complete 2026-02-27)
 
@@ -127,6 +129,25 @@ fixed, and verified with RMSE improvement before moving to other work.
 - [x] **Phase 3I** — pdfbox-ts Cross-Project Alignment (branded Points type, COSUpdateTracker + branded types pattern docs) (2026-02-27)
 
 **Bug fixed during implementation:** `EditablePresentation.getSlideOrder()` wasn't filtering out deleted slides, causing slide deletion to leave stale entries in `<p:sldIdLst>`. Caught by round-trip tests, fixed immediately.
+
+### PRIORITY: Viewer Edit Mode — E2E Tests & Bug Fixes
+
+The viewer now has interactive edit mode (click-to-select, move/resize/text edit/delete, save PPTX).
+Two interaction-level bugs exist that unit tests can't catch. **Need Playwright E2E tests.**
+
+**Bugs (see KNOWN_ISSUES.md for details):**
+
+- [ ] **Hit-test regression** — Click-to-select fidelity in edit mode is worse than inspector mode. Edit mode filters out master/layout layer elements (`if (layer !== 'slide')`), so clicks on visible master/layout elements fail silently. Also, after edits, hit-testing reads stale cached IR positions while rendering uses `deriveIR` overrides.
+- [ ] **Nudge doesn't update slide image** — Arrow key nudge moves the highlight box but the slide canvas doesn't re-render. Likely shape ID matching issue in `reRenderEditedSlide` — `parseInt(getShapeIdFromElementId(...))` may not match the IR element's numeric `.id` field.
+
+**E2E test plan (Playwright):**
+
+- [ ] Click-to-select accuracy (click on visible element → correct element selected)
+- [ ] Nudge visual feedback (arrow key → slide canvas visually moves element)
+- [ ] Apply changes visual feedback (modify position/text in panel → slide updates)
+- [ ] Text edit round-trip (edit text → save PPTX → re-load → text persists)
+- [ ] Delete visual feedback (delete element → element disappears from canvas)
+- [ ] Save/download fidelity (save → re-open → compare rendered output)
 
 ## Deferred (Not Blocking)
 
