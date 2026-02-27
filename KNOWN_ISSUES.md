@@ -4,25 +4,13 @@
 
 ## Active Bugs (Priority)
 
-### Viewer Edit Mode — Hit-Test Regression
+None currently.
 
-- **Symptom:** Click-to-select fidelity in edit mode is much worse than inspector mode was. Elements are hard to select or the wrong element gets selected.
-- **Likely causes:**
-  1. Edit mode filters out master/layout layer elements (`if (layer !== 'slide')`) — many visible elements are actually on master/layout layers, so clicks on them silently fail
-  2. After edits, hit-testing still reads from SlideKit's cached IR (pre-edit positions), while rendering uses `deriveIR` overrides — coordinates are stale
-- **Fix requires:** Investigation with Playwright e2e instrumentation. May need to build hit-testing from the editable model's positions when in edit mode.
+### Resolved: Viewer Edit Mode Bugs (2026-02-26)
 
-### Viewer Edit Mode — Nudge Doesn't Update Slide Image
-
-- **Symptom:** Arrow key nudge moves the highlight box but the slide image content doesn't visually change.
-- **Likely cause:** Shape ID matching issue in `reRenderEditedSlide` — the override map key (`parseInt(getShapeIdFromElementId(...))`) may not match the IR element's numeric `.id` field for some elements, or `renderSlideWithOverrides` is not finding the element to substitute.
-- **Fix requires:** Debug logging or Playwright e2e test that verifies the canvas output changes after nudge.
-
-### Viewer Edit Mode — E2E Test Coverage Needed
-
-- Both bugs above are interaction-level regressions that unit tests can't catch.
-- Need Playwright e2e tests for: click-to-select accuracy, nudge visual feedback, apply changes visual feedback, text edit round-trip, delete visual feedback, save/download fidelity.
-- See TODO.md "Viewer Edit Mode E2E Tests" section.
+- **Hit-test regression** — FIXED: Edit mode now uses `editModeHitTest()` that builds element list from `deriveIR()` (current edit model positions) for slide-layer elements, and cached IR for master/layout layers. After edits, clicking at the new position correctly re-selects the moved element.
+- **Nudge doesn't update canvas** — FIXED: Root cause was string/number type mismatch in `renderSlideWithOverrides()`. IR elements store `.id` as string (from XML parsing), but the overrides map used numeric keys. `Map.has("42")` when key is `42` (number) always returned false. Fixed by converting with `Number(rawId)` before lookup.
+- **E2E test coverage** — DONE: 18 Playwright E2E tests covering click-to-select, nudge (button + keyboard), apply changes, delete, text edit, escape, save PPTX, inspector scan, grouped elements. All passing.
 
 ## Active Blockers
 

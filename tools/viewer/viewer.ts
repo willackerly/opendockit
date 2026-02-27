@@ -243,9 +243,12 @@ async function loadEditKit(bytes: ArrayBuffer): Promise<void> {
   try {
     editKit = new EditableSlideKit();
     await editKit.load(bytes);
+    // Signal to E2E tests that the edit kit is ready
+    document.body.dataset.editKitReady = 'true';
   } catch (err) {
     console.warn('Failed to load edit kit:', err);
     editKit = null;
+    document.body.dataset.editKitReady = 'error';
   }
 }
 
@@ -671,10 +674,68 @@ function clearEditSelection(): void {
   }
 }
 
+/**
+ * Hit-test using edit model positions for slide-layer elements.
+ *
+ * After edits, SlideKit's cached IR has stale positions. This function
+ * builds an augmented element list: master/layout from cache (read-only),
+ * slide-layer elements from deriveIR (current edit model positions).
+ */
+async function editModeHitTest(
+  img: HTMLImageElement,
+  slideIndex: number,
+  event: MouseEvent
+): Promise<{ element: SlideElementIR; layer: 'master' | 'layout' | 'slide'; transform: TransformIR } | null> {
+  if (!kit || !presentation || !editKit) return null;
+
+  const rect = img.getBoundingClientRect();
+  const clickX = event.clientX - rect.left;
+  const clickY = event.clientY - rect.top;
+
+  const scaleX = presentation.slideWidth / rect.width;
+  const scaleY = presentation.slideHeight / rect.height;
+  const emuX = clickX * scaleX;
+  const emuY = clickY * scaleY;
+
+  // Get original elements for master/layout layers
+  const data = await kit.getSlideElements(slideIndex);
+
+  // Build augmented element list
+  const elements: { element: SlideElementIR; layer: 'master' | 'layout' | 'slide' }[] = [];
+
+  // Master + layout elements (from cache — read-only, no edits possible)
+  for (const item of data.elements) {
+    if (item.layer !== 'slide') {
+      elements.push(item);
+    }
+  }
+
+  // Slide elements from edit model with current positions via deriveIR
+  const slides = editKit.presentation.getSlides();
+  if (slideIndex < slides.length) {
+    for (const editable of slides[slideIndex].elements) {
+      if (editable.deleted) continue;
+      const derived = deriveIR(editable);
+      elements.push({ element: derived, layer: 'slide' as const });
+    }
+  }
+
+  // Hit-test in reverse order (topmost = last = highest z-order)
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const { element, layer } = elements[i];
+    const result = hitTestElement(element, layer, emuX, emuY, 0, 0);
+    if (result) return result;
+  }
+
+  return null;
+}
+
 async function handleEditClick(img: HTMLImageElement, slideIndex: number, event: MouseEvent): Promise<void> {
   if (!editMode || !kit || !presentation || !editKit) return;
 
-  const hit = await hitTestSlide(img, slideIndex, event);
+  // In edit mode, build an augmented element list that uses the edit model's
+  // current positions for slide-layer elements (not stale cached IR).
+  const hit = await editModeHitTest(img, slideIndex, event);
 
   // Clear previous selection
   clearEditSelection();

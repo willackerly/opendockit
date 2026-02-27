@@ -130,24 +130,11 @@ fixed, and verified with RMSE improvement before moving to other work.
 
 **Bug fixed during implementation:** `EditablePresentation.getSlideOrder()` wasn't filtering out deleted slides, causing slide deletion to leave stale entries in `<p:sldIdLst>`. Caught by round-trip tests, fixed immediately.
 
-### PRIORITY: Viewer Edit Mode — E2E Tests & Bug Fixes
+### Viewer Edit Mode — E2E Tests & Bug Fixes (complete 2026-02-26)
 
-The viewer now has interactive edit mode (click-to-select, move/resize/text edit/delete, save PPTX).
-Two interaction-level bugs exist that unit tests can't catch. **Need Playwright E2E tests.**
-
-**Bugs (see KNOWN_ISSUES.md for details):**
-
-- [ ] **Hit-test regression** — Click-to-select fidelity in edit mode is worse than inspector mode. Edit mode filters out master/layout layer elements (`if (layer !== 'slide')`), so clicks on visible master/layout elements fail silently. Also, after edits, hit-testing reads stale cached IR positions while rendering uses `deriveIR` overrides.
-- [ ] **Nudge doesn't update slide image** — Arrow key nudge moves the highlight box but the slide canvas doesn't re-render. Likely shape ID matching issue in `reRenderEditedSlide` — `parseInt(getShapeIdFromElementId(...))` may not match the IR element's numeric `.id` field.
-
-**E2E test plan (Playwright):**
-
-- [ ] Click-to-select accuracy (click on visible element → correct element selected)
-- [ ] Nudge visual feedback (arrow key → slide canvas visually moves element)
-- [ ] Apply changes visual feedback (modify position/text in panel → slide updates)
-- [ ] Text edit round-trip (edit text → save PPTX → re-load → text persists)
-- [ ] Delete visual feedback (delete element → element disappears from canvas)
-- [ ] Save/download fidelity (save → re-open → compare rendered output)
+- [x] **Hit-test regression** — FIXED: `editModeHitTest()` uses `deriveIR()` for current edit model positions (2026-02-26)
+- [x] **Nudge doesn't update canvas** — FIXED: string/number type mismatch in `renderSlideWithOverrides()` (2026-02-26)
+- [x] **Playwright E2E tests** — 18 tests: click-to-select, nudge (button+keyboard), apply, delete, text edit, escape, save PPTX, inspector scan, grouped elements (2026-02-26)
 
 ## Deferred (Not Blocking)
 

@@ -368,8 +368,9 @@ export class SlideKit {
     // Build a modified slide element list with overrides applied.
     const modifiedElements: SlideElementIR[] = [];
     for (const el of enriched.slide.elements) {
-      const shapeId = (el as any).id as number | undefined;
-      if (shapeId !== undefined && overrides.has(shapeId)) {
+      const rawId = (el as any).id;
+      const shapeId = rawId !== undefined ? Number(rawId) : undefined;
+      if (shapeId !== undefined && !isNaN(shapeId) && overrides.has(shapeId)) {
         const replacement = overrides.get(shapeId)!;
         if (replacement !== null) {
           modifiedElements.push(replacement);

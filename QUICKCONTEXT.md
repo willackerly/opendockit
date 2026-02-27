@@ -54,13 +54,12 @@ Cross-project alignment with pdfbox-ts: EditTracker mirrors COSUpdateTracker pat
 
 ## What's Next
 
-### PRIORITY: Viewer Edit Mode E2E Tests & Bug Fixes
+### Viewer Edit Mode E2E Tests & Bug Fixes (DONE 2026-02-26)
 
-Two interaction bugs in edit mode (see KNOWN_ISSUES.md):
-1. **Hit-test regression** — click-to-select misses master/layout layer elements; post-edit hit-testing reads stale positions
-2. **Nudge doesn't update slide image** — arrow key moves highlight but canvas doesn't re-render (shape ID matching issue)
-
-Needs Playwright E2E tests: click accuracy, nudge visual feedback, apply changes, text round-trip, delete feedback, save fidelity.
+Both interaction bugs fixed:
+1. **Hit-test regression** — FIXED: `editModeHitTest()` uses `deriveIR()` for current positions
+2. **Nudge doesn't update canvas** — FIXED: string/number type mismatch in `renderSlideWithOverrides()`
+3. **18 Playwright E2E tests** passing: click-to-select, nudge, apply, delete, text edit, escape, save, inspector scan, grouped elements
 
 ### Deferred (not blocking — tackle when needed)
 
@@ -101,5 +100,4 @@ None currently.
 
 ## Active Bugs
 
-- **Edit mode hit-test regression** — see KNOWN_ISSUES.md
-- **Edit mode nudge doesn't update canvas** — see KNOWN_ISSUES.md
+None currently.
