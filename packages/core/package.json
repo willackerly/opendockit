@@ -57,6 +57,10 @@
     "./diagnostics": {
       "types": "./dist/diagnostics/index.d.ts",
       "import": "./dist/diagnostics/index.js"
+    },
+    "./edit": {
+      "types": "./dist/edit/index.d.ts",
+      "import": "./dist/edit/index.js"
     }
   },
   "scripts": {

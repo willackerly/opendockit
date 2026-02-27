@@ -38,3 +38,8 @@ export {
 
 // Renderers
 export { renderSlide, renderBackground } from './renderer/index.js';
+
+// Edit API
+export { EditableSlideKit } from './edit/index.js';
+export type { EditableLoadResult } from './edit/index.js';
+export { buildEditablePresentation, savePptx } from './edit/index.js';

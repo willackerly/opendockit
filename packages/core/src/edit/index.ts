@@ -43,3 +43,7 @@ export {
   patchElementXml,
   patchPartXml,
 } from './reconstitution/index.js';
+
+// IR re-derivation (edit model → render IR)
+export { deriveIR } from './derive-ir.js';
+export { deriveTextBodyIR } from './derive-ir-text.js';
