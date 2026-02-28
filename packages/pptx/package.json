@@ -1,6 +1,6 @@
 {
   "name": "@opendockit/pptx",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Progressive-fidelity PPTX renderer (SlideKit)",
   "type": "module",
   "main": "./dist/index.js",
