@@ -214,7 +214,7 @@ function buildFontString(
   const style = props.italic ? 'italic ' : '';
   const weight = props.bold ? 'bold ' : '';
   const sizePt = resolveFontSizePt(props, fontScale, rctx, level);
-  const sizePx = ptToCanvasPx(sizePt, rctx?.dpiScale ?? 1);
+  const sizePx = ptToCanvasPx(sizePt, rctx ? textDpiScale(rctx) : 1);
   let family = props.fontFamily || props.latin;
   if (!family && rctx?.textDefaults) {
     const td = rctx.textDefaults;
@@ -241,6 +241,24 @@ function buildFontString(
  */
 function ptToCanvasPx(pt: number, dpiScale: number): number {
   return pt * (96 / 72) * dpiScale;
+}
+
+/**
+ * Compute the effective DPI scale for text (pt-based) measurements,
+ * compensating for accumulated group transform scaling.
+ *
+ * Canvas2D `ctx.scale()` from group transforms scales text glyphs, but
+ * PowerPoint renders text at the declared font size regardless of group
+ * scaling. Dividing dpiScale by the group scale factor counter-acts this.
+ *
+ * EMU-based measurements (insets, margins) are NOT affected — they use
+ * `emuToScaledPx(emu, rctx)` which bypasses this adjustment.
+ */
+function textDpiScale(rctx: RenderContext): number {
+  const gsx = rctx.groupScaleX ?? 1;
+  const gsy = rctx.groupScaleY ?? 1;
+  if (gsx === 1 && gsy === 1) return rctx.dpiScale;
+  return rctx.dpiScale / Math.sqrt(gsx * gsy);
 }
 
 /**
@@ -559,7 +577,8 @@ function wrapParagraph(
   defaultTabSizePx?: number,
   tabStops?: TabStopIR[]
 ): WrappedLine[] {
-  const { ctx, dpiScale, resolveFont } = rctx;
+  const { ctx, resolveFont } = rctx;
+  const dpiScale = textDpiScale(rctx);
   const lines: WrappedLine[] = [];
   let currentFragments: TextFragment[] = [];
   let currentLineWidth = 0;
@@ -1068,7 +1087,7 @@ function measureBullet(
 
   const fontFamily = resolveThemeFontFamily(bullet.font || 'sans-serif', rctx.theme);
   const resolved = rctx.resolveFont(fontFamily);
-  const bulletFontSizePx = ptToCanvasPx(bulletFontSizePt, rctx.dpiScale);
+  const bulletFontSizePx = ptToCanvasPx(bulletFontSizePt, textDpiScale(rctx));
   const fontString = `${bulletFontSizePx}px "${resolved}"`;
 
   const bulletLevel = paragraph.properties.level ?? 0;
@@ -1267,7 +1286,7 @@ export function measureTextBodyHeight(
   rctx: RenderContext,
   boundsWidth: number
 ): number {
-  const { dpiScale } = rctx;
+  const dpiScale = textDpiScale(rctx);
   const body = textBody.bodyProperties;
 
   // Calculate text area by applying body insets.
@@ -1382,7 +1401,8 @@ export function renderTextBody(
   rctx: RenderContext,
   bounds: { x: number; y: number; width: number; height: number }
 ): void {
-  const { ctx, dpiScale } = rctx;
+  const { ctx } = rctx;
+  const dpiScale = textDpiScale(rctx);
   const body = textBody.bodyProperties;
 
   // Calculate text area by applying body insets.

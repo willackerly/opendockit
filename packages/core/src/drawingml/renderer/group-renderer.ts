@@ -65,6 +65,12 @@ export function renderGroup(group: GroupIR, rctx: RenderContext): void {
   const childExtentW = emuToScaledPx(group.childExtent.width, rctx);
   const childExtentH = emuToScaledPx(group.childExtent.height, rctx);
 
+  // Track the child coordinate scale so text renderers can counter-scale
+  // font sizes. Canvas2D ctx.scale() geometrically scales text glyphs,
+  // but PowerPoint renders text at the declared font size regardless of
+  // group scaling. We accumulate the scale factors in the render context.
+  let childRctx = rctx;
+
   if (childExtentW > 0 && childExtentH > 0) {
     // Scale from child coordinate space to group pixel space.
     const scaleX = w / childExtentW;
@@ -73,11 +79,18 @@ export function renderGroup(group: GroupIR, rctx: RenderContext): void {
     // Shift so that childOffset maps to 0,0.
     ctx.translate(-childOffsetX * scaleX, -childOffsetY * scaleY);
     ctx.scale(scaleX, scaleY);
+
+    // Accumulate group scale for text counter-scaling.
+    childRctx = {
+      ...rctx,
+      groupScaleX: (rctx.groupScaleX ?? 1) * scaleX,
+      groupScaleY: (rctx.groupScaleY ?? 1) * scaleY,
+    };
   }
 
   // -- Render children --
   for (const child of group.children) {
-    renderSlideElement(child, rctx);
+    renderSlideElement(child, childRctx);
   }
 
   ctx.restore();

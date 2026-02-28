@@ -93,6 +93,18 @@ export interface RenderContext {
    * The consuming app subscribes via the emitter's listener callback.
    */
   diagnostics?: DiagnosticEmitter;
+  /**
+   * Cumulative group transform scale factors.
+   *
+   * When rendering inside nested groups, Canvas2D `ctx.scale()` scales
+   * everything including text glyphs. PowerPoint renders text at the
+   * declared font size regardless of group scaling. These fields track
+   * the accumulated scale so text renderers can counter-scale font sizes.
+   *
+   * Default: 1.0 (no group scaling).
+   */
+  groupScaleX?: number;
+  groupScaleY?: number;
 }
 
 /**
