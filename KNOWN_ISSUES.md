@@ -4,28 +4,11 @@
 
 ## Active Bugs (Priority)
 
-### Grouped element nudge crashes on media resolution
-
-Moving a group that contains pictures causes `TypeError: Cannot assign to read only property 'imagePartUri'`.
-
-**Root cause chain:**
-1. `buildEditableElement()` calls `Object.freeze(childIR)` on each group child (pictures, shapes, etc.)
-2. The frozen child PictureIR objects are referenced by the group's `originalIR.children` array
-3. `deriveIR()` for a moved group does a shallow copy (`{ ...orig }`) — children array still points to frozen objects
-4. `renderSlideWithOverrides` calls `_loadSlideMedia()` on the override elements
-5. `_loadSlideMedia` tries `el.imagePartUri = resolvedUri` on the frozen PictureIR → TypeError
-
-**Impact:** Groups containing pictures can't be nudged/moved in edit mode. Groups with only shapes work fine.
-
-**Fix options:**
-- A) In `_loadSlideMedia`, skip already-frozen elements or clone before mutating
-- B) In `deriveIR` for groups, deep-clone children when group transform is dirty
-- C) Resolve imagePartUri during parsing (not lazily in `_loadSlideMedia`) so the editable model's IR already has resolved URIs
-- D) Change `_loadSlideMedia` to store resolved URIs in a separate map instead of mutating IR in place
-
-Option C is the cleanest long-term fix — it eliminates the IR mutation pattern entirely. Option A is the quickest stopgap.
+None.
 
 ### Resolved: Viewer Edit Mode Bugs (2026-02-27)
+
+- **Grouped element nudge crashes on media resolution** — FIXED: `deriveIR()` for dirty groups now deep-clones children so `_loadSlideMedia()` can mutate `imagePartUri` without hitting `Object.freeze` barriers. Root cause was shallow copy (`{ ...orig }`) leaving children referencing frozen `PictureIR` objects.
 
 - **Pictures not selectable in edit mode** — FIXED: `handleEditClick` used `(element as any).id` to find editable elements, but `.id` only exists on shapes. Pictures use `nonVisualProperties.name`, tables use position-based IDs. Fix: `editModeHitTest` now returns the `editableId` directly from the edit model iteration, eliminating the need to reconstruct composite IDs from kind-specific IR fields.
 - **Hit-test regression** — FIXED: Edit mode now uses `editModeHitTest()` that builds element list from `deriveIR()` (current edit model positions) for slide-layer elements, and cached IR for master/layout layers. After edits, clicking at the new position correctly re-selects the moved element.

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { deriveIR } from '../derive-ir.js';
 import type { EditableShape } from '../editable-types.js';
-import type { DrawingMLShapeIR, PictureIR } from '../../ir/index.js';
+import type { DrawingMLShapeIR, PictureIR, GroupIR } from '../../ir/index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -374,6 +374,153 @@ describe('deriveIR', () => {
       expect(result.properties.transform!.position).toEqual({ x: 500, y: 600 });
       // Other fields preserved
       expect(result.imagePartUri).toBe('/ppt/media/image1.png');
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // GROUP CHILDREN DEEP-CLONE tests
+  // ═══════════════════════════════════════════════════════════════════════
+
+  describe('group children deep-clone', () => {
+    function makeFrozenGroupIR(): GroupIR {
+      const pictureChild: PictureIR = {
+        kind: 'picture',
+        imagePartUri: 'rId2',
+        properties: {
+          transform: {
+            position: { x: 10, y: 20 },
+            size: { width: 100, height: 80 },
+          },
+          effects: [],
+        },
+        nonVisualProperties: { name: 'Pic 1' },
+      };
+      Object.freeze(pictureChild);
+
+      const groupIR: GroupIR = {
+        kind: 'group',
+        properties: {
+          transform: {
+            position: { x: 0, y: 0 },
+            size: { width: 500, height: 400 },
+          },
+          effects: [],
+        },
+        childOffset: { x: 0, y: 0 },
+        childExtent: { width: 500, height: 400 },
+        children: [pictureChild],
+      };
+      Object.freeze(groupIR);
+      return groupIR;
+    }
+
+    it('dirty group with frozen picture child produces mutable children', () => {
+      const groupIR = makeFrozenGroupIR();
+      const editable = {
+        id: '/ppt/slides/slide1.xml#5',
+        kind: 'group' as const,
+        originalIR: groupIR,
+        originalPartUri: '/ppt/slides/slide1.xml',
+        dirty: { position: true },
+        transform: { x: 100, y: 200, width: 500, height: 400 },
+        deleted: false,
+      };
+
+      const result = deriveIR(editable) as GroupIR;
+
+      // Children should be a new array with cloned (mutable) objects
+      expect(result.children).not.toBe(groupIR.children);
+      expect(result.children).toHaveLength(1);
+
+      // Assigning imagePartUri should NOT throw (the whole point of this fix)
+      const child = result.children[0] as PictureIR;
+      expect(() => {
+        child.imagePartUri = '/ppt/media/image1.png';
+      }).not.toThrow();
+      expect(child.imagePartUri).toBe('/ppt/media/image1.png');
+    });
+
+    it('nested group: recursive cloning produces mutable children at all levels', () => {
+      const innerPic: PictureIR = {
+        kind: 'picture',
+        imagePartUri: 'rId3',
+        properties: {
+          transform: {
+            position: { x: 5, y: 5 },
+            size: { width: 50, height: 50 },
+          },
+          effects: [],
+        },
+        nonVisualProperties: { name: 'Inner Pic' },
+      };
+      Object.freeze(innerPic);
+
+      const innerGroup: GroupIR = {
+        kind: 'group',
+        properties: {
+          transform: {
+            position: { x: 10, y: 10 },
+            size: { width: 200, height: 200 },
+          },
+          effects: [],
+        },
+        childOffset: { x: 0, y: 0 },
+        childExtent: { width: 200, height: 200 },
+        children: [innerPic],
+      };
+      Object.freeze(innerGroup);
+
+      const outerGroup: GroupIR = {
+        kind: 'group',
+        properties: {
+          transform: {
+            position: { x: 0, y: 0 },
+            size: { width: 600, height: 500 },
+          },
+          effects: [],
+        },
+        childOffset: { x: 0, y: 0 },
+        childExtent: { width: 600, height: 500 },
+        children: [innerGroup],
+      };
+      Object.freeze(outerGroup);
+
+      const editable = {
+        id: '/ppt/slides/slide1.xml#10',
+        kind: 'group' as const,
+        originalIR: outerGroup,
+        originalPartUri: '/ppt/slides/slide1.xml',
+        dirty: { position: true },
+        transform: { x: 50, y: 60, width: 600, height: 500 },
+        deleted: false,
+      };
+
+      const result = deriveIR(editable) as GroupIR;
+      const resultInner = result.children[0] as GroupIR;
+      const resultInnerPic = resultInner.children[0] as PictureIR;
+
+      // Deeply nested picture should be mutable
+      expect(() => {
+        resultInnerPic.imagePartUri = '/ppt/media/deep.png';
+      }).not.toThrow();
+      expect(resultInnerPic.imagePartUri).toBe('/ppt/media/deep.png');
+    });
+
+    it('clean group: fast path returns original frozen IR (zero alloc)', () => {
+      const groupIR = makeFrozenGroupIR();
+      const editable = {
+        id: '/ppt/slides/slide1.xml#5',
+        kind: 'group' as const,
+        originalIR: groupIR,
+        originalPartUri: '/ppt/slides/slide1.xml',
+        dirty: {},
+        transform: { x: 0, y: 0, width: 500, height: 400 },
+        deleted: false,
+      };
+
+      const result = deriveIR(editable);
+      // Same reference — fast path, zero allocation
+      expect(result).toBe(groupIR);
     });
   });
 });

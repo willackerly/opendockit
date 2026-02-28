@@ -13,6 +13,7 @@ import type {
   DrawingMLShapeIR,
   ShapePropertiesIR,
   UnsupportedIR,
+  GroupIR,
 } from '../ir/index.js';
 import type { EditableElement, EditableShape, DirtyFlags } from './editable-types.js';
 import { deriveTextBodyIR } from './derive-ir-text.js';
@@ -114,6 +115,20 @@ function deriveTransform(editable: EditableElement): TransformIR {
 }
 
 /**
+ * Deep-clone an array of SlideElementIR children so they are mutable.
+ * For group children, recursively clones their nested children as well.
+ */
+function deepCloneChildren(children: SlideElementIR[]): SlideElementIR[] {
+  return children.map((child) => {
+    const clone = { ...child };
+    if (clone.kind === 'group') {
+      (clone as GroupIR).children = deepCloneChildren((clone as GroupIR).children);
+    }
+    return clone;
+  });
+}
+
+/**
  * Derive IR for non-shape elements (picture, group, connector, table, etc.)
  * that only have transform changes.
  */
@@ -126,6 +141,13 @@ function deriveGenericIR(editable: EditableElement): SlideElementIR {
     if ('properties' in orig && orig.properties) {
       const ir = { ...orig };
       ir.properties = { ...orig.properties, transform: deriveTransform(editable) };
+
+      // Groups need deep-cloned children so downstream code (e.g. _loadSlideMedia)
+      // can mutate child properties without hitting Object.freeze barriers
+      if (orig.kind === 'group') {
+        (ir as GroupIR).children = deepCloneChildren((orig as GroupIR).children);
+      }
+
       return ir;
     }
   }
