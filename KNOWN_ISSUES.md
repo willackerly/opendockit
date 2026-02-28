@@ -4,7 +4,26 @@
 
 ## Active Bugs (Priority)
 
-None currently.
+### Grouped element nudge crashes on media resolution
+
+Moving a group that contains pictures causes `TypeError: Cannot assign to read only property 'imagePartUri'`.
+
+**Root cause chain:**
+1. `buildEditableElement()` calls `Object.freeze(childIR)` on each group child (pictures, shapes, etc.)
+2. The frozen child PictureIR objects are referenced by the group's `originalIR.children` array
+3. `deriveIR()` for a moved group does a shallow copy (`{ ...orig }`) — children array still points to frozen objects
+4. `renderSlideWithOverrides` calls `_loadSlideMedia()` on the override elements
+5. `_loadSlideMedia` tries `el.imagePartUri = resolvedUri` on the frozen PictureIR → TypeError
+
+**Impact:** Groups containing pictures can't be nudged/moved in edit mode. Groups with only shapes work fine.
+
+**Fix options:**
+- A) In `_loadSlideMedia`, skip already-frozen elements or clone before mutating
+- B) In `deriveIR` for groups, deep-clone children when group transform is dirty
+- C) Resolve imagePartUri during parsing (not lazily in `_loadSlideMedia`) so the editable model's IR already has resolved URIs
+- D) Change `_loadSlideMedia` to store resolved URIs in a separate map instead of mutating IR in place
+
+Option C is the cleanest long-term fix — it eliminates the IR mutation pattern entirely. Option A is the quickest stopgap.
 
 ### Resolved: Viewer Edit Mode Bugs (2026-02-27)
 
