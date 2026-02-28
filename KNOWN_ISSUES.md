@@ -6,6 +6,16 @@
 
 None.
 
+### Resolved: Bundled Font Loading Broken in Vite Dev Mode (2026-02-27)
+
+- **ALL 42 bundled WOFF2 fonts silently failed to load** — FIXED: `loadBundledFont()` used `import(/* @vite-ignore */ entry.module)` with relative `.js` paths. In Vite dev mode, workspace packages are served from source (`.ts` files), not compiled output (`.js`). The `@vite-ignore` directive bypassed Vite's module resolution, so the browser tried to fetch `.js` files that didn't exist. Every font silently fell back to generic sans-serif.
+- **Fix:** Use `new URL(path, import.meta.url).href` to construct correct absolute URLs, and detect Vite dev mode (HTTP protocol) to swap `.js → .ts` extension. Production builds and Node.js continue using compiled `.js` files.
+- **Root cause lesson:** Dynamic imports with `@vite-ignore` in workspace packages served via `@fs/` bypass ALL of Vite's module resolution — extension mapping, alias resolution, and transformation. See AGENTS.md "Vite + Workspace Packages" section.
+
+### Resolved: Font Loading Missed Master/Layout Fonts (2026-02-27)
+
+- **Font loading missed master/layout content fonts** — FIXED: `_collectNeededFontFamilies()` only checked theme fonts (majorLatin/minorLatin) and embedded font typefaces. Fonts declared in master/layout XML (e.g. `<a:defRPr>` in `<a:lstStyle>`, `<p:txStyles>`) were never discovered, so the viewer fell back to generic serif/sans-serif. Fix: regex-scan master/layout XML parts for `typeface="..."` attributes at load time. This catches all font references from `<a:latin>`, `<a:ea>`, `<a:cs>`, `<a:sym>`, `<a:buFont>`, etc.
+
 ### Resolved: Viewer Edit Mode Bugs (2026-02-27)
 
 - **Grouped element nudge crashes on media resolution** — FIXED: `deriveIR()` for dirty groups now deep-clones children so `_loadSlideMedia()` can mutate `imagePartUri` without hitting `Object.freeze` barriers. Root cause was shallow copy (`{ ...orig }`) leaving children referencing frozen `PictureIR` objects.

@@ -61,6 +61,7 @@ import { parseSlideLayout } from '../parser/slide-layout.js';
 import { parseSlideMaster } from '../parser/slide-master.js';
 import { resolveChartFallbacks } from '../parser/chart-fallback.js';
 import { renderSlide } from '../renderer/index.js';
+import { scanXmlForTypefaces } from './font-discovery.js';
 
 // ---------------------------------------------------------------------------
 // Public interfaces
@@ -1270,7 +1271,7 @@ export class SlideKit {
     this._emitProgress('loading', 2, 5, 'Embedded fonts loaded');
 
     // Collect font families still needed (not already loaded).
-    const neededFamilies = this._collectNeededFontFamilies(pres);
+    const neededFamilies = await this._collectNeededFontFamilies(pkg, pres);
 
     // Strategy 3: Bundled WOFF2 fonts (offline-capable, no network)
     const bundledFamilies = neededFamilies.filter(
@@ -1394,9 +1395,15 @@ export class SlideKit {
   /**
    * Collect font families referenced in the presentation that are not yet loaded.
    *
-   * Checks the theme font scheme and embedded font list for family names.
+   * Checks the theme font scheme, embedded font list, and all XML parts
+   * (masters, layouts, slides) for family names. Parts are regex-scanned for
+   * `typeface="..."` attributes to discover fonts in `<a:defRPr>`,
+   * `<p:txStyles>`, per-run `<a:latin>`, etc. without requiring a full DOM parse.
    */
-  private _collectNeededFontFamilies(pres: PresentationIR): string[] {
+  private async _collectNeededFontFamilies(
+    pkg: OpcPackage,
+    pres: PresentationIR
+  ): Promise<string[]> {
     const families = new Set<string>();
 
     // Theme fonts
@@ -1412,8 +1419,30 @@ export class SlideKit {
       }
     }
 
-    // Filter out already-loaded fonts.
-    return [...families].filter((f) => !this._loadedFonts.has(f));
+    // Scan all XML parts (masters, layouts, AND slides) for typeface
+    // attributes — catches fonts in <a:defRPr>, <p:txStyles>, <a:lstStyle>,
+    // bullet fonts, per-run <a:latin>, etc.
+    const partUris = new Set<string>();
+    for (const slide of pres.slides) {
+      partUris.add(slide.masterPartUri);
+      partUris.add(slide.layoutPartUri);
+      partUris.add(slide.partUri);
+    }
+
+    const xmlPromises = [...partUris].map(async (uri) => {
+      try {
+        const xml = await pkg.getPartText(uri);
+        for (const face of scanXmlForTypefaces(xml)) {
+          families.add(face);
+        }
+      } catch {
+        // Part not found — skip silently.
+      }
+    });
+    await Promise.all(xmlPromises);
+
+    // Filter out already-loaded fonts and empty strings.
+    return [...families].filter((f) => f && !this._loadedFonts.has(f));
   }
 
   /**

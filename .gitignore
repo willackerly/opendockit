@@ -13,10 +13,16 @@ coverage/
 
 # Test output
 test-output/
+test-results/
 visual-diffs/
 diff/
 actual/
 reference/
+
+# Playwright
+**/e2e-report/
+**/e2e/screenshots/
+**/playwright-report/
 
 # Visual regression baseline PNGs (regenerated via --update-baselines)
 test-data/corpus-baselines/

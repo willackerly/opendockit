@@ -45,6 +45,28 @@ const VARIANT_DESCRIPTORS: Record<string, FontFaceDescriptors> = {
 };
 
 /**
+ * Resolve a manifest module path to a URL relative to this file.
+ *
+ * Uses import.meta.url so the browser can resolve the path correctly
+ * regardless of how the module is bundled or served (Vite dev, production
+ * build, Node.js). Manifest paths are relative to `data/woff2/` but this
+ * file is in `font/`, so we prepend the subdirectory.
+ *
+ * In Vite dev mode, source files are .ts (served via ESM transform), so
+ * we swap .js → .ts for HTTP URLs. In production builds and Node.js, the
+ * compiled .js files are used as-is.
+ */
+function resolveModuleUrl(manifestModule: string): string {
+  const relativePath = manifestModule.replace('./', './data/woff2/');
+  const url = new URL(relativePath, import.meta.url);
+  // Vite dev server serves source .ts files, not compiled .js
+  if (url.protocol === 'http:' || url.protocol === 'https:') {
+    return url.href.replace(/\.js(\?.*)?$/, '.ts$1');
+  }
+  return url.href;
+}
+
+/**
  * Load a single bundled font family.
  *
  * Dynamically imports the WOFF2 module, decodes base64 data, and
@@ -68,8 +90,8 @@ export async function loadBundledFont(family: string): Promise<boolean> {
   loadedFamilies.add(key);
 
   try {
-    // Dynamic import for code splitting — bundlers will create a separate chunk.
-    const mod = await import(/* @vite-ignore */ entry.module);
+    const url = resolveModuleUrl(entry.module);
+    const mod = await import(/* @vite-ignore */ url);
 
     const results = await Promise.all(
       entry.variants.map(async (variant) => {

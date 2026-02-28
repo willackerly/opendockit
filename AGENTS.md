@@ -325,6 +325,49 @@ Auto-compaction happens at the last moment and makes lossy choices about what to
 
 ---
 
+## Vite + Workspace Packages: Gotchas
+
+The viewer (`tools/viewer/`) uses Vite with source-aliased workspace packages. This means Vite serves `.ts` source files from `packages/core/src/` and `packages/pptx/src/` directly (via `@fs/` URLs), NOT the compiled `dist/` output. This creates several non-obvious failure modes:
+
+### Dynamic Imports Are Fragile
+
+**Never use `@vite-ignore` with relative paths in workspace packages.** Vite's `@fs/` route does NOT do `.js → .ts` extension mapping, alias resolution, or module transformation for ignored imports. The browser gets a raw URL that points to a `.js` file that doesn't exist (only `.ts` source exists).
+
+**Instead, use `import.meta.url` + `new URL()` for dynamic imports:**
+```typescript
+// WRONG — silently fails in Vite dev mode
+const mod = await import(/* @vite-ignore */ './data/fonts/module.js');
+
+// RIGHT — works in both Vite dev and production
+function resolveModuleUrl(relativePath: string): string {
+  const url = new URL(relativePath, import.meta.url);
+  // Vite dev serves .ts source, production uses compiled .js
+  if (url.protocol === 'http:' || url.protocol === 'https:') {
+    return url.href.replace(/\.js$/, '.ts');
+  }
+  return url.href;
+}
+const mod = await import(/* @vite-ignore */ resolveModuleUrl('./data/fonts/module.js'));
+```
+
+**Vite template literal dynamic imports (`` import(`./dir/${name}.js`) ``) also fail** for workspace packages because Vite's glob analysis doesn't work for files served via `@fs/`. You'll get "Unknown variable dynamic import" errors.
+
+### The `@fs/` Boundary
+
+When Vite serves a workspace package file via its `@fs/` prefix, that file exists in a different resolution context than the viewer's own source files. Things that work for the viewer's own code may NOT work for workspace package code:
+
+- Static `import` statements: **Work** (Vite processes them normally via aliases)
+- `import()` without `@vite-ignore`: **Fails** with "Unknown variable dynamic import" for computed paths
+- `import()` with `@vite-ignore`: **Fails** if the URL points to `.js` when only `.ts` exists
+- `import.meta.glob`: **Fails** — only works in Vite's project root, not external packages
+- `import.meta.url`: **Works** — gives the correct `http://` URL for the file's location
+
+### Testing Font/Asset Loading
+
+Always E2E test dynamic module loading with Playwright. The unit test environment (Vitest/Node.js) uses different module resolution than Vite's browser dev server, so font loading bugs that are invisible in unit tests will be visible in the browser. See `tools/viewer/e2e/font-loading.spec.ts`.
+
+---
+
 ## Build, Test & Development Commands
 
 ```
