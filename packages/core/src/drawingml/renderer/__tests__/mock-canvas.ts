@@ -101,7 +101,10 @@ export function createMockContext(): MockContext {
         sizePx = 10;
       }
       // Approximate: 0.5 * sizePx per character.
-      return { width: text.length * sizePx * 0.5 };
+      const advanceWidth = text.length * sizePx * 0.5;
+      // actualBoundingBoxRight is the visual extent (no trailing right-side bearing).
+      // Typically ~97% of advance width for non-italic text.
+      return { width: advanceWidth, actualBoundingBoxRight: advanceWidth * 0.97 };
     },
 
     // Dash

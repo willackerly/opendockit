@@ -44,8 +44,11 @@ import type { ThemeIR } from '../../ir/index.js';
 /** Default font size in points when none is specified. */
 const DEFAULT_FONT_SIZE_PT = 18;
 
-/** Default body insets in EMU (OOXML default: 0.1 inches = 91,440 EMU). */
-const DEFAULT_INSET_EMU = 91440;
+/** Default left/right body insets in EMU (OOXML default: 0.1 inches = 91,440 EMU). */
+const DEFAULT_LR_INSET_EMU = 91440;
+
+/** Default top/bottom body insets in EMU (OOXML default: 0.05 inches = 45,720 EMU). */
+const DEFAULT_TB_INSET_EMU = 45720;
 
 /**
  * Default line spacing as percentage (100% = single spacing).
@@ -314,7 +317,19 @@ function measureFragment(
   // The metrics DB linear advance widths caused wrapping divergence where text
   // would wrap at different points than the actual Canvas2D drawing.
   ctx.font = fontString;
-  return ctx.measureText(text).width;
+  const metrics = ctx.measureText(text);
+  // Use visual width (actualBoundingBoxRight) when available and tighter than
+  // advance width. This removes the last character's right-side bearing from
+  // wrap decisions, matching PowerPoint's behavior at line break points.
+  // For italic text where glyphs overhang, actualBoundingBoxRight > width,
+  // so we keep using advance width — no regression risk.
+  if (
+    typeof metrics.actualBoundingBoxRight === 'number' &&
+    metrics.actualBoundingBoxRight < metrics.width
+  ) {
+    return metrics.actualBoundingBoxRight;
+  }
+  return metrics.width;
 }
 
 /**
@@ -1256,10 +1271,10 @@ export function measureTextBodyHeight(
   const body = textBody.bodyProperties;
 
   // Calculate text area by applying body insets.
-  const leftInset = emuToScaledPx(body.leftInset ?? DEFAULT_INSET_EMU, rctx);
-  const rightInset = emuToScaledPx(body.rightInset ?? DEFAULT_INSET_EMU, rctx);
-  const topInset = emuToScaledPx(body.topInset ?? DEFAULT_INSET_EMU, rctx);
-  const bottomInset = emuToScaledPx(body.bottomInset ?? DEFAULT_INSET_EMU, rctx);
+  const leftInset = emuToScaledPx(body.leftInset ?? DEFAULT_LR_INSET_EMU, rctx);
+  const rightInset = emuToScaledPx(body.rightInset ?? DEFAULT_LR_INSET_EMU, rctx);
+  const topInset = emuToScaledPx(body.topInset ?? DEFAULT_TB_INSET_EMU, rctx);
+  const bottomInset = emuToScaledPx(body.bottomInset ?? DEFAULT_TB_INSET_EMU, rctx);
 
   const textAreaWidth = boundsWidth - leftInset - rightInset;
   if (textAreaWidth <= 0) return 0;
@@ -1371,10 +1386,10 @@ export function renderTextBody(
   const body = textBody.bodyProperties;
 
   // Calculate text area by applying body insets.
-  const leftInset = emuToScaledPx(body.leftInset ?? DEFAULT_INSET_EMU, rctx);
-  const rightInset = emuToScaledPx(body.rightInset ?? DEFAULT_INSET_EMU, rctx);
-  const topInset = emuToScaledPx(body.topInset ?? DEFAULT_INSET_EMU, rctx);
-  const bottomInset = emuToScaledPx(body.bottomInset ?? DEFAULT_INSET_EMU, rctx);
+  const leftInset = emuToScaledPx(body.leftInset ?? DEFAULT_LR_INSET_EMU, rctx);
+  const rightInset = emuToScaledPx(body.rightInset ?? DEFAULT_LR_INSET_EMU, rctx);
+  const topInset = emuToScaledPx(body.topInset ?? DEFAULT_TB_INSET_EMU, rctx);
+  const bottomInset = emuToScaledPx(body.bottomInset ?? DEFAULT_TB_INSET_EMU, rctx);
 
   let textAreaX = bounds.x + leftInset;
   let textAreaY = bounds.y + topInset;
