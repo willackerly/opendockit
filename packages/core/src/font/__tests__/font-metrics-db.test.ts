@@ -306,10 +306,11 @@ describe('metricsBundle integration', () => {
     expect(m).toBeDefined();
     expect(m!.lineHeight).toBeDefined();
     expect(m!.lineGap).toBeDefined();
-    // Calibri lineHeight = 1.0 (Carlito has ascender+|descender| = upm, lineGap=0)
-    // So lineHeight at 12px = 12
-    expect(m!.lineHeight).toBeCloseTo(12);
-    expect(m!.lineGap).toBe(0);
+    // Calibri lineHeight = 1.2207 (Carlito sTypo: asc=1536, desc=-512, lineGap=452)
+    // (1536+512+452)/2048 = 1.2207.  At 12px → 14.65
+    expect(m!.lineHeight).toBeCloseTo(14.65);
+    // lineGap = 452/2048 = 0.2207.  At 12px → 2.65
+    expect(m!.lineGap).toBeCloseTo(2.65);
   });
 
   it('returns non-zero lineGap for Arial', async () => {

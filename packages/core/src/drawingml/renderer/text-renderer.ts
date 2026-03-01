@@ -370,12 +370,12 @@ function getFontLineHeightMultiplier(
   if (rctx.fontMetricsDB) {
     const vm = rctx.fontMetricsDB.getVerticalMetrics(rawFamily, fontSizePx, bold, italic);
     if (vm?.lineHeight != null && fontSizePx > 0) {
-      return vm.lineHeight / fontSizePx;
+      // Cap at 1.2: some fonts (e.g. Roboto Slab at 1.3188) have very tall
+      // ascenders that produce line heights significantly larger than what
+      // presentation software actually uses for "single spacing."
+      return Math.min(vm.lineHeight / fontSizePx, 1.2);
     }
   }
-  // Fallback: most fonts have lineHeight between 1.15 and 1.3. Using 1.2 as a
-  // reasonable default reduces vertical drift for fonts not in the metrics DB
-  // (e.g. Verdana, Tahoma, Aptos) compared to the previous 1.0 fallback.
   return 1.2;
 }
 

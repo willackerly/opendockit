@@ -185,9 +185,11 @@ function parseFont(bytes) {
   let descender = hheaDesc;
   let capHeight = hheaAsc;
 
+  let sTypoLineGap = hheaLineGap; // fallback to hhea if no OS/2
   if (os2 && os2.length >= 78) {
     ascender = getInt16(dv, os2.offset + 68);
     descender = getInt16(dv, os2.offset + 70);
+    sTypoLineGap = getInt16(dv, os2.offset + 72);
     if (os2.length >= 96 && getUint16(dv, os2.offset) >= 2) {
       capHeight = getInt16(dv, os2.offset + 88);
     } else {
@@ -203,6 +205,7 @@ function parseFont(bytes) {
     descender,
     capHeight,
     hheaLineGap,
+    sTypoLineGap,
     numGlyphs,
     cmap: cmapResult,
     advanceWidths: widths,
@@ -250,12 +253,14 @@ function extractMetrics(filePath, targetFamily, style, codepointRanges) {
   const defaultWidth =
     spaceGid !== undefined ? font.advanceWidths[spaceGid] : Math.round(font.unitsPerEm * 0.25);
 
-  // Compute normalized lineHeight and lineGap following the pdf.js pattern:
-  //   lineHeight = (ascender + |descender| + lineGap) / unitsPerEm
-  //   lineGap = hheaLineGap / unitsPerEm
+  // Compute normalized lineHeight and lineGap.
+  // Use OS/2 sTypoLineGap (consistent with sTypoAscender/sTypoDescender).
+  // Previously we mixed OS/2 sTypo asc/desc with hhea lineGap, which gave
+  // incorrect results for fonts like Carlito (Calibri) where hheaLineGap=0
+  // but sTypoLineGap=452 — producing lineHeight=1.0 instead of 1.2207.
   const lineHeight =
-    (font.ascender + Math.abs(font.descender) + font.hheaLineGap) / font.unitsPerEm;
-  const lineGapNorm = font.hheaLineGap / font.unitsPerEm;
+    (font.ascender + Math.abs(font.descender) + font.sTypoLineGap) / font.unitsPerEm;
+  const lineGapNorm = font.sTypoLineGap / font.unitsPerEm;
 
   console.log(
     `    ${mappedCount} codepoints extracted, defaultWidth=${defaultWidth}, lineHeight=${lineHeight.toFixed(4)}, lineGap=${lineGapNorm.toFixed(4)}`
