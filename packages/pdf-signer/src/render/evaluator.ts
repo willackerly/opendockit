@@ -30,7 +30,7 @@ import {
   type FontDecoder,
   type ObjectResolver,
 } from '../document/extraction/FontDecoder.js';
-import { getDecompressedStreamData } from '../document/extraction/StreamDecoder.js';
+import { getDecompressedStreamData, applyFiltersToBytes } from '../document/extraction/StreamDecoder.js';
 import {
   COSName,
   COSArray,
@@ -75,7 +75,35 @@ export interface NativeImage {
   height: number;
   data: Uint8Array;  // RGBA pixel data, or raw JPEG bytes if isJpeg=true
   isJpeg: boolean;
+  /**
+   * Pre-decoded canvas element. When present, canvas-graphics uses drawImage()
+   * instead of putImageData(). Set by NativeRenderer's async decode pass for JPEG.
+   */
+  decoded?: OffscreenCanvas | HTMLCanvasElement | any;
 }
+
+// ---------------------------------------------------------------------------
+// Inline image abbreviated key/value maps (PDF spec table 89)
+// ---------------------------------------------------------------------------
+
+/** Abbreviated colorspace names used in inline images. */
+const INLINE_CS_MAP: Record<string, string> = {
+  G: 'DeviceGray',
+  RGB: 'DeviceRGB',
+  CMYK: 'DeviceCMYK',
+  I: 'Indexed',
+};
+
+/** Abbreviated filter names used in inline images. */
+const INLINE_FILTER_MAP: Record<string, string> = {
+  AHx: 'ASCIIHexDecode',
+  A85: 'ASCII85Decode',
+  LZW: 'LZWDecode',
+  Fl:  'FlateDecode',
+  RL:  'RunLengthDecode',
+  CCF: 'CCITTFaxDecode',
+  DCT: 'DCTDecode',
+};
 
 // ---------------------------------------------------------------------------
 // Matrix math helpers (for element extraction)
@@ -461,8 +489,8 @@ class EvalContext {
       case 'Do': this.handleDo(operands); break;
 
       // ---- Inline images ----
-      // parseOperations handles BI/ID/EI; the op arrives with operator 'BI'
-      // with image dict + data in operands. Skip for Phase 1.
+      // Arrives as operator 'BI' with dict tokens + inline_image_data token
+      case 'BI': this.handleInlineImage(operands); break;
 
       // ---- Marked content ----
       case 'BMC': this.opList.addOpArgs(OPS.beginMarkedContent, [nameStr(operands, 0)]); break;
@@ -982,6 +1010,110 @@ class EvalContext {
     }
 
     this.opList.addOp(OPS.paintFormXObjectEnd);
+  }
+
+  private handleInlineImage(operands: CSToken[]): void {
+    // Parse the inline image dictionary from name/value token pairs
+    // Inline dict uses abbreviated key names: W=Width, H=Height, CS=ColorSpace,
+    // BPC=BitsPerComponent, F=Filter, DP=DecodeParms, IM=ImageMask
+    const dictMap = new Map<string, string | number>();
+    let rawData: Uint8Array | null = null;
+    let filterNames: string[] = [];
+
+    // Scan operands for key-value pairs and the inline_image_data token
+    for (let j = 0; j < operands.length - 1; j++) {
+      const tok = operands[j];
+      if (tok.type === 'name') {
+        const next = operands[j + 1];
+        if (next) {
+          const key = tok.value;
+          if (next.type === 'number') {
+            dictMap.set(key, next.numValue ?? parseFloat(next.value));
+          } else if (next.type === 'name') {
+            dictMap.set(key, next.value);
+          } else if (next.type === 'boolean') {
+            dictMap.set(key, next.value);
+          }
+          j++;
+        }
+      }
+    }
+
+    // Find the inline_image_data token
+    for (const tok of operands) {
+      if (tok.type === 'inline_image_data' && tok.rawData) {
+        rawData = tok.rawData;
+        break;
+      }
+    }
+
+    if (!rawData) return; // no image data — skip
+
+    // Expand abbreviated inline image dict keys
+    const width = Number(
+      dictMap.get('W') ?? dictMap.get('Width') ?? 0
+    );
+    const height = Number(
+      dictMap.get('H') ?? dictMap.get('Height') ?? 0
+    );
+    if (width <= 0 || height <= 0) return;
+
+    const bpc = Number(
+      dictMap.get('BPC') ?? dictMap.get('BitsPerComponent') ?? 8
+    );
+
+    const csRaw = dictMap.get('CS') ?? dictMap.get('ColorSpace') ?? 'G';
+    // Expand abbreviated colorspace names
+    const cs = INLINE_CS_MAP[String(csRaw)] ?? String(csRaw);
+
+    const filterRaw = dictMap.get('F') ?? dictMap.get('Filter');
+    if (filterRaw !== undefined) {
+      const fName = String(filterRaw);
+      filterNames = [INLINE_FILTER_MAP[fName] ?? fName];
+    }
+
+    const isImageMask = dictMap.get('IM') === 'true' || dictMap.get('ImageMask') === 'true';
+
+    try {
+      // Decode the raw bytes through any specified filters
+      let decoded = rawData;
+      if (filterNames.length > 0) {
+        decoded = applyFiltersToBytes(rawData, filterNames);
+      }
+
+      let image: NativeImage | null = null;
+
+      if (filterNames.includes('DCTDecode') || filterNames.includes('DCT')) {
+        // JPEG inline image — pass raw JPEG bytes; canvas-graphics will decode async
+        image = { width, height, data: rawData, isJpeg: true };
+      } else if (isImageMask || (bpc === 1 && cs === 'DeviceGray')) {
+        image = decodeImageMask(decoded, width, height);
+      } else {
+        switch (cs) {
+          case 'DeviceGray': case 'G': case 'CalGray':
+            image = decodeGrayImage(decoded, width, height, bpc);
+            break;
+          case 'DeviceRGB': case 'RGB': case 'CalRGB':
+            image = decodeRGBImage(decoded, width, height);
+            break;
+          case 'DeviceCMYK': case 'CMYK':
+            image = decodeCMYKImage(decoded, width, height);
+            break;
+          default:
+            if (decoded.length >= width * height * 3) {
+              image = decodeRGBImage(decoded, width, height);
+            } else if (decoded.length >= width * height) {
+              image = decodeGrayImage(decoded, width, height, 8);
+            }
+        }
+      }
+
+      if (image) {
+        this.opList.addOpArgs(OPS.paintInlineImageXObject, [image]);
+      }
+    } catch {
+      // Skip inline images that fail to decode
+    }
   }
 
   private handleImageXObject(stream: COSStream, dict: COSDictionary, xobjName?: string): void {

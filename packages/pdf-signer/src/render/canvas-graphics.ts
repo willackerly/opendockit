@@ -210,6 +210,7 @@ export class NativeCanvasGraphics {
 
       // ---- XObjects ----
       case OPS.paintImageXObject: this.paintImage(args![0]); break;
+      case OPS.paintInlineImageXObject: this.paintImage(args![0]); break;
       case OPS.paintFormXObjectBegin: this.paintFormBegin(args![0], args![1]); break;
       case OPS.paintFormXObjectEnd: this.paintFormEnd(); break;
 
@@ -484,12 +485,12 @@ export class NativeCanvasGraphics {
     if (!image) return;
 
     const ctx = this.ctx;
-    const { width, height, data, isJpeg } = image;
+    const { width, height, data, isJpeg, decoded } = image;
 
-    if (isJpeg) {
-      // For JPEG, we'd need to create an Image object asynchronously.
-      // Phase 1: skip JPEG images (they need async decode).
-      // The evaluator could pre-decode them in a future phase.
+    if (isJpeg && !decoded) {
+      // JPEG not yet decoded (no pre-decode pass ran).
+      // This should not happen when NativeRenderer is used — it runs decodeJpegImages()
+      // before executing the op list. But if execute() is called directly, skip gracefully.
       return;
     }
 
@@ -504,22 +505,27 @@ export class NativeCanvasGraphics {
       // data is top-down but PDF image space is bottom-up.
       ctx.transform(1, 0, 0, -1, 0, 1);
 
-      // Scale from 1×1 to pixel dimensions for putImageData
-      ctx.scale(1 / width, 1 / height);
+      if (decoded) {
+        // Pre-decoded canvas element (e.g. from async JPEG decode)
+        ctx.drawImage(decoded as any, 0, 0, 1, 1);
+      } else {
+        // Scale from 1×1 to pixel dimensions for putImageData
+        ctx.scale(1 / width, 1 / height);
 
-      // Create ImageData and draw
-      const imageData = new ImageData(
-        new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength),
-        width,
-        height,
-      );
+        // Create ImageData and draw
+        const imageData = new ImageData(
+          new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength),
+          width,
+          height,
+        );
 
-      // Use a temp canvas for the image (putImageData ignores transforms)
-      const tempCanvas = createOffscreenCanvas(width, height);
-      if (tempCanvas) {
-        const tempCtx = tempCanvas.getContext('2d')!;
-        tempCtx.putImageData(imageData, 0, 0);
-        ctx.drawImage(tempCanvas as any, 0, 0);
+        // Use a temp canvas for the image (putImageData ignores transforms)
+        const tempCanvas = createOffscreenCanvas(width, height);
+        if (tempCanvas) {
+          const tempCtx = tempCanvas.getContext('2d')!;
+          tempCtx.putImageData(imageData, 0, 0);
+          ctx.drawImage(tempCanvas as any, 0, 0);
+        }
       }
 
       ctx.restore();

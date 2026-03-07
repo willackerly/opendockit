@@ -42,9 +42,12 @@ export interface CSToken {
     | 'array_start'
     | 'array_end'
     | 'boolean'
-    | 'null';
+    | 'null'
+    | 'inline_image_data';
   value: string;
   numValue?: number;
+  /** Raw binary bytes for inline_image_data tokens. */
+  rawData?: Uint8Array;
 }
 
 /** A parsed operation: operands followed by an operator. */
@@ -60,12 +63,17 @@ export interface CSOperation {
 /**
  * Tokenize a PDF content stream into a sequence of tokens.
  * Content streams have a restricted syntax compared to full PDF objects.
+ *
+ * Special handling: inline image data (BI...ID <rawbytes> EI) produces an
+ * 'inline_image_data' token carrying the raw binary bytes.
  */
 export function tokenizeContentStream(data: Uint8Array): CSToken[] {
   const text = new TextDecoder('latin1').decode(data);
   const tokens: CSToken[] = [];
   let i = 0;
   const len = text.length;
+  // Track whether we're inside a BI block (between BI and ID)
+  let inBIHeader = false;
 
   while (i < len) {
     const ch = text[i];
@@ -266,6 +274,63 @@ export function tokenizeContentStream(data: Uint8Array): CSToken[] {
           break;
         }
       }
+
+      // Track BI/ID state for inline image data handling
+      if (op === 'BI') {
+        inBIHeader = true;
+        tokens.push({ type: 'operator', value: op });
+        continue;
+      }
+
+      if (op === 'ID' && inBIHeader) {
+        inBIHeader = false;
+        tokens.push({ type: 'operator', value: 'ID' });
+
+        // Skip single whitespace byte after ID (spec requires one whitespace before data)
+        if (i < len && (
+          text[i] === ' ' || text[i] === '\t' ||
+          text[i] === '\r' || text[i] === '\n' || text[i] === '\x0C'
+        )) {
+          // If \r\n, skip both
+          if (text[i] === '\r' && i + 1 < len && text[i + 1] === '\n') {
+            i += 2;
+          } else {
+            i++;
+          }
+        }
+
+        // Scan raw bytes until EI (must be preceded by whitespace)
+        // PDF spec: EI operator preceded by a single whitespace character
+        const dataStart = i;
+        let eiPos = -1;
+        while (i < len) {
+          // Look for whitespace + 'EI' + (whitespace or end)
+          const c = text[i];
+          if (
+            (c === ' ' || c === '\t' || c === '\r' || c === '\n' || c === '\x0C') &&
+            i + 2 < len &&
+            text[i + 1] === 'E' &&
+            text[i + 2] === 'I' &&
+            (i + 3 >= len || isDelimiter(text[i + 3]) || !isAlpha(text[i + 3]))
+          ) {
+            eiPos = i;
+            i += 3; // skip whitespace + EI
+            // Skip any trailing whitespace that belongs to EI delimiter
+            break;
+          }
+          i++;
+        }
+
+        if (eiPos >= 0) {
+          // Extract raw bytes: data[dataStart..eiPos] (chars up to the whitespace before EI)
+          const rawData = data.slice(dataStart, eiPos);
+          tokens.push({ type: 'inline_image_data', value: '<inline>', rawData });
+          tokens.push({ type: 'operator', value: 'EI' });
+        }
+        // else: malformed inline image, no EI found — skip silently
+        continue;
+      }
+
       tokens.push({ type: 'operator', value: op });
       continue;
     }
@@ -335,27 +400,28 @@ export function parseOperations(tokens: CSToken[]): CSOperation[] {
   while (i < tokens.length) {
     const token = tokens[i];
 
-    // Handle inline images specially: BI ... ID <data> EI
+    // Handle inline images specially: BI <dict tokens> ID <inline_image_data> EI
+    // The tokenizer already handled ID→EI extraction and emitted:
+    //   BI <dict tokens> ID inline_image_data EI
     if (token.type === 'operator' && token.value === 'BI') {
-      // Collect everything from BI through EI as a single operation
+      // Collect everything from BI through EI as a single BI operation
       const biOperands = [...operands];
       operands = [];
-      const inlineTokens: CSToken[] = [];
-      i++; // skip BI
-      // Collect tokens until ID
+      i++; // skip BI token
+      // Collect dict tokens until ID
       while (i < tokens.length && !(tokens[i].type === 'operator' && tokens[i].value === 'ID')) {
-        inlineTokens.push(tokens[i]);
+        biOperands.push(tokens[i]);
         i++;
       }
       if (i < tokens.length) i++; // skip ID
-      // Skip until EI
+      // The next token should be inline_image_data (if tokenizer handled it)
+      // Otherwise scan tokens until EI (fallback for non-binary data)
       while (i < tokens.length && !(tokens[i].type === 'operator' && tokens[i].value === 'EI')) {
-        inlineTokens.push(tokens[i]);
+        biOperands.push(tokens[i]);
         i++;
       }
       if (i < tokens.length) i++; // skip EI
-      // Store the entire inline image as a single BI operation
-      ops.push({ operator: 'BI', operands: [...biOperands, ...inlineTokens] });
+      ops.push({ operator: 'BI', operands: biOperands });
       continue;
     }
 
