@@ -1,112 +1,216 @@
 #!/bin/bash
 # Generate side-by-side visual gallery: Reference | Rendered | Absolute Diff
 #
+# Handles both PPTX comparison output and PDF comparison output.
+# Run after visual-compare.mjs (PPTX) or visual-compare-pdf.mjs (PDF).
+#
 # The diff panel is a per-pixel absolute difference: |ref - rendered| per channel.
 # Dark = identical, bright = large difference. Amplified 4x so subtle differences
 # are visible but still proportional to actual error magnitude.
 #
-# Output: visual-diffs/ folder with one composite per slide, sorted by RMSE
+# Output:
+#   visual-diffs/       PPTX composites (one per slide, sorted by RMSE)
+#   visual-diffs-pdf/   PDF composites (one per page, sorted by RMSE)
 
 set -euo pipefail
 
 PROJ_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-COMP_DIR="$PROJ_ROOT/../pptx-pdf-comparisons/comparison-output"
-OUT_DIR="$PROJ_ROOT/visual-diffs"
-
-RENDERED="$COMP_DIR/rendered"
-REFERENCE="$COMP_DIR/reference"
-REPORT="$COMP_DIR/rmse-report.json"
 
 # Amplification factor — how much to boost the difference.
 # 1 = raw abs diff (very dark, hard to see). 4 = good balance.
-# 8 = very aggressive, small diffs become visible but large diffs clip to white.
+# 8 = very aggressive, small diffs visible but large diffs clip to white.
 AMP=4
 
-rm -rf "$OUT_DIR"
-mkdir -p "$OUT_DIR"
+# ---------------------------------------------------------------------------
+# Helper: generate composites for one comparison directory
+# ---------------------------------------------------------------------------
 
-# Parse RMSE from JSON report and sort by RMSE descending
-SORTED=$(python3 -c "
-import json, sys
-with open('$REPORT') as f:
-    data = json.load(f)
-pairs = [(r['slide'], r['rmse'] or 0) for r in data['results']]
-pairs.sort(key=lambda x: -x[1])
-for s, r in pairs:
-    print(f'{s} {r:.4f}')
-")
+generate_gallery() {
+  local COMP_DIR="$1"
+  local OUT_DIR="$2"
+  local LABEL_REF="$3"
+  local LABEL_TEST="$4"
+  local REPORT_TYPE="$5"  # "pptx" or "pdf"
 
-RANK=1
-TOTAL=$(echo "$SORTED" | wc -l | tr -d ' ')
+  local RENDERED="$COMP_DIR/rendered"
+  local REFERENCE="$COMP_DIR/reference"
+  local REPORT="$COMP_DIR/rmse-report.json"
 
-echo "Generating $TOTAL side-by-side composites (worst RMSE first)..."
-echo "Diff mode: per-pixel absolute difference, ${AMP}x amplified"
-echo ""
-
-while IFS=' ' read -r SLIDE RMSE; do
-  PADSLIDE=$(printf '%02d' "$SLIDE")
-  PADRANK=$(printf '%02d' "$RANK")
-
-  REF_FILE="$REFERENCE/slide-${PADSLIDE}.png"
-  REN_FILE="$RENDERED/slide-${PADSLIDE}.png"
-
-  OUT_FILE="$OUT_DIR/${PADRANK}-slide${PADSLIDE}-rmse${RMSE}.png"
-
-  if [[ ! -f "$REF_FILE" || ! -f "$REN_FILE" ]]; then
-    echo "  SKIP slide $SLIDE (missing files)"
-    RANK=$((RANK + 1))
-    continue
+  if [[ ! -f "$REPORT" ]]; then
+    echo "  No report found at $REPORT — skipping."
+    return
+  fi
+  if [[ ! -d "$RENDERED" || ! -d "$REFERENCE" ]]; then
+    echo "  Missing rendered/ or reference/ in $COMP_DIR — skipping."
+    return
   fi
 
-  # Get rendered size for consistent resize
-  SIZE=$(magick identify -format '%wx%h' "$REN_FILE")
+  rm -rf "$OUT_DIR"
+  mkdir -p "$OUT_DIR"
 
-  # Compute absolute per-pixel difference:
-  #   1. Resize reference to match rendered dimensions
-  #   2. Compose with "difference" = |A - B| per channel per pixel
-  #   3. Amplify by ${AMP}x so subtle diffs are visible (clamps at white)
-  #   4. Result: black = identical, dim = small diff, bright = big diff
-  magick \
-    \( "$REF_FILE" -resize "${SIZE}!" \) \
-    "$REN_FILE" \
-    -compose Difference -composite \
-    -evaluate Multiply "$AMP" \
-    /tmp/absdiff-${PADSLIDE}.png
+  # Parse RMSE from JSON report and sort by RMSE descending
+  local SORTED
+  if [[ "$REPORT_TYPE" == "pptx" ]]; then
+    # PPTX report format: { results: [{ slide, rmse }] }
+    SORTED=$(python3 -c "
+import json
+with open('$REPORT') as f:
+    data = json.load(f)
+pairs = [(str(r['slide']).zfill(2), r['rmse'] or 0) for r in data['results']]
+pairs.sort(key=lambda x: -x[1])
+for s, r in pairs:
+    print(f'slide-{s}.png {r:.4f}')
+")
+  else
+    # PDF report format: { files: [{ id, pages: [{ pageNum, rmse }] }] }
+    SORTED=$(python3 -c "
+import json
+with open('$REPORT') as f:
+    data = json.load(f)
+pairs = []
+for f in data.get('files', []):
+    fid = f['id']
+    for p in f.get('pages', []):
+        num = str(p['pageNum']).zfill(2)
+        rmse = p.get('rmse') or 0
+        pairs.append((f'{fid}-page{num}.png', rmse))
+pairs.sort(key=lambda x: -x[1])
+for name, r in pairs:
+    print(f'{name} {r:.4f}')
+")
+  fi
 
-  # Assemble 3-panel composite with labels
-  magick \
-    \( "$REF_FILE" -resize "${SIZE}!" \
-       -gravity North -background '#222' -splice 0x30 \
-       -font Helvetica -pointsize 18 -fill white \
-       -gravity North -annotate +0+6 "Reference (PDF)" \) \
-    \( "$REN_FILE" \
-       -gravity North -background '#222' -splice 0x30 \
-       -font Helvetica -pointsize 18 -fill white \
-       -gravity North -annotate +0+6 "Rendered (OpenDocKit)" \) \
-    \( /tmp/absdiff-${PADSLIDE}.png \
-       -gravity North -background '#222' -splice 0x30 \
-       -font Helvetica -pointsize 18 -fill white \
-       -gravity North -annotate +0+6 "Abs Diff ${AMP}x (RMSE: ${RMSE})" \) \
-    +append \
-    -gravity South -background '#333' -splice 0x28 \
-    -font Helvetica -pointsize 16 -fill '#ccc' \
-    -gravity South -annotate +0+6 "Slide ${SLIDE} — RMSE: ${RMSE} — Rank ${RANK}/${TOTAL}" \
-    "$OUT_FILE"
+  local RANK=1
+  local TOTAL
+  TOTAL=$(echo "$SORTED" | grep -c '.' || echo 0)
 
-  rm -f /tmp/absdiff-${PADSLIDE}.png
+  echo "Generating $TOTAL side-by-side composites (worst RMSE first)..."
+  echo "Output: $OUT_DIR"
+  echo "Diff mode: per-pixel absolute difference, ${AMP}x amplified"
+  echo ""
 
-  printf "  [%2d/%d] Slide %2d  RMSE=%s\r" "$RANK" "$TOTAL" "$SLIDE" "$RMSE"
-  RANK=$((RANK + 1))
-done <<< "$SORTED"
+  local TMPID=$$
 
-echo ""
-echo ""
-echo "Done! $TOTAL composites in: $OUT_DIR"
-echo "Files sorted by RMSE (worst first): 01-slideNN = worst, ${TOTAL}-slideNN = best"
-echo ""
-echo "Diff legend: black = pixel-perfect, dim = subtle, bright = large mismatch"
-echo ""
-echo "Quick look:"
-ls -1 "$OUT_DIR" | head -10
-echo "..."
-ls -1 "$OUT_DIR" | tail -5
+  while IFS=' ' read -r FILENAME RMSE; do
+    [[ -z "$FILENAME" ]] && continue
+
+    local PADRANK
+    PADRANK=$(printf '%02d' "$RANK")
+    local STEM="${FILENAME%.png}"
+
+    local REF_FILE="$REFERENCE/$FILENAME"
+    local REN_FILE="$RENDERED/$FILENAME"
+    local OUT_FILE="$OUT_DIR/${PADRANK}-${STEM}-rmse${RMSE}.png"
+    local ABSDIFF_TMP="/tmp/absdiff-${TMPID}-${RANK}.png"
+
+    if [[ ! -f "$REF_FILE" || ! -f "$REN_FILE" ]]; then
+      echo "  SKIP $FILENAME (missing ref or rendered file)"
+      RANK=$((RANK + 1))
+      continue
+    fi
+
+    # Get rendered size for consistent resize
+    local SIZE
+    SIZE=$(magick identify -format '%wx%h' "$REN_FILE")
+
+    # Compute absolute per-pixel difference:
+    #   1. Resize reference to match rendered dimensions
+    #   2. Compose with "difference" = |A - B| per channel per pixel
+    #   3. Amplify by ${AMP}x so subtle diffs are visible (clamps at white)
+    magick \
+      \( "$REF_FILE" -resize "${SIZE}!" \) \
+      "$REN_FILE" \
+      -compose Difference -composite \
+      -evaluate Multiply "$AMP" \
+      "$ABSDIFF_TMP"
+
+    # Assemble 3-panel composite with labels
+    magick \
+      \( "$REF_FILE" -resize "${SIZE}!" \
+         -gravity North -background '#222' -splice 0x30 \
+         -font Helvetica -pointsize 18 -fill white \
+         -gravity North -annotate +0+6 "$LABEL_REF" \) \
+      \( "$REN_FILE" \
+         -gravity North -background '#222' -splice 0x30 \
+         -font Helvetica -pointsize 18 -fill white \
+         -gravity North -annotate +0+6 "$LABEL_TEST" \) \
+      \( "$ABSDIFF_TMP" \
+         -gravity North -background '#222' -splice 0x30 \
+         -font Helvetica -pointsize 18 -fill white \
+         -gravity North -annotate +0+6 "Abs Diff ${AMP}x (RMSE: ${RMSE})" \) \
+      +append \
+      -gravity South -background '#333' -splice 0x28 \
+      -font Helvetica -pointsize 16 -fill '#ccc' \
+      -gravity South -annotate +0+6 "${STEM} — RMSE: ${RMSE} — Rank ${RANK}/${TOTAL}" \
+      "$OUT_FILE"
+
+    rm -f "$ABSDIFF_TMP"
+
+    printf "  [%2d/%d] %s  RMSE=%s\r" "$RANK" "$TOTAL" "$STEM" "$RMSE"
+    RANK=$((RANK + 1))
+  done <<< "$SORTED"
+
+  echo ""
+  echo ""
+  echo "Done! $((RANK - 1)) composites in: $OUT_DIR"
+  echo "Files sorted by RMSE (worst first): 01-... = worst"
+  echo ""
+  echo "Diff legend: black = pixel-perfect, dim = subtle, bright = large mismatch"
+  echo ""
+}
+
+# ---------------------------------------------------------------------------
+# PPTX comparison gallery
+# ---------------------------------------------------------------------------
+
+PPTX_COMP_DIR="$PROJ_ROOT/../pptx-pdf-comparisons/comparison-output"
+PPTX_OUT_DIR="$PROJ_ROOT/visual-diffs"
+
+if [[ -f "$PPTX_COMP_DIR/rmse-report.json" ]]; then
+  echo "=== PPTX Visual Gallery ==="
+  generate_gallery \
+    "$PPTX_COMP_DIR" \
+    "$PPTX_OUT_DIR" \
+    "Reference (PDF)" \
+    "Rendered (OpenDocKit PPTX)" \
+    "pptx"
+  if [[ -d "$PPTX_OUT_DIR" ]]; then
+    echo "Quick look:"
+    ls -1 "$PPTX_OUT_DIR" | head -5
+    echo "..."
+    ls -1 "$PPTX_OUT_DIR" | tail -3
+    echo ""
+  fi
+else
+  echo "=== PPTX Visual Gallery ==="
+  echo "  No PPTX comparison output found. Run: node scripts/visual-compare.mjs"
+  echo ""
+fi
+
+# ---------------------------------------------------------------------------
+# PDF comparison gallery
+# ---------------------------------------------------------------------------
+
+PDF_COMP_DIR="$PROJ_ROOT/../pptx-pdf-comparisons/pdf-comparison-output"
+PDF_OUT_DIR="$PROJ_ROOT/visual-diffs-pdf"
+
+if [[ -f "$PDF_COMP_DIR/rmse-report.json" ]]; then
+  echo "=== PDF Visual Gallery ==="
+  generate_gallery \
+    "$PDF_COMP_DIR" \
+    "$PDF_OUT_DIR" \
+    "Reference (PDF.js)" \
+    "Rendered (NativeRenderer)" \
+    "pdf"
+  if [[ -d "$PDF_OUT_DIR" ]]; then
+    echo "Quick look:"
+    ls -1 "$PDF_OUT_DIR" | head -5
+    echo "..."
+    ls -1 "$PDF_OUT_DIR" | tail -3
+    echo ""
+  fi
+else
+  echo "=== PDF Visual Gallery ==="
+  echo "  No PDF comparison output found. Run: node scripts/visual-compare-pdf.mjs"
+  echo ""
+fi
