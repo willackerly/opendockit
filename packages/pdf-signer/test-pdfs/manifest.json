@@ -1,0 +1,170 @@
+{
+  "version": "1.0",
+  "description": "Test PDF repository for automated pre-flight testing",
+  "lastUpdated": "2025-11-10",
+  "testCases": [
+    {
+      "id": "wire-instructions",
+      "file": "working/wire-instructions.pdf",
+      "expectedStatus": "supported",
+      "properties": {
+        "version": "1.4",
+        "pages": 1,
+        "objects": 6,
+        "pageSize": "Letter",
+        "encrypted": false,
+        "linearized": false,
+        "hasSignatures": false
+      },
+      "expectedOutcome": "success",
+      "notes": "Original working test PDF from POC. Simple structure, validates perfectly in Adobe Reader.",
+      "tags": ["poc", "simple", "letter"]
+    },
+    {
+      "id": "test-document",
+      "file": "working/test-document.pdf",
+      "expectedStatus": "supported",
+      "properties": {
+        "version": "1.4",
+        "pages": 1,
+        "objects": 8,
+        "pageSize": "Letter",
+        "encrypted": false,
+        "linearized": false,
+        "hasSignatures": false
+      },
+      "expectedOutcome": "success",
+      "notes": "Created with pdf-lib. Has visible text and graphics. Validates in Adobe Reader.",
+      "tags": ["pdf-lib", "simple", "letter", "content"]
+    },
+    {
+      "id": "simple-test",
+      "file": "working/simple-test.pdf",
+      "expectedStatus": "supported",
+      "properties": {
+        "version": "1.4",
+        "pages": 1,
+        "objects": 6,
+        "pageSize": "Letter",
+        "encrypted": false,
+        "linearized": false,
+        "hasSignatures": false
+      },
+      "expectedOutcome": "success",
+      "notes": "Minimal test PDF. Fixed version that renders correctly.",
+      "tags": ["minimal", "simple", "letter"]
+    },
+    {
+      "id": "chrome-print-complex-images",
+      "file": "chrome-google-docs/complex-with-images-chrome-print.pdf",
+      "expectedStatus": "supported",
+      "properties": {
+        "version": "1.4",
+        "pages": 1,
+        "objects": 552,
+        "pageSize": "Letter",
+        "encrypted": false,
+        "linearized": false,
+        "hasSignatures": false
+      },
+      "expectedOutcome": "success",
+      "notes": "Complex Chrome Print export with 552 objects. Exercises high object counts and embedded images.",
+      "tags": ["chrome", "complex", "images", "letter", "real-world"]
+    },
+    {
+      "id": "google-docs-multipage-images",
+      "file": "chrome-google-docs/text-with-images-google-docs.pdf",
+      "expectedStatus": "supported",
+      "properties": {
+        "version": "1.4",
+        "pages": 2,
+        "objects": 58,
+        "pageSize": "Letter",
+        "encrypted": false,
+        "linearized": false,
+        "hasSignatures": false
+      },
+      "expectedOutcome": "success",
+      "notes": "Two-page Google Docs export that mixes text and inline images. Validates multi-page routing.",
+      "tags": ["google-docs", "multi-page", "images", "letter", "real-world"]
+    },
+    {
+      "id": "google-docs-presentation-large",
+      "file": "chrome-google-docs/complex-presentation-google-docs.pdf",
+      "expectedStatus": "supported",
+      "properties": {
+        "version": "1.4",
+        "pages": 35,
+        "objects": 229,
+        "pageSize": "Custom",
+        "encrypted": false,
+        "linearized": false,
+        "hasSignatures": false
+      },
+      "expectedOutcome": "success",
+      "notes": "Large Google Slides export (35 pages, ~660 KB). Stresses page-tree traversal and custom page dimensions (720x405).",
+      "tags": ["google-docs", "presentation", "custom-size", "real-world", "performance"]
+    },
+    {
+      "id": "wire-instructions-signed",
+      "file": "working/wire-instructions-signed.pdf",
+      "expectedStatus": "supported",
+      "properties": {
+        "version": "1.4",
+        "pages": 1,
+        "objects": 8,
+        "pageSize": "Letter",
+        "encrypted": false,
+        "linearized": false,
+        "hasSignatures": true
+      },
+      "expectedOutcome": "already-signed",
+      "notes": "Pre-signed version of wire-instructions.pdf. Known to render correctly in all viewers. Use for signature validation testing.",
+      "tags": ["signed", "validation", "letter"]
+    },
+    {
+      "id": "object-stream",
+      "file": "working/object-stream.pdf",
+      "expectedStatus": "supported",
+      "properties": {
+        "version": "1.7",
+        "pages": 1,
+        "objects": 12,
+        "pageSize": "Letter",
+        "encrypted": false,
+        "linearized": false,
+        "hasSignatures": false
+      },
+      "expectedOutcome": "success",
+      "notes": "Synthetic pdf-lib fixture saved with object streams/xref streams to exercise hybrid incremental updates.",
+      "tags": ["object-stream", "xref-stream", "pdf-lib"]
+    },
+    {
+      "id": "broken-signature",
+      "file": "edge-cases/simple-test-signed-broken.pdf",
+      "expectedStatus": "unsupported",
+      "properties": {
+        "version": "1.4",
+        "pages": 1,
+        "encrypted": false,
+        "linearized": false,
+        "hasSignatures": true
+      },
+      "expectedOutcome": "validation-failure",
+      "notes": "PDF with broken signature structure. Used to test error handling and validation. Known to fail Adobe Reader validation.",
+      "tags": ["broken", "validation", "error-case"]
+    }
+  ],
+  "statistics": {
+    "total": 9,
+    "working": 7,
+    "edgeCases": 1,
+    "future": 0
+  },
+  "testRunConfig": {
+    "timeout": 30000,
+    "validateSignature": true,
+    "checkAdobeCompatibility": true,
+    "allowExperimental": false
+  }
+}
