@@ -14,6 +14,7 @@
     "dev:viewer": "pnpm --filter @opendockit/viewer dev",
     "clean": "pnpm -r clean && rm -rf node_modules",
     "test:visual": "node scripts/visual-compare.mjs",
+    "test:visual:pdf": "node scripts/visual-compare-pdf.mjs",
     "test:visual:corpus": "node scripts/visual-compare-corpus.mjs",
     "fonts:download": "bash scripts/download-google-fonts.sh",
     "fonts:metrics": "bash scripts/regenerate-metrics.sh",
