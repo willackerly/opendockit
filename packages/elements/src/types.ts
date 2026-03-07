@@ -1,21 +1,18 @@
-// NOTE: These types are the source of truth. They will be moved to @opendockit/elements
-// in a future commit. For now, @opendockit/elements re-exports from here.
-
 /**
  * Unified Element Model — format-agnostic positioned content on fixed-size pages.
  *
- * Shared between pdfbox-ts (PDF) and opendockit (PPTX). The interaction layer
- * reads/writes only the visual fields (x, y, width, height, etc.). Format-specific
- * data rides along in the opaque `source` bag for lossless round-trip.
+ * Shared between @opendockit/pdf-signer (PDF) and @opendockit/pptx (PPTX). The
+ * interaction layer reads/writes only the visual fields (x, y, width, height, etc.).
+ * Format-specific data rides along in the opaque `source` bag for lossless round-trip.
  */
 
 // ─── Core ───────────────────────────────────────────────
 
 export interface PageModel {
   id: string;
-  width: number;   // points (1/72")
+  width: number; // points (1/72")
   height: number;
-  elements: PageElement[];  // flat, z-ordered (back to front)
+  elements: PageElement[]; // flat, z-ordered (back to front)
 }
 
 // ─── Element Base ───────────────────────────────────────
@@ -29,10 +26,10 @@ export interface ElementBase {
   y: number;
   width: number;
   height: number;
-  rotation: number;   // degrees
-  opacity: number;    // 0-1
+  rotation: number; // degrees
+  opacity: number; // 0-1
 
-  index: string;          // fractional index for z-ordering
+  index: string; // fractional index for z-ordering
   parentId: string | null;
   locked: boolean;
 
@@ -46,20 +43,20 @@ export interface ElementBase {
 /** PDF: maps element back to content stream operators */
 export interface PdfSource {
   format: 'pdf';
-  opRange: [number, number];  // operator indices in content stream
-  ctm: number[];              // original transformation matrix [a,b,c,d,e,f]
-  textMatrix?: number[];      // for text elements
-  fontName?: string;          // PDF font resource name (/F1, /TT0, etc.)
+  opRange: [number, number]; // operator indices in content stream
+  ctm: number[]; // original transformation matrix [a,b,c,d,e,f]
+  textMatrix?: number[]; // for text elements
+  fontName?: string; // PDF font resource name (/F1, /TT0, etc.)
 }
 
 /** PPTX: preserves original OOXML values for lossless write-back */
 export interface PptxSource {
   format: 'pptx';
-  offX: number;    // original EMU x offset (integer, lossless)
+  offX: number; // original EMU x offset (integer, lossless)
   offY: number;
-  extCx: number;   // original EMU width
+  extCx: number; // original EMU width
   extCy: number;
-  rot: number;     // rotation in 60,000ths of a degree
+  rot: number; // rotation in 60,000ths of a degree
   xmlPath?: string;
   passthrough?: Record<string, unknown>;
 }
@@ -88,14 +85,14 @@ export interface ShapeElement extends ElementBase {
 
 export interface ImageElement extends ElementBase {
   type: 'image';
-  imageRef: string;           // reference key (XObject name or URI)
+  imageRef: string; // reference key (XObject name or URI)
   mimeType: string;
   objectFit: 'fill' | 'contain' | 'cover' | 'none';
 }
 
 export interface PathElement extends ElementBase {
   type: 'path';
-  d: string;                  // SVG path data
+  d: string; // SVG path data
   fill: Fill | null;
   stroke: Stroke | null;
 }
@@ -115,17 +112,17 @@ export interface Paragraph {
 export interface TextRun {
   text: string;
   fontFamily: string;
-  fontSize: number;       // points
+  fontSize: number; // points
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
   strikethrough?: boolean;
   color: Color;
   // Computed position within the text element
-  x: number;              // offset from element origin
+  x: number; // offset from element origin
   y: number;
-  width: number;          // measured advance width
-  height: number;         // font ascent + descent
+  width: number; // measured advance width
+  height: number; // font ascent + descent
 }
 
 // ─── Style Types ────────────────────────────────────────
@@ -146,3 +143,13 @@ export interface Stroke {
 }
 
 export type Color = { r: number; g: number; b: number; a?: number };
+
+// ─── Bounds alias (convenience) ─────────────────────────
+
+/** Axis-aligned bounding box in points. Alias for Rect from spatial module. */
+export interface ElementBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
