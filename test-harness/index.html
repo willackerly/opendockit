@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pdfbox-ts Test Harness</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #f0f2f5;
+      color: #1a1a1a;
+    }
+
+    /* ── Header ────────────────────────────────────────────── */
+
+    header {
+      background: #1a3a5c;
+      color: white;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #pdf-status {
+      font-size: 12px;
+      color: rgba(255,255,255,0.75);
+    }
+
+    button.small {
+      background: rgba(255,255,255,0.15);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.25);
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    button.small:hover {
+      background: rgba(255,255,255,0.25);
+    }
+
+    /* ── Main split pane ───────────────────────────────────── */
+
+    main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* ── Viewer pane (left) ─────────────────────────────────── */
+
+    #viewer-pane {
+      flex: 3;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #e8eaed;
+    }
+
+    #pdf-viewer {
+      max-width: 800px;
+      width: 100%;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      color: #888;
+      font-size: 15px;
+    }
+
+    .pdf-page {
+      margin-bottom: 12px;
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .pdf-page canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .page-label {
+      text-align: center;
+      padding: 4px;
+      font-size: 11px;
+      color: #666;
+      background: #f8f9fa;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    /* ── Sidebar (right) ───────────────────────────────────── */
+
+    #sidebar {
+      flex: 2;
+      min-width: 320px;
+      max-width: 420px;
+      overflow-y: auto;
+      background: white;
+      border-left: 1px solid #d0d0d0;
+    }
+
+    .action-section {
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .action-section summary {
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #1a3a5c;
+      cursor: pointer;
+      background: #f8f9fa;
+      border-bottom: 1px solid #e0e0e0;
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .action-section summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .action-section summary::before {
+      content: '\25B6';
+      font-size: 10px;
+      transition: transform 0.15s;
+      flex-shrink: 0;
+    }
+
+    .action-section[open] > summary::before {
+      transform: rotate(90deg);
+    }
+
+    .action-section summary:hover {
+      background: #eef1f5;
+    }
+
+    .section-content {
+      padding: 12px 16px;
+    }
+
+    .section-group-label {
+      padding: 6px 16px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #999;
+      background: #f0f0f0;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 500;
+      color: #666;
+      margin-left: auto;
+    }
+
+    /* ── Form elements ─────────────────────────────────────── */
+
+    .hidden { display: none !important; }
+
+    button {
+      background: #1a3a5c;
+      color: white;
+      border: none;
+      padding: 7px 14px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    button:hover { background: #2a4a6c; }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    button.secondary {
+      background: #6c757d;
+    }
+    button.secondary:hover { background: #5a636a; }
+    button.success { background: #28a745; }
+    button.success:hover { background: #218838; }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .or {
+      color: #999;
+      font-size: 12px;
+    }
+
+    input[type="file"] {
+      font-size: 12px;
+      max-width: 180px;
+    }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .field-row label {
+      width: 110px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #333;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .field-row input[type="text"],
+    .field-row textarea,
+    .field-row select {
+      flex: 1;
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: inherit;
+    }
+
+    .field-row textarea {
+      height: 50px;
+      resize: vertical;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .status-badge.loaded {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status-badge.signed {
+      background: #cce5ff;
+      color: #004085;
+    }
+
+    .sig-info {
+      font-size: 11px;
+      color: #555;
+      margin-top: 8px;
+      padding: 8px 10px;
+      background: #f1f3f5;
+      border-radius: 4px;
+      font-family: 'SF Mono', 'Menlo', monospace;
+    }
+    .sig-info div { margin-bottom: 2px; }
+
+    .section-desc {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+
+    /* ── Log panel (bottom) ────────────────────────────────── */
+
+    #log-panel {
+      background: #1e1e2e;
+      max-height: 200px;
+      overflow-y: auto;
+      transition: max-height 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    #log-panel.collapsed {
+      max-height: 0;
+    }
+
+    #log-output {
+      font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+      font-size: 11px;
+      line-height: 1.6;
+      color: #cdd6f4;
+      padding: 10px 14px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    #log-output .success { color: #a6e3a1; }
+    #log-output .error { color: #f38ba8; }
+    #log-output .info { color: #89b4fa; }
+    #log-output .dim { color: #6c7086; }
+
+    /* ── Toast notifications ───────────────────────────────── */
+
+    #toast-container {
+      position: fixed;
+      top: 50px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      pointer-events: auto;
+      animation: toast-in 0.3s ease, toast-out 0.3s ease 2.7s forwards;
+      max-width: 360px;
+    }
+
+    .toast.success {
+      background: #d4edda;
+      color: #155724;
+      border-left: 4px solid #28a745;
+    }
+
+    .toast.error {
+      background: #f8d7da;
+      color: #721c24;
+      border-left: 4px solid #dc3545;
+    }
+
+    .toast.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border-left: 4px solid #17a2b8;
+    }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateX(40px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes toast-out {
+      from { opacity: 1; transform: translateX(0); }
+      to   { opacity: 0; transform: translateX(40px); }
+    }
+
+    /* ── Signature preview ────────────────────────────────── */
+
+    #sig-preview-container {
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    #sig-preview-canvas {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      max-width: 100%;
+      height: auto;
+      background: white;
+    }
+
+    /* ── Redaction overlay ────────────────────────────────── */
+
+    .redaction-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .redaction-overlay.drawing {
+      pointer-events: auto;
+      cursor: crosshair;
+    }
+
+    .redaction-rect {
+      position: absolute;
+      background: rgba(220, 53, 69, 0.25);
+      border: 2px solid rgba(220, 53, 69, 0.7);
+      pointer-events: none;
+    }
+
+    .pdf-page {
+      position: relative;
+    }
+
+    .redaction-badge {
+      display: inline-block;
+      background: #dc3545;
+      color: white;
+      border-radius: 10px;
+      padding: 1px 7px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 4px;
+    }
+
+    button.toggle-active {
+      background: #dc3545 !important;
+    }
+
+    button.toggle-active:hover {
+      background: #c82333 !important;
+    }
+
+    /* ── Form builder ─────────────────────────────────────── */
+
+    .form-field-queue {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .form-field-queue-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      background: #f1f3f5;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .form-field-queue-item .field-type-badge {
+      background: #1a3a5c;
+      color: white;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .form-field-queue-item .remove-field {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: #dc3545;
+      cursor: pointer;
+      padding: 0 4px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    #form-options-row {
+      display: none;
+    }
+
+    /* ── Responsive stacking ───────────────────────────────── */
+
+    @media (max-width: 768px) {
+      main {
+        flex-direction: column;
+      }
+      #sidebar {
+        max-width: none;
+        min-width: 0;
+        border-left: none;
+        border-top: 1px solid #d0d0d0;
+        max-height: 50vh;
+      }
+      #viewer-pane {
+        min-height: 200px;
+        flex: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- ── Header ──────────────────────────────────────────── -->
+  <header>
+    <h1>pdfbox-ts Test Harness</h1>
+    <div class="header-actions">
+      <span id="pdf-status" data-testid="pdf-status"></span>
+      <select id="renderer-select" data-testid="renderer-select" class="small" style="background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.25); padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer;">
+        <option value="pdfjs">PDF.js</option>
+        <option value="native">NativeRenderer</option>
+      </select>
+      <button id="toggle-log" class="small">Toggle Log</button>
+    </div>
+  </header>
+
+  <!-- ── Main split pane ─────────────────────────────────── -->
+  <main>
+    <!-- Left: PDF Viewer -->
+    <div id="viewer-pane">
+      <div id="pdf-viewer" data-testid="pdf-viewer">
+        <div class="empty-state">Load a PDF to preview</div>
+      </div>
+      <div id="render-metrics" data-testid="render-metrics" style="max-width: 800px; width: 100%; font-size: 11px; color: #666; padding: 6px 0; display: none;">
+      </div>
+    </div>
+
+    <!-- Right: Sidebar -->
+    <div id="sidebar" data-testid="sidebar">
+
+      <!-- ── DOCUMENT ────────────────────────────────────── -->
+      <div class="section-group-label">Document</div>
+
+      <!-- Load PDF -->
+      <details open class="action-section" data-section="load">
+        <summary>Load PDF</summary>
+        <div class="section-content" id="load-section">
+          <div class="btn-row">
+            <button id="use-demo">Use Demo PDF</button>
+            <span class="or">or</span>
+            <input type="file" id="file-input" accept=".pdf" />
+          </div>
+          <div style="margin-top: 6px;">
+            <span id="load-status"></span>
+          </div>
+        </div>
+      </details>
+
+      <!-- Page Management -->
+      <details open class="action-section" data-section="page-mgmt">
+        <summary>Page Management</summary>
+        <div class="section-content" id="page-mgmt-section">
+          <p class="section-desc">Add, remove, and rotate pages on the loaded PDF.</p>
+          <div class="btn-row">
+            <button id="add-page">Add Page</button>
+            <button id="rotate-page" class="secondary">Rotate Page 1 (90&deg;)</button>
+            <button id="remove-last-page" class="secondary">Remove Last Page</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Copy Pages -->
+      <details open class="action-section" data-section="copy-pages">
+        <summary>Copy Pages</summary>
+        <div class="section-content" id="copy-section">
+          <p class="section-desc">Deep-clone pages from the loaded PDF into a new document.</p>
+          <div class="btn-row">
+            <button id="copy-pages">Copy Page 1 to New PDF</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Save as PDF/A -->
+      <details open class="action-section" data-section="pdfa">
+        <summary>Save as PDF/A</summary>
+        <div class="section-content" id="pdfa-section">
+          <p class="section-desc">Save with PDF/A archival compliance (XMP metadata + sRGB ICC profile).</p>
+          <div class="btn-row">
+            <button id="save-pdfa1b">Save as PDF/A-1b</button>
+            <button id="save-pdfa2b" class="secondary">Save as PDF/A-2b</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- ── FORMS ───────────────────────────────────────── -->
+      <div class="section-group-label">Forms</div>
+
+      <!-- Fill Fields -->
+      <details class="action-section" data-section="fields">
+        <summary>Fill Fields <span class="badge" id="field-count"></span></summary>
+        <div class="section-content" id="fields-section">
+          <div id="fields-container"></div>
+          <div class="btn-row" style="margin-top: 8px;">
+            <button id="apply-fields">Apply Field Values</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Create Form -->
+      <details open class="action-section" data-section="create-form">
+        <summary>Create Form <span id="form-queue-count" class="badge"></span></summary>
+        <div class="section-content" id="create-form-section">
+          <p class="section-desc">Build a custom form or use the quick preset.</p>
+          <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;">
+            <div class="field-row">
+              <label>Field Type</label>
+              <select id="form-field-type">
+                <option value="text">Text</option>
+                <option value="checkbox">Checkbox</option>
+                <option value="dropdown">Dropdown</option>
+                <option value="radio">Radio</option>
+                <option value="signature">Signature</option>
+              </select>
+            </div>
+            <div class="field-row">
+              <label>Field Name</label>
+              <input type="text" id="form-field-name" placeholder="e.g. full_name" />
+            </div>
+            <div class="field-row" id="form-options-row">
+              <label>Options</label>
+              <input type="text" id="form-field-options" placeholder="Option1, Option2, Option3" />
+            </div>
+          </div>
+          <div class="btn-row">
+            <button id="add-form-field" class="secondary">Add Field</button>
+            <button id="create-custom-form">Create Custom Form</button>
+          </div>
+          <div id="form-field-queue" class="form-field-queue"></div>
+          <div class="btn-row" style="margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px;">
+            <button id="create-form" class="secondary">Quick Form (3 Fields)</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Flatten Form -->
+      <details open class="action-section" data-section="flatten">
+        <summary>Flatten Form</summary>
+        <div class="section-content" id="flatten-section">
+          <p class="section-desc">Bakes form field values into page content and removes interactive fields.</p>
+          <div class="btn-row">
+            <button id="flatten-form">Flatten Form</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- ── SIGNATURES ──────────────────────────────────── -->
+      <div class="section-group-label">Signatures</div>
+
+      <!-- Sign Document -->
+      <details class="action-section" data-section="sign">
+        <summary>Sign Document</summary>
+        <div class="section-content" id="sign-section">
+          <div class="field-row" style="margin-bottom: 8px;">
+            <label>Appearance Mode</label>
+            <select id="sig-style">
+              <option value="hybrid">Hybrid (Image + Info Box)</option>
+              <option value="generated">Image Only</option>
+              <option value="text">Text Only</option>
+            </select>
+          </div>
+          <div class="field-row" style="margin-bottom: 8px;">
+            <label>Brand Text</label>
+            <input type="text" id="sig-brand" value="Dapple SafeSign" placeholder="Brand name" style="width: 100%; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;" />
+          </div>
+          <div id="sig-preview-container">
+            <canvas id="sig-preview-canvas" width="360" height="120"></canvas>
+          </div>
+          <div class="btn-row" style="margin-top: 8px;">
+            <button id="sign-user1">Sign as User 1</button>
+            <button id="sign-user2" class="secondary">Counter-sign as User 2</button>
+          </div>
+          <div id="signatures-container"></div>
+        </div>
+      </details>
+
+      <!-- Two-Step Signing -->
+      <details open class="action-section" data-section="twostep">
+        <summary>Two-Step Signing</summary>
+        <div class="section-content" id="twostep-section">
+          <p class="section-desc">Prepare-then-sign workflow for remote signing / approval flows.</p>
+          <div class="btn-row">
+            <button id="twostep-sign">Prepare &rarr; Sign (Two-Step)</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Verify Signatures -->
+      <details open class="action-section" data-section="verify">
+        <summary>Verify Signatures</summary>
+        <div class="section-content" id="verify-section">
+          <p class="section-desc">Verifies all digital signatures: integrity, RSA/ECDSA, certificate chain, timestamps.</p>
+          <div class="btn-row">
+            <button id="verify-sigs">Verify Signatures</button>
+          </div>
+          <div id="verify-results"></div>
+        </div>
+      </details>
+
+      <!-- ── CONTENT ─────────────────────────────────────── -->
+      <div class="section-group-label">Content</div>
+
+      <!-- Add Annotations -->
+      <details open class="action-section" data-section="annotations">
+        <summary>Add Annotations</summary>
+        <div class="section-content" id="annotations-section">
+          <p class="section-desc">Adds highlight, stamp, sticky note, and rectangle annotations.</p>
+          <div class="btn-row">
+            <button id="add-annotations">Add Annotations</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Redaction -->
+      <details open class="action-section" data-section="redaction">
+        <summary>Redaction <span id="redaction-count" class="badge"></span></summary>
+        <div class="section-content" id="redact-section">
+          <p class="section-desc">Draw rectangles on the PDF to mark areas for redaction.</p>
+          <div class="btn-row">
+            <button id="toggle-redaction-draw">Draw Redaction</button>
+            <button id="apply-redactions" class="secondary" disabled>Apply Redactions</button>
+            <button id="clear-redactions" class="secondary" disabled>Clear All</button>
+          </div>
+          <div class="btn-row" style="margin-top: 6px;">
+            <button id="add-redaction" class="secondary">Quick Redaction (Demo)</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Drawing Operations -->
+      <details open class="action-section" data-section="drawing">
+        <summary>Drawing Operations</summary>
+        <div class="section-content" id="drawing-section">
+          <p class="section-desc">Creates a new PDF exercising all drawing APIs: text, shapes, images.</p>
+          <div class="btn-row">
+            <button id="create-drawing">Create Drawing Demo</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Custom Font -->
+      <details open class="action-section" data-section="font">
+        <summary>Custom Font</summary>
+        <div class="section-content" id="font-section">
+          <p class="section-desc">Creates a new PDF with a custom TrueType or OpenType font.</p>
+          <div class="btn-row">
+            <input type="file" id="font-file" accept=".ttf,.otf" />
+            <button id="embed-font" disabled>Create PDF with Font</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Image Embedding -->
+      <details open class="action-section" data-section="image">
+        <summary>Image Embedding</summary>
+        <div class="section-content" id="image-section">
+          <p class="section-desc">Embeds a JPEG or PNG image into a new PDF.</p>
+          <div class="btn-row">
+            <input type="file" id="image-file" accept=".jpg,.jpeg,.png" />
+            <button id="embed-image" disabled>Embed Image</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- ── EXTRACT ─────────────────────────────────────── -->
+      <div class="section-group-label">Extract</div>
+
+      <!-- Extract Text -->
+      <details open class="action-section" data-section="extract-text">
+        <summary>Extract Text</summary>
+        <div class="section-content" id="extract-text-section">
+          <p class="section-desc">Extracts all text content with position information per page.</p>
+          <div class="btn-row">
+            <button id="extract-text">Extract Text</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Extract Images -->
+      <details open class="action-section" data-section="extract-images">
+        <summary>Extract Images</summary>
+        <div class="section-content" id="extract-images-section">
+          <p class="section-desc">Extracts all embedded images with metadata.</p>
+          <div class="btn-row">
+            <button id="extract-images">Extract Images</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- ── SECURITY ────────────────────────────────────── -->
+      <div class="section-group-label">Security</div>
+
+      <!-- Encrypt / Decrypt -->
+      <details open class="action-section" data-section="encrypt">
+        <summary>Encrypt / Decrypt</summary>
+        <div class="section-content" id="encrypt-section">
+          <p class="section-desc">Encrypt with AES-128/256, or load an encrypted PDF with a password.</p>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div class="field-row">
+              <label>Owner Password</label>
+              <input type="text" id="enc-owner-pwd" value="owner123" />
+            </div>
+            <div class="field-row">
+              <label>User Password</label>
+              <input type="text" id="enc-user-pwd" placeholder="(empty = no password to open)" />
+            </div>
+            <div class="field-row">
+              <label>Key Length</label>
+              <select id="enc-key-length">
+                <option value="256" selected>AES-256 (recommended)</option>
+                <option value="128">AES-128</option>
+              </select>
+            </div>
+            <div class="field-row">
+              <label>Permissions</label>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px;">
+                <label><input type="checkbox" id="perm-print" checked /> Print</label>
+                <label><input type="checkbox" id="perm-copy" checked /> Copy</label>
+                <label><input type="checkbox" id="perm-modify" /> Modify</label>
+                <label><input type="checkbox" id="perm-annotate" checked /> Annotate</label>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button id="encrypt-pdf">Encrypt PDF</button>
+              <button id="decrypt-pdf" class="secondary">Decrypt (Load with Password)</button>
+            </div>
+            <div class="field-row">
+              <label>Decrypt Password</label>
+              <input type="text" id="dec-password" placeholder="Password for encrypted PDF" />
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- ── OPTIONS ─────────────────────────────────────── -->
+      <div class="section-group-label">Options</div>
+
+      <!-- Signing Options -->
+      <details open class="action-section" data-section="options">
+        <summary>Signing Options</summary>
+        <div class="section-content" id="options-section">
+          <p class="section-desc">Toggle before signing to test different modes.</p>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-size: 12px; display: flex; align-items: center; gap: 6px;">
+              <input type="checkbox" id="opt-der" /> DER encoding (instead of BER)
+            </label>
+            <label style="font-size: 12px; display: flex; align-items: center; gap: 6px;">
+              <input type="checkbox" id="opt-fullsave" /> Force full-save mode
+            </label>
+            <label style="font-size: 12px; display: flex; align-items: center; gap: 6px;">
+              <input type="checkbox" id="opt-flatten" /> Flatten forms on sign
+            </label>
+          </div>
+        </div>
+      </details>
+
+      <!-- Download -->
+      <details open class="action-section" data-section="download">
+        <summary>Download</summary>
+        <div class="section-content" id="result-section">
+          <div class="btn-row">
+            <button id="download" class="success">Download Signed PDF</button>
+            <span id="download-info" style="font-size: 11px; color: #666;"></span>
+          </div>
+        </div>
+      </details>
+
+    </div>
+  </main>
+
+  <!-- ── Log panel (bottom) ──────────────────────────────── -->
+  <div id="log-panel">
+    <div id="log-output" data-testid="log-output"></div>
+  </div>
+
+  <!-- Toast notifications -->
+  <div id="toast-container"></div>
+
+  <script type="module" src="/src/app.ts"></script>
+</body>
+</html>

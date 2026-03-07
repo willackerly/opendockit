@@ -1,0 +1,120 @@
+{
+  "name": "pdfbox-ts",
+  "version": "1.0.0-beta.9",
+  "description": "Create, modify, and digitally sign PDFs in JavaScript. TypeScript port of Apache PDFBox with byte-for-byte parity.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./extraction": {
+      "types": "./dist/extraction.d.ts",
+      "import": "./dist/extraction.js"
+    },
+    "./verify": {
+      "types": "./dist/verify.d.ts",
+      "import": "./dist/verify.js"
+    },
+    "./ltv": {
+      "types": "./dist/ltv.d.ts",
+      "import": "./dist/ltv.js"
+    },
+    "./redaction": {
+      "types": "./dist/redaction.d.ts",
+      "import": "./dist/redaction.js"
+    },
+    "./annotations": {
+      "types": "./dist/annotations.d.ts",
+      "import": "./dist/annotations.js"
+    },
+    "./pdfa": {
+      "types": "./dist/pdfa.d.ts",
+      "import": "./dist/pdfa.js"
+    },
+    "./content-stream": {
+      "types": "./dist/document/content-stream/index.d.ts",
+      "import": "./dist/document/content-stream/index.js"
+    },
+    "./fonts": {
+      "types": "./dist/document/fonts/index.d.ts",
+      "import": "./dist/document/fonts/index.js"
+    },
+    "./render": {
+      "types": "./dist/render/index.d.ts",
+      "import": "./dist/render/index.js"
+    },
+    "./elements": {
+      "types": "./dist/elements/index.d.ts",
+      "import": "./dist/elements/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:corpus": "PDFBOX_TS_CORPUS=1 vitest run known-good-unsigned",
+    "test:all": "PDFBOX_TS_CORPUS=1 vitest run",
+    "test:visual": "PDFBOX_TS_E2E_VISUAL=1 vitest run visual",
+    "test:acrobat": "PDFBOX_TS_E2E_ACROBAT=1 vitest run acrobat-validation",
+    "test:update-snapshots": "PDFBOX_TS_UPDATE_SNAPSHOTS=1 PDFBOX_TS_E2E_VISUAL=1 vitest run visual",
+    "test:ltv": "PDFBOX_TS_E2E_LTV=1 vitest run ltv-live",
+    "compare": "tsx src/cli/compare-fixture.ts",
+    "cms:diff": "tsx src/cli/diff-der.ts",
+    "parity:report": "tsx src/cli/parity-report.ts"
+  },
+  "keywords": [
+    "pdfbox",
+    "pdf",
+    "digital-signature",
+    "typescript",
+    "cos"
+  ],
+  "pnpm": {
+    "onlyBuiltDependencies": ["canvas"]
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "peerDependencies": {
+    "pdfjs-dist": ">=4.0.0",
+    "canvas": ">=2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "pdfjs-dist": {
+      "optional": true
+    },
+    "canvas": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@noble/curves": "^2.0.1",
+    "node-forge": "^1.3.1",
+    "pako": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/node-forge": "^1.3.14",
+    "@types/pako": "^2.0.4",
+    "@types/pngjs": "^6.0.5",
+    "canvas": "^3.2.1",
+    "pdfjs-dist": "^5.4.624",
+    "pixelmatch": "^7.1.0",
+    "pngjs": "^7.0.0",
+    "tsx": "^4.17.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.4"
+  }
+}
