@@ -12,12 +12,15 @@
 
 import type { RenderOptions, RenderResult } from './types.js';
 import { evaluatePage, evaluatePageWithElements } from './evaluator.js';
+import type { NativeImage } from './evaluator.js';
 import type { PageElement } from '../elements/types.js';
 import { NativeCanvasGraphics } from './canvas-graphics.js';
 import { canvasToPng, isNodeEnvironment } from './canvas-factory.js';
 import type { COSDictionary } from '../pdfbox/cos/COSTypes.js';
 import { COSArray, COSFloat, COSInteger, COSObjectReference } from '../pdfbox/cos/COSTypes.js';
 import type { ObjectResolver } from '../document/extraction/FontDecoder.js';
+import { OPS } from './ops.js';
+import { OperatorList } from './operator-list.js';
 
 const DEFAULT_SCALE = 1.5;
 
@@ -123,6 +126,8 @@ export class NativeRenderer {
     context.transform(scale, 0, 0, -scale, -mediaBox[0] * scale, mediaBox[3] * scale);
 
     const opList = evaluatePage(pageDict, this.resolve);
+    // Pre-decode any JPEG images (async — must happen before sync execution)
+    await decodeJpegImages(opList);
     const graphics = new NativeCanvasGraphics(context);
     graphics.execute(opList);
 
@@ -173,6 +178,9 @@ export class NativeRenderer {
 
     // Evaluate page content stream → OperatorList
     const opList = evaluatePage(pageDict, this.resolve);
+
+    // Pre-decode any JPEG images (async — must happen before sync execution)
+    await decodeJpegImages(opList);
 
     // Render OperatorList to canvas
     const graphics = new NativeCanvasGraphics(context);
@@ -243,6 +251,83 @@ export function getPageElements(
 ): PageElement[] {
   const renderer = NativeRenderer.fromDocument(doc);
   return renderer.getPageElements(pageIndex);
+}
+
+// ---------------------------------------------------------------------------
+// JPEG image pre-decoder
+// ---------------------------------------------------------------------------
+
+/**
+ * Scan an OperatorList for JPEG images and pre-decode them to canvas elements.
+ * This is an async pre-processing step that runs before NativeCanvasGraphics.execute().
+ *
+ * Mutates the NativeImage objects in-place by setting the `decoded` field.
+ * After this runs, canvas-graphics can use drawImage() for JPEG without async ops.
+ */
+async function decodeJpegImages(opList: OperatorList): Promise<void> {
+  const jpegOps = [OPS.paintImageXObject, OPS.paintInlineImageXObject];
+
+  for (let i = 0; i < opList.length; i++) {
+    if (!jpegOps.includes(opList.fnArray[i] as any)) continue;
+    const args = opList.argsArray[i];
+    if (!args || !args[0]) continue;
+    const image: NativeImage = args[0];
+    if (!image.isJpeg || image.decoded) continue;
+
+    try {
+      const decoded = await decodeJpegToCanvas(image.data, image.width, image.height);
+      if (decoded) {
+        image.decoded = decoded;
+      }
+    } catch {
+      // If decode fails, canvas-graphics will skip gracefully
+    }
+  }
+}
+
+/**
+ * Decode JPEG bytes to a canvas element.
+ * Returns null if decoding is not possible in this environment.
+ */
+async function decodeJpegToCanvas(
+  jpegBytes: Uint8Array,
+  _width: number,
+  _height: number,
+): Promise<OffscreenCanvas | HTMLCanvasElement | null> {
+  // Node.js: use node-canvas Image (loads synchronously when given a Buffer)
+  if (isNodeEnvironment) {
+    try {
+      const { createCanvas, Image } = await import('canvas');
+      const img = new Image();
+      // node-canvas Image.src = Buffer loads synchronously
+      (img as any).src = Buffer.from(jpegBytes.buffer, jpegBytes.byteOffset, jpegBytes.byteLength);
+      if (!img.width || !img.height) return null;
+      const canvas = createCanvas(img.width, img.height);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img as any, 0, 0);
+      return canvas as any;
+    } catch {
+      return null;
+    }
+  }
+
+  // Browser: use createImageBitmap() (async, returns ImageBitmap)
+  if (typeof createImageBitmap !== 'undefined') {
+    try {
+      const blob = new Blob([jpegBytes], { type: 'image/jpeg' });
+      const bitmap = await createImageBitmap(blob);
+      // Wrap in OffscreenCanvas so drawImage(canvas, 0, 0, 1, 1) works
+      const offscreen = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const ctx = offscreen.getContext('2d')!;
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      return offscreen;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 // ---------------------------------------------------------------------------

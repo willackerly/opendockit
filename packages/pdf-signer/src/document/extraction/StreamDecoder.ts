@@ -57,6 +57,27 @@ export function getRawStreamData(stream: COSStream): Uint8Array {
 }
 
 /**
+ * Apply a sequence of named filters to raw bytes.
+ * Used for inline images where data is not in a COSStream.
+ *
+ * @param data    Raw bytes to decode
+ * @param filters Filter names (e.g. ['FlateDecode'], ['DCTDecode'])
+ * @param parms   Optional array of filter parameter dictionaries (one per filter)
+ */
+export function applyFiltersToBytes(
+  data: Uint8Array,
+  filters: string[],
+  parms?: Array<COSDictionary | undefined>,
+): Uint8Array {
+  let result = data;
+  for (let i = 0; i < filters.length; i++) {
+    const filterParms = parms ? parms[i] : undefined;
+    result = applyFilter(filters[i], result, filterParms);
+  }
+  return result;
+}
+
+/**
  * Read filter name(s) from a stream dictionary.
  * /Filter can be a single COSName or a COSArray of COSName.
  */
