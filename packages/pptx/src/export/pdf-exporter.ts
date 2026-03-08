@@ -10,26 +10,27 @@
  *
  * Architecture:
  *   PresentationIR + EnrichedSlideData[]
- *     -> for each slide: renderSlideToPdf() -> ContentStreamBuilder
- *     -> ContentStreamBuilder.toBytes() -> PDFPage content stream
+ *     -> collectFontsFromPresentation() -> FontKey[]
+ *     -> embedFontsForPdf() -> EmbeddedFontResult[]
+ *     -> for each slide:
+ *        -> renderSlideToPdf() -> ContentStreamBuilder
+ *        -> wireFontsToPage() -> page /Resources /Font wired
+ *        -> ContentStreamBuilder.toBytes() -> PDFPage content stream
  *     -> PDFDocument.save() -> Uint8Array (PDF bytes)
  *
- * Limitations of this initial implementation:
- * - Text is not rendered (requires font embedding/subsetting)
- * - Images are shown as light gray placeholders
- * - Gradients are approximated as solid fills (first stop color)
- * - Effects (shadows, glow) are not rendered
- * - Tables are shown as gray rectangles
- * - Only rectangular shapes are rendered (custom geometry is ignored)
- *
- * These limitations will be lifted incrementally as the RenderBackend
- * abstraction is completed and font/image embedding is wired in.
+ * Font handling:
+ * - Text runs are rendered via PDF standard fonts (Helvetica, Times, Courier)
+ *   mapped from the presentation's CSS font families
+ * - Font resources are properly declared in each page's /Resources
+ * - Text is encoded using WinAnsiEncoding for correct glyph rendering
  */
 
 import { PDFDocument } from '@opendockit/pdf-signer';
 import { emuToPt } from '@opendockit/core';
 import type { PresentationIR, EnrichedSlideData } from '../model/index.js';
-import { renderSlideToPdf } from './pdf-slide-renderer.js';
+import { renderSlideToPdf, buildFontLookup } from './pdf-slide-renderer.js';
+import { collectFontsFromPresentation } from './pdf-font-collector.js';
+import { embedFontsForPdf, wireFontsToPage } from './pdf-font-embedder.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -49,6 +50,8 @@ export interface PdfExportResult {
   bytes: Uint8Array;
   /** Number of pages (slides) exported. */
   pageCount: number;
+  /** Number of unique fonts embedded (or mapped to standard fonts). */
+  fontCount: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -62,6 +65,12 @@ export interface PdfExportResult {
  * instead of Canvas2D calls. This ensures visual consistency between
  * screen and export output (within the limitations of the current
  * implementation).
+ *
+ * The pipeline:
+ * 1. Collect all fonts used across all slides
+ * 2. Embed fonts into the PDF document (standard font fallback)
+ * 3. For each slide: render content, wire fonts, inject stream
+ * 4. Save the PDF
  *
  * @param presentation - The parsed presentation IR (slide dimensions, theme, etc.)
  * @param slides - Enriched slide data for each slide to export (slide + layout + master chain)
@@ -85,40 +94,48 @@ export async function exportPresentationToPdf(
   const pageWidthPt = emuToPt(presentation.slideWidth);
   const pageHeightPt = emuToPt(presentation.slideHeight);
 
-  // 3. For each slide, create a page and render content
+  // 3. Collect all fonts used across the presentation
+  const fontKeys = collectFontsFromPresentation(slides, presentation.theme);
+
+  // 4. Embed fonts into the PDF document
+  const embeddedFonts = embedFontsForPdf(fontKeys, pdfDoc);
+
+  // 5. Build font lookup context for text rendering
+  const fontCtx = buildFontLookup(embeddedFonts, presentation.theme);
+
+  // 6. For each slide, create a page and render content
   for (let i = 0; i < slides.length; i++) {
     const slideData = slides[i];
 
     // Create a page with the slide dimensions
     const page = pdfDoc.addPage([pageWidthPt, pageHeightPt]);
 
-    // Render slide content to PDF operators
-    const builder = renderSlideToPdf(slideData, pageWidthPt, pageHeightPt);
+    // Wire font resources into the page's /Resources /Font dictionary
+    const pageDict = page._nativePageDict!;
+    wireFontsToPage(pageDict, embeddedFonts, pdfDoc);
+
+    // Render slide content to PDF operators (with font context for text)
+    const builder = renderSlideToPdf(slideData, pageWidthPt, pageHeightPt, fontCtx);
 
     // Get the content stream bytes and inject into the page
     const contentBytes = builder.toBytes();
 
-    // Use the page's internal method to push the content stream.
-    // PDFPage._pushContentStream is private, but we can use the
-    // document context to create a stream and add it to the page.
+    // Create a content stream and add it to the page's /Contents array
     const ctx = pdfDoc._nativeCtx;
     const streamRef = ctx.createStream(contentBytes);
 
-    // Add the stream reference to the page's /Contents array.
-    // The page was just created by addPage(), so /Contents is an
-    // empty COSArray (see NativeDocumentContext.addPage()).
-    const pageDict = page._nativePageDict!;
     const contents = pageDict.getItem('Contents');
     if (contents && 'add' in contents) {
       (contents as { add(ref: unknown): void }).add(streamRef);
     }
   }
 
-  // 4. Save and return the PDF bytes
+  // 7. Save and return the PDF bytes
   const bytes = await pdfDoc.save();
 
   return {
     bytes,
     pageCount: slides.length,
+    fontCount: embeddedFonts.length,
   };
 }

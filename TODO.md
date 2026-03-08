@@ -203,6 +203,7 @@ Deep investigation of top-10 RMSE slides confirms:
 - [x] Clipboard serialize/deserialize (2026-03-08)
 - [x] Batch PPTX→PDF conversion script (2026-03-08)
 - [x] Unified viewer (PPTX + PDF format detection) (2026-03-08)
+- [x] PDF font embedding for PPTX→PDF export (standard font fallback: Helvetica/Times-Roman/Courier) with text rendering in content streams (2026-03-08)
 
 **Still deferred:**
 - [ ] Full ChartML parser and renderer (bar, pie, line, scatter, combo) — cached image fallback already renders chart previews (2026-02-26)
@@ -242,3 +243,4 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [x] Table row auto-height (rows expand to fit content text — 2026-02-25)
 - [ ] Media LRU cache size limits (currently unbounded)
 - [x] Text direction `vert` attribute parsed + rendered (2026-02-25)
+- [ ] WOFF2->TTF decoding for custom font embedding in PDF export (currently using PDF standard font fallback; bundled fonts are WOFF2 and TrueTypeParser rejects them — need woff2 decoder or raw TTF access)

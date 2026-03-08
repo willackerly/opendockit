@@ -22,7 +22,8 @@
   "dependencies": {
     "@opendockit/core": "workspace:*",
     "@opendockit/elements": "workspace:*",
-    "@opendockit/pdf-signer": "workspace:*"
+    "@opendockit/pdf-signer": "workspace:*",
+    "@opendockit/render": "workspace:*"
   },
   "devDependencies": {
     "jszip": "^3.10.0",

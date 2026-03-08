@@ -125,6 +125,9 @@ importers:
       '@opendockit/pdf-signer':
         specifier: workspace:*
         version: link:../pdf-signer
+      '@opendockit/render':
+        specifier: workspace:*
+        version: link:../render
     devDependencies:
       jszip:
         specifier: ^3.10.0

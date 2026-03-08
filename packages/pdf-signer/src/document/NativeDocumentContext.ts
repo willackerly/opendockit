@@ -528,6 +528,39 @@ export class NativeDocumentContext {
   }
 
   // ---------------------------------------------------------------------------
+  // Page font resource wiring
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Add a font resource entry to a page's /Resources /Font dictionary.
+   *
+   * Creates the /Font sub-dictionary if it doesn't exist yet.
+   * Used by the PPTX->PDF export pipeline to wire embedded fonts
+   * into individual pages.
+   *
+   * @param pageDict - The page's COSDictionary
+   * @param resourceName - The font resource name (e.g. "F1")
+   * @param fontRef - The COSObjectReference to the font dictionary
+   */
+  addFontToPage(
+    pageDict: COSDictionary,
+    resourceName: string,
+    fontRef: COSObjectReference
+  ): void {
+    const resources = pageDict.getItem('Resources');
+    if (!(resources instanceof COSDictionary)) return;
+
+    let fontDict = resources.getItem('Font');
+    if (!(fontDict instanceof COSDictionary)) {
+      fontDict = new COSDictionary();
+      (fontDict as COSDictionary).setDirect(true);
+      resources.setItem('Font', fontDict);
+    }
+
+    (fontDict as COSDictionary).setItem(resourceName, fontRef);
+  }
+
+  // ---------------------------------------------------------------------------
   // Graphics state
   // ---------------------------------------------------------------------------
 

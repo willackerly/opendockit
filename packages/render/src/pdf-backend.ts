@@ -16,6 +16,8 @@
  * - Gradients return a proxy object; only the first color stop is used for now
  * - Text and image operations emit placeholder operators; full font embedding
  *   and image XObject support are deferred to Wave 3
+ * - Font registry: callers can register fonts via registerFont() for proper
+ *   PDF text rendering with correct encoding and width measurement
  *
  * @module pdf-backend
  */
@@ -368,6 +370,37 @@ function arcToBeziers(
 // PDFBackend
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Registered font interface (for PDF font embedding)
+// ---------------------------------------------------------------------------
+
+/**
+ * A font registered with PDFBackend for proper PDF text rendering.
+ *
+ * Callers (e.g. the PDF export pipeline) create these after embedding
+ * fonts into the PDF document, then register them so that fillText()
+ * can emit correct Tf/Tj operators with proper encoding.
+ */
+export interface RegisteredPdfFont {
+  /** PDF resource name, e.g. "F1" (without leading slash). */
+  resourceName: string;
+  /**
+   * Encode a text string as hex for PDF Tj operator.
+   * For CIDFont/Type0 fonts, this should produce UTF-16BE glyph IDs.
+   * For Type1 standard fonts, this should produce WinAnsi hex encoding.
+   */
+  encodeText(text: string): string;
+  /**
+   * Measure the width of text in PDF points at the given font size.
+   * Returns the advance width in points.
+   */
+  measureWidth(text: string, sizePt: number): number;
+}
+
+// ---------------------------------------------------------------------------
+// Text measurer callback
+// ---------------------------------------------------------------------------
+
 /**
  * Optional function for measuring text width in PDF units.
  * If provided, used by measureText(). Otherwise a rough heuristic is used.
@@ -402,6 +435,12 @@ export class PDFBackend {
   private _currentState: PDFGraphicsState;
   private readonly _textMeasurer: TextMeasurer | undefined;
 
+  /** Map of (family|bold|italic) -> RegisteredPdfFont for PDF text rendering. */
+  private _fontRegistry = new Map<string, RegisteredPdfFont>();
+
+  /** Resource declarations accumulated during rendering (e.g. "/F1 12 0 R"). */
+  private _fontResourceDeclarations: string[] = [];
+
   /**
    * @param pageHeight - Page height in PDF points, used for Y-axis flipping.
    *   PDF uses bottom-left origin; Canvas2D uses top-left. The constructor
@@ -419,6 +458,76 @@ export class PDFBackend {
     // Apply Y-axis flip: (1, 0, 0, -1, 0, pageHeight) cm
     // This makes y=0 the top of the page (Canvas2D convention)
     this._emit(`1 0 0 -1 0 ${n(pageHeight)} cm`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Font registration
+  // -------------------------------------------------------------------------
+
+  /**
+   * Register a font for PDF text rendering.
+   *
+   * Once registered, fillText() and strokeText() will look up the font by
+   * CSS family name and bold/italic flags, and emit proper Tf/Tj operators
+   * with the correct encoding and resource name.
+   *
+   * @param cssFamily - CSS font family name (case-insensitive)
+   * @param bold - Whether this is a bold variant
+   * @param italic - Whether this is an italic variant
+   * @param font - The registered font object
+   */
+  registerFont(
+    cssFamily: string,
+    bold: boolean,
+    italic: boolean,
+    font: RegisteredPdfFont
+  ): void {
+    const key = `${cssFamily.toLowerCase()}|${bold}|${italic}`;
+    this._fontRegistry.set(key, font);
+  }
+
+  /**
+   * Look up a registered font by CSS family name and style.
+   * Returns undefined if no font is registered for the given combination.
+   */
+  private _lookupFont(
+    cssFamily: string,
+    bold: boolean,
+    italic: boolean
+  ): RegisteredPdfFont | undefined {
+    const key = `${cssFamily.toLowerCase()}|${bold}|${italic}`;
+    let font = this._fontRegistry.get(key);
+    if (font) return font;
+
+    // Fallback: try without style variants (e.g. no bold-italic, try bold-only)
+    if (bold && italic) {
+      font = this._fontRegistry.get(`${cssFamily.toLowerCase()}|true|false`);
+      if (font) return font;
+      font = this._fontRegistry.get(`${cssFamily.toLowerCase()}|false|true`);
+      if (font) return font;
+    }
+
+    // Fallback: try regular
+    font = this._fontRegistry.get(`${cssFamily.toLowerCase()}|false|false`);
+    return font;
+  }
+
+  /**
+   * Get the font resource declarations accumulated during rendering.
+   *
+   * These are strings like "/F1 12 0 R" that should be placed in the
+   * page's /Resources /Font dictionary.
+   */
+  getFontResourceDeclarations(): string[] {
+    return [...this._fontResourceDeclarations];
+  }
+
+  /**
+   * Add a font resource declaration (called externally when wiring up
+   * the page's /Resources dictionary).
+   */
+  addFontResourceDeclaration(declaration: string): void {
+    this._fontResourceDeclarations.push(declaration);
   }
 
   // -------------------------------------------------------------------------
@@ -898,34 +1007,57 @@ export class PDFBackend {
   }
 
   fillText(text: string, x: number, y: number, _maxWidth?: number): void {
-    const { family, sizePx } = this._parseFont(this._currentState.font);
+    const { family, sizePx, bold, italic } = this._parseFont(this._currentState.font);
     const fillColor = this._resolveFillColor();
+
+    // Look up registered font
+    const registeredFont = this._lookupFont(family, bold, italic);
 
     this._emit('BT');
     this._emit(`${n(fillColor.r)} ${n(fillColor.g)} ${n(fillColor.b)} rg`);
-    // Use font resource name (callers must register fonts and provide a resource name)
-    // For now, use the family name as a placeholder resource name
-    const fontName = family.replace(/\s+/g, '');
-    this._emit(`/${fontName} ${n(sizePx)} Tf`);
-    this._emit(`${n(x)} ${n(y)} Td`);
-    // Encode text as hex for PDF Tj operator
-    const hex = textToHex(text);
-    this._emit(`<${hex}> Tj`);
+
+    if (registeredFont) {
+      // Use the registered font with proper encoding
+      this._emit(`/${registeredFont.resourceName} ${n(sizePx)} Tf`);
+      this._emit(`${n(x)} ${n(y)} Td`);
+      const hex = registeredFont.encodeText(text);
+      this._emit(`<${hex}> Tj`);
+    } else {
+      // Fallback: use family name as placeholder resource name
+      const fontName = family.replace(/\s+/g, '');
+      this._emit(`/${fontName} ${n(sizePx)} Tf`);
+      this._emit(`${n(x)} ${n(y)} Td`);
+      const hex = textToHex(text);
+      this._emit(`<${hex}> Tj`);
+    }
+
     this._emit('ET');
   }
 
   strokeText(text: string, x: number, y: number, _maxWidth?: number): void {
-    const { family, sizePx } = this._parseFont(this._currentState.font);
+    const { family, sizePx, bold, italic } = this._parseFont(this._currentState.font);
     const strokeColor = this._resolveStrokeColor();
+
+    // Look up registered font
+    const registeredFont = this._lookupFont(family, bold, italic);
 
     this._emit('BT');
     this._emit(`${n(strokeColor.r)} ${n(strokeColor.g)} ${n(strokeColor.b)} RG`);
     this._emit('2 Tr'); // Text rendering mode: stroke
-    const fontName = family.replace(/\s+/g, '');
-    this._emit(`/${fontName} ${n(sizePx)} Tf`);
-    this._emit(`${n(x)} ${n(y)} Td`);
-    const hex = textToHex(text);
-    this._emit(`<${hex}> Tj`);
+
+    if (registeredFont) {
+      this._emit(`/${registeredFont.resourceName} ${n(sizePx)} Tf`);
+      this._emit(`${n(x)} ${n(y)} Td`);
+      const hex = registeredFont.encodeText(text);
+      this._emit(`<${hex}> Tj`);
+    } else {
+      const fontName = family.replace(/\s+/g, '');
+      this._emit(`/${fontName} ${n(sizePx)} Tf`);
+      this._emit(`${n(x)} ${n(y)} Td`);
+      const hex = textToHex(text);
+      this._emit(`<${hex}> Tj`);
+    }
+
     this._emit('0 Tr'); // Reset to fill mode
     this._emit('ET');
   }
@@ -933,7 +1065,14 @@ export class PDFBackend {
   measureText(text: string): TextMetrics {
     const { family, sizePx, bold, italic } = this._parseFont(this._currentState.font);
 
-    // Try the external text measurer first
+    // Try the registered font's width measurement first
+    const registeredFont = this._lookupFont(family, bold, italic);
+    if (registeredFont) {
+      const width = registeredFont.measureWidth(text, sizePx);
+      return new PDFTextMetrics(width, sizePx);
+    }
+
+    // Try the external text measurer
     if (this._textMeasurer) {
       const width = this._textMeasurer(text, family, sizePx, bold, italic);
       if (width !== undefined) {
