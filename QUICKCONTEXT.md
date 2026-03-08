@@ -8,6 +8,25 @@
 
 OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer and editor. It reads PPTX files (eventually DOCX/XLSX) and renders them in the browser using Canvas2D, with optional WASM modules for advanced features. The editing pipeline supports programmatic mutations (move, resize, text edit, delete, slide reorder/delete) with surgical XML patching for full-fidelity save. Phase 4 adds a PDF/Office unified architecture: a RenderBackend abstraction (CanvasBackend + PDFBackend), unified element model (PageModel/PageElement), cross-format text search, clipboard serialize/deserialize, PDF export pipeline, and batch PPTX→PDF conversion.
 
+## Where to Find Things
+
+| Looking for... | Go to... |
+|---|---|
+| Project overview | `QUICKCONTEXT.md` (this file) |
+| Getting started | `README.md` |
+| Package overview | `packages/<name>/README.md` |
+| Module internals | `packages/<name>/**/MODULE.md` |
+| Architecture | `docs/architecture/README.md` |
+| Test coverage | `docs/testing/COVERAGE.md` |
+| Testing tools & scripts | `scripts/README.md`, `docs/testing/README.md` |
+| Font system | `packages/core/src/font/MODULE.md` |
+| Visual regression | `docs/testing/README.md` § Visual Regression |
+| Plans & decisions | `docs/plans/README.md` |
+| DX issues | `developer-experience-issues.md` |
+| Agent norms | `AGENTS.md` |
+| Known issues | `KNOWN_ISSUES.md` |
+| Roadmap | `TODO.md` |
+
 ## Current State
 
 The full PPTX rendering pipeline is implemented, tested, and visually validated. The editing pipeline (Phase 0-3) is complete. Phase 4 (Waves 0-4) of the PDF/Office unified architecture is complete:

@@ -127,6 +127,18 @@ The font pipeline is the #1 fragility risk. Tests are distributed across multipl
 
 ---
 
+## E2E Tests (Playwright)
+
+| Test File | Tests | What It Covers |
+|-----------|-------|----------------|
+| `tools/viewer/e2e/edit-mode.spec.ts` | 19 | Viewer edit mode: selection, editing, drag, undo, save |
+
+**Run:** `cd tools/viewer && npx playwright test`
+
+Note: E2E tests run separately from unit tests and are not included in the `pnpm test` count.
+
+---
+
 ## Spec Coverage Matrix
 
 See `../specifications/README.md` for OOXML spec section → implementation mapping.

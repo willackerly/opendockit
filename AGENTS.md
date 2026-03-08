@@ -476,6 +476,34 @@ Unit/integration coverage runs through Vitest; co-locate specs beside code or in
 | **File purpose**        | Nearest README "File intent" table           |
 | **Historical context**  | `docs/archive/`                              |
 
+### Mandatory Documentation Updates
+
+When making certain changes, documentation MUST be updated in the same commit:
+
+- **New script** → Add entry to `scripts/README.md`
+- **New package** → Create `packages/<name>/README.md`
+- **New E2E tests** → Add to `docs/testing/README.md` E2E section
+- **New test suite (≥10 tests)** → Update `docs/testing/COVERAGE.md`
+- **Test count change ≥50** → Update `QUICKCONTEXT.md` test counts
+- **New MODULE.md** → Verify cross-referenced in parent module docs
+- **DX issue found** → Log in `developer-experience-issues.md`
+
+### DX Issue Tracking
+
+When you encounter a usability or discoverability issue during development — something that was hard to find, unclear how to use, inconsistent with established patterns, or missing from documentation — log it in `developer-experience-issues.md` in the repo root.
+
+**Format:** Each issue has: description, how it was discovered, criticality level, status, and resolution.
+
+**Criticality levels:**
+- **P0** — Blocks work entirely (e.g., missing build step, broken dependency)
+- **P1** — Significant friction (e.g., had to read 5 files to find a script, no docs for key workflow)
+- **P2** — Minor friction (e.g., undocumented command, inconsistent naming)
+- **P3** — Cosmetic (e.g., placeholder file, outdated comment)
+
+**When to log:** Any time you spend >2 minutes searching for something that should have been documented, or discover an inconsistency between docs and reality.
+
+**Resolution:** When you fix a DX issue, update its status to "Resolved" and note what was done. Periodically review open issues.
+
 ### Quality Gates
 
 Run lint, typecheck, and tests before every push. Document every run in your PR summary. No skipping core contract tests—if they flake, fix or revert. Any temporary skip must link to a tracking issue and include a removal date.

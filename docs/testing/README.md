@@ -70,6 +70,55 @@ Output: `visual-diffs/` — one PNG per slide, sorted by RMSE (worst first). Nam
 
 See the Font Testing Map in `COVERAGE.md` — font tests are distributed across `core` and `pptx` packages.
 
+## E2E Tests
+
+### Viewer Edit Mode (Playwright)
+
+19 Playwright tests covering the interactive viewer's edit mode functionality.
+
+**Location:** `tools/viewer/e2e/edit-mode.spec.ts`
+
+**Run:**
+```bash
+cd tools/viewer && npx playwright test
+```
+
+**What's tested:** Element selection, text editing, drag-to-move, property changes, undo/redo, save/reload round-trip.
+
+**Prerequisites:** Playwright browsers installed (`npx playwright install chromium`)
+
+## PDF Export Quality Gate
+
+Visual regression for PPTX→PDF export pipeline.
+
+**Script:** `scripts/visual-compare-export.mjs`
+**Run:** `pnpm test:visual:export`
+**What it does:** Exports PPTX fixtures to PDF via NativeRenderer, rasterizes pages, compares against reference PNGs using ImageMagick RMSE.
+
+## Visual Diff Gallery
+
+3-pane composite images for eyeballing rendering differences.
+
+**Script:** `scripts/generate-visual-gallery.sh`
+**Run:** `bash scripts/generate-visual-gallery.sh`
+**Output:** `visual-diffs/` in project root — one PNG per slide, sorted by RMSE (worst first)
+**Format:** Reference (PDF) | Rendered (OpenDocKit) | Abs Diff (4x amplified)
+**Prerequisite:** Run `scripts/visual-compare.mjs` first to generate rendered/reference PNGs
+
+## Font Pipeline
+
+### When to Run What
+
+| Scenario | Command | What It Does |
+|----------|---------|-------------- |
+| New clone / missing `fonts/` dir | `pnpm fonts:rebuild` | Download TTFs + generate metrics + generate WOFF2 |
+| Adding a new Google Font | `pnpm fonts:rebuild` | Full pipeline: download + metrics + WOFF2 |
+| Changed metrics extraction logic | `pnpm fonts:metrics` | Regenerate `metrics-bundle.ts` from `fonts/` |
+| Changed WOFF2 generation logic | `pnpm fonts:woff2` | Regenerate WOFF2 TS modules from `fonts/` |
+| Routine development | Nothing | Fonts are checked into the repo |
+
+**Scripts:** See `scripts/README.md` for detailed script documentation.
+
 ## Test Data
 
 Test PPTX files live in `test-data/` at the repo root. Name files descriptively:

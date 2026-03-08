@@ -78,6 +78,19 @@ See `docs/architecture/` for full details.
 
 ## Documentation
 
+| Document | Purpose |
+|----------|---------|
+| `QUICKCONTEXT.md` | 30-second project orientation |
+| `AGENTS.md` | Agent norms, workstreams, doc maintenance |
+| `TODO.md` | Roadmap and task tracking |
+| `KNOWN_ISSUES.md` | Current blockers and gotchas |
+| `docs/architecture/` | System architecture, RenderBackend, element model |
+| `docs/testing/` | Test coverage, visual regression, font testing |
+| `docs/plans/` | Design decisions and merge plans |
+| `scripts/README.md` | Script registry and usage guide |
+| `packages/*/README.md` | Per-package quick start |
+| `packages/**/MODULE.md` | Detailed module documentation |
+
 See `docs/README.md` for the full documentation tree.
 
 ## License
