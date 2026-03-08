@@ -22,11 +22,14 @@
     "fonts:metrics": "bash scripts/regenerate-metrics.sh",
     "fonts:woff2": "python3 scripts/bundle-woff2-fonts.py",
     "fonts:bundle": "pnpm fonts:metrics && pnpm fonts:woff2",
-    "fonts:rebuild": "pnpm fonts:download && pnpm fonts:bundle"
+    "fonts:rebuild": "pnpm fonts:download && pnpm fonts:bundle",
+    "test:bdd:matrix": "node scripts/bdd-coverage-matrix.mjs"
   },
   "devDependencies": {
+    "@cucumber/cucumber": "^12.7.0",
     "@playwright/test": "^1.58.2",
     "playwright": "^1.58.2",
+    "playwright-bdd": "^8.4.2",
     "prettier": "^3.2.0",
     "typescript": "^5.7.0"
   },

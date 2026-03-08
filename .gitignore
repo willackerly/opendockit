@@ -24,6 +24,10 @@ reference/
 **/e2e/screenshots/
 **/playwright-report/
 
+# playwright-bdd generated test files
+.features-gen/
+**/bdd-report/
+
 # Visual regression baseline PNGs (regenerated via --update-baselines)
 test-data/corpus-baselines/
 
