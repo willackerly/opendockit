@@ -588,17 +588,43 @@
         text-align: center;
         margin-top: 8px;
       }
+
+      /* Format indicator badge */
+      .format-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        border: 1px solid;
+      }
+
+      .format-badge.pptx {
+        background: #1e3a5f;
+        border-color: #3b82f6;
+        color: #93c5fd;
+      }
+
+      .format-badge.pdf {
+        background: #3d1a00;
+        border-color: #e94560;
+        color: #fca5a5;
+      }
     </style>
   </head>
   <body>
     <header>
       <h1>OpenDocKit Viewer</h1>
       <div class="file-controls">
+        <span id="format-badge" class="format-badge" style="display: none"></span>
         <button id="btn-inspect" class="btn btn-inspector" title="Toggle element inspector (click slides to inspect)">Inspect</button>
         <button id="btn-edit" class="btn btn-edit" title="Toggle edit mode (click elements to select and edit)">Edit</button>
-        <button id="btn-save" class="btn" title="Download modified PPTX" disabled>Save PPTX</button>
-        <button id="btn-open" class="btn btn-primary">Choose PPTX File</button>
-        <input id="file-input" type="file" accept=".pptx" />
+        <button id="btn-save" class="btn" title="Download modified file" disabled>Save PPTX</button>
+        <button id="btn-open" class="btn btn-primary">Open File</button>
+        <input id="file-input" type="file" accept=".pptx,.pdf" />
         <span id="file-name" style="font-size: 13px; color: #999"></span>
       </div>
     </header>
@@ -606,12 +632,12 @@
     <div id="error-banner" class="error-banner"></div>
 
     <div id="drop-zone" class="empty">
-      <div id="drop-overlay">Drop PPTX file here</div>
+      <div id="drop-overlay">Drop file here (PPTX or PDF)</div>
 
       <div id="empty-state" class="empty-state">
-        <p>Load a PPTX file to begin</p>
-        <p>Click "Choose PPTX File" above or drag and drop a .pptx file</p>
-        <p class="hint">All slides render vertically -- just scroll</p>
+        <p>Load a PPTX or PDF file to begin</p>
+        <p>Click "Open File" above or drag and drop a .pptx or .pdf file</p>
+        <p class="hint">All pages render vertically -- just scroll</p>
       </div>
 
       <div id="slides-container"></div>

@@ -150,6 +150,9 @@ importers:
       '@opendockit/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@opendockit/pdf-signer':
+        specifier: workspace:*
+        version: link:../../packages/pdf-signer
       '@opendockit/pptx':
         specifier: workspace:*
         version: link:../../packages/pptx
