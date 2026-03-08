@@ -24,6 +24,8 @@
     "src/verify.ts",
     "src/ltv.ts",
     "src/redaction.ts",
+    "src/render/index.ts",
+    "src/elements/index.ts",
     "src/annotations.ts",
     "src/pdfa.ts",
     "src/version.ts",
