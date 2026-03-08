@@ -1,0 +1,77 @@
+{
+  "name": "@opendockit/pdf",
+  "version": "0.1.0",
+  "description": "PDF document engine: parse, create, modify, render, and extract content from PDFs",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./render": {
+      "types": "./dist/render.d.ts",
+      "import": "./dist/render.js"
+    },
+    "./elements": {
+      "types": "./dist/elements.d.ts",
+      "import": "./dist/elements.js"
+    },
+    "./extraction": {
+      "types": "./dist/extraction.d.ts",
+      "import": "./dist/extraction.js"
+    },
+    "./annotations": {
+      "types": "./dist/annotations.d.ts",
+      "import": "./dist/annotations.js"
+    },
+    "./redaction": {
+      "types": "./dist/redaction.d.ts",
+      "import": "./dist/redaction.js"
+    },
+    "./pdfa": {
+      "types": "./dist/pdfa.d.ts",
+      "import": "./dist/pdfa.js"
+    },
+    "./content-stream": {
+      "types": "./dist/content-stream.d.ts",
+      "import": "./dist/content-stream.js"
+    },
+    "./fonts": {
+      "types": "./dist/fonts.d.ts",
+      "import": "./dist/fonts.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@opendockit/pdf-signer": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  },
+  "peerDependencies": {
+    "pdfjs-dist": ">=4.0.0",
+    "canvas": ">=2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "pdfjs-dist": {
+      "optional": true
+    },
+    "canvas": {
+      "optional": true
+    }
+  }
+}

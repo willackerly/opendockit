@@ -40,6 +40,25 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@25.2.3)
 
+  packages/pdf:
+    dependencies:
+      '@opendockit/pdf-signer':
+        specifier: workspace:*
+        version: link:../pdf-signer
+      canvas:
+        specifier: '>=2.0.0'
+        version: 3.2.1
+      pdfjs-dist:
+        specifier: '>=4.0.0'
+        version: 5.5.207
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@25.2.3)
+
   packages/pdf-signer:
     dependencies:
       '@noble/curves':
