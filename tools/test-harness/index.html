@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenDocKit Test Harness</title>
+    <link rel="stylesheet" href="./styles/harness.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- ============================================================
+           Toolbar
+           ============================================================ -->
+      <div class="toolbar">
+        <div class="toolbar-row">
+          <button id="btn-open" class="btn btn-primary">Open File</button>
+          <input id="file-input" type="file" accept=".pptx" />
+          <span id="file-name" class="toolbar-label"></span>
+
+          <div class="toolbar-separator"></div>
+
+          <button id="btn-bold" class="btn btn-icon" title="Bold (Ctrl+B)">B</button>
+          <button id="btn-italic" class="btn btn-icon" title="Italic (Ctrl+I)" style="font-style: italic">I</button>
+          <button id="btn-underline" class="btn btn-icon" title="Underline (Ctrl+U)" style="text-decoration: underline">U</button>
+
+          <div class="toolbar-separator"></div>
+
+          <span class="toolbar-label">Font:</span>
+          <select id="font-picker" class="toolbar-select">
+            <option value="">-- select --</option>
+            <option value="Carlito">Carlito</option>
+            <option value="Calibri">Calibri</option>
+            <option value="Arial">Arial</option>
+            <option value="Roboto">Roboto</option>
+            <option value="Open Sans">Open Sans</option>
+            <option value="Lato">Lato</option>
+            <option value="Barlow">Barlow</option>
+            <option value="Source Sans Pro">Source Sans Pro</option>
+          </select>
+
+          <span class="toolbar-label">Size:</span>
+          <select id="font-size-picker" class="toolbar-select" style="min-width: 60px">
+            <option value="8">8</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12" selected>12</option>
+            <option value="14">14</option>
+            <option value="16">16</option>
+            <option value="18">18</option>
+            <option value="24">24</option>
+            <option value="28">28</option>
+            <option value="32">32</option>
+            <option value="36">36</option>
+            <option value="48">48</option>
+          </select>
+        </div>
+
+        <div class="toolbar-row">
+          <span class="toolbar-label">Fill:</span>
+          <input type="color" id="fill-color" class="toolbar-color-swatch" value="#89b4fa" />
+
+          <div class="toolbar-separator"></div>
+
+          <button id="btn-export-pdf" class="btn" disabled>Export PDF</button>
+          <button id="btn-save-pptx" class="btn" disabled>Save PPTX</button>
+
+          <div class="toolbar-separator"></div>
+
+          <button id="btn-delete" class="btn btn-danger" disabled>Delete</button>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           Error Banner
+           ============================================================ -->
+      <div id="error-banner" class="error-banner"></div>
+
+      <!-- ============================================================
+           Main Area: slide panel | canvas | properties panel
+           ============================================================ -->
+      <div class="main-area">
+        <!-- Slide Panel (left) -->
+        <div class="slide-panel" id="slide-panel">
+          <div class="slide-panel-empty" id="slide-panel-empty">
+            No slides loaded
+          </div>
+        </div>
+
+        <!-- Canvas Area (center) -->
+        <div class="canvas-area" id="canvas-area">
+          <div class="canvas-empty" id="canvas-empty">
+            <div class="canvas-empty-title">OpenDocKit Test Harness</div>
+            <div class="canvas-empty-hint">
+              Open a PPTX file to begin, or drag and drop here
+            </div>
+          </div>
+          <div class="canvas-wrapper" id="canvas-wrapper" style="display: none">
+            <canvas id="main-canvas"></canvas>
+            <div class="perf-overlay" id="perf-overlay"></div>
+            <!-- Selection overlay rendered here by JS -->
+          </div>
+        </div>
+
+        <!-- Properties Panel (right) -->
+        <div class="properties-panel" id="properties-panel">
+          <div class="props-header">Properties</div>
+
+          <div id="props-empty" class="props-empty">
+            Click an element to inspect
+          </div>
+
+          <div id="props-content" style="display: none">
+            <div class="props-section">
+              <div class="props-kind-badge" id="props-kind"></div>
+              <div class="props-element-name" id="props-name"></div>
+              <div class="props-element-id" id="props-id"></div>
+            </div>
+
+            <div class="props-section">
+              <div class="props-section-title">Position</div>
+              <div class="props-row">
+                <span class="props-label">X</span>
+                <input type="number" class="props-input" id="props-x" step="0.01" />
+              </div>
+              <div class="props-row">
+                <span class="props-label">Y</span>
+                <input type="number" class="props-input" id="props-y" step="0.01" />
+              </div>
+            </div>
+
+            <div class="props-section">
+              <div class="props-section-title">Size</div>
+              <div class="props-row">
+                <span class="props-label">W</span>
+                <input type="number" class="props-input" id="props-w" step="0.01" min="0.01" />
+              </div>
+              <div class="props-row">
+                <span class="props-label">H</span>
+                <input type="number" class="props-input" id="props-h" step="0.01" min="0.01" />
+              </div>
+            </div>
+
+            <div class="props-section" id="props-text-section" style="display: none">
+              <div class="props-section-title">Text Content</div>
+              <textarea class="props-text-area" id="props-text"></textarea>
+            </div>
+
+            <div class="props-section">
+              <div class="props-actions">
+                <button class="btn btn-primary" id="props-apply">Apply</button>
+                <button class="btn btn-danger" id="props-delete">Delete</button>
+              </div>
+              <div class="props-status" id="props-status"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           Status Bar
+           ============================================================ -->
+      <div class="status-bar">
+        <span class="loading-indicator" id="loading">
+          <span class="spinner"></span>
+          <span id="loading-msg">Loading...</span>
+        </span>
+        <span class="status-item" id="status-slide">No file loaded</span>
+        <span class="status-separator"></span>
+        <span class="status-item" id="status-render"></span>
+        <span class="status-separator"></span>
+        <span class="status-item" id="status-elements"></span>
+        <span class="status-spacer"></span>
+        <span class="status-item" id="status-message">Ready</span>
+      </div>
+    </div>
+
+    <script type="module" src="./harness.ts"></script>
+  </body>
+</html>

@@ -158,6 +158,25 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@25.2.3)
 
+  tools/test-harness:
+    dependencies:
+      '@opendockit/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@opendockit/pptx':
+        specifier: workspace:*
+        version: link:../../packages/pptx
+    devDependencies:
+      '@types/node':
+        specifier: ^25.2.3
+        version: 25.2.3
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.1(@types/node@25.2.3)(tsx@4.21.0)(yaml@2.8.2)
+
   tools/viewer:
     dependencies:
       '@opendockit/core':
@@ -2158,7 +2177,7 @@ snapshots:
       '@cucumber/gherkin-utils': 11.0.0
       '@cucumber/html-formatter': 23.0.0(@cucumber/messages@32.0.1)
       '@cucumber/junit-xml-formatter': 0.9.0(@cucumber/messages@32.0.1)
-      '@cucumber/message-streams': 4.0.1(@cucumber/messages@32.0.1)
+      '@cucumber/message-streams': 4.0.1(@cucumber/messages@27.2.0)
       '@cucumber/messages': 32.0.1
       '@cucumber/pretty-formatter': 1.0.1(@cucumber/cucumber@12.7.0)(@cucumber/messages@32.0.1)
       '@cucumber/tag-expressions': 9.1.0
@@ -2195,7 +2214,7 @@ snapshots:
   '@cucumber/gherkin-streams@6.0.0(@cucumber/gherkin@38.0.0)(@cucumber/message-streams@4.0.1(@cucumber/messages@32.0.1))(@cucumber/messages@32.0.1)':
     dependencies:
       '@cucumber/gherkin': 38.0.0
-      '@cucumber/message-streams': 4.0.1(@cucumber/messages@32.0.1)
+      '@cucumber/message-streams': 4.0.1(@cucumber/messages@27.2.0)
       '@cucumber/messages': 32.0.1
       commander: 14.0.0
       source-map-support: 0.5.21
@@ -2252,9 +2271,9 @@ snapshots:
       luxon: 3.7.2
       xmlbuilder: 15.1.1
 
-  '@cucumber/message-streams@4.0.1(@cucumber/messages@32.0.1)':
+  '@cucumber/message-streams@4.0.1(@cucumber/messages@27.2.0)':
     dependencies:
-      '@cucumber/messages': 32.0.1
+      '@cucumber/messages': 27.2.0
 
   '@cucumber/messages@26.0.1':
     dependencies:

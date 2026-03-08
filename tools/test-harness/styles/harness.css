@@ -1,0 +1,611 @@
+/* -------------------------------------------------------------------------
+ * OpenDocKit Test Harness — Main Layout CSS
+ * Editor-like UI for exercising SlideKit / EditableSlideKit APIs.
+ * ------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg-primary: #1e1e2e;
+  --bg-secondary: #181825;
+  --bg-surface: #313244;
+  --bg-surface-hover: #45475a;
+  --bg-toolbar: #11111b;
+  --border-color: #45475a;
+  --border-focus: #89b4fa;
+  --text-primary: #cdd6f4;
+  --text-secondary: #a6adc8;
+  --text-muted: #6c7086;
+  --accent: #89b4fa;
+  --accent-hover: #74c7ec;
+  --danger: #f38ba8;
+  --danger-hover: #eba0ac;
+  --success: #a6e3a1;
+  --warning: #f9e2af;
+  --selection-border: #89b4fa;
+  --selection-bg: rgba(137, 180, 250, 0.12);
+  --handle-color: #89b4fa;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --toolbar-height: 80px;
+  --statusbar-height: 32px;
+  --slide-panel-width: 160px;
+  --properties-panel-width: 240px;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+/* -------------------------------------------------------------------------
+ * App Layout — 3-row grid: toolbar | main | statusbar
+ * Main is 3-column: slide panel | canvas | properties panel
+ * ------------------------------------------------------------------------- */
+
+#app {
+  display: grid;
+  grid-template-rows: auto 1fr var(--statusbar-height);
+  height: 100%;
+  width: 100%;
+}
+
+/* -------------------------------------------------------------------------
+ * Toolbar
+ * ------------------------------------------------------------------------- */
+
+.toolbar {
+  background: var(--bg-toolbar);
+  border-bottom: 1px solid var(--border-color);
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  user-select: none;
+}
+
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 24px;
+  background: var(--border-color);
+  flex-shrink: 0;
+}
+
+/* Buttons */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.btn:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--accent);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #11111b;
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.btn-danger {
+  background: rgba(243, 139, 168, 0.15);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn-danger:hover {
+  background: rgba(243, 139, 168, 0.25);
+}
+
+.btn-icon {
+  padding: 5px 8px;
+  min-width: 30px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.btn-icon.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #11111b;
+}
+
+/* Toolbar inputs */
+
+.toolbar-select {
+  padding: 4px 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  min-width: 100px;
+}
+
+.toolbar-select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.toolbar-label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.toolbar-color-swatch {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  cursor: pointer;
+  background: #89b4fa;
+}
+
+.toolbar-color-swatch:hover {
+  border-color: var(--accent);
+}
+
+/* Hidden file input */
+
+#file-input {
+  display: none;
+}
+
+/* -------------------------------------------------------------------------
+ * Main Area — 3-column layout
+ * ------------------------------------------------------------------------- */
+
+.main-area {
+  display: grid;
+  grid-template-columns: var(--slide-panel-width) 1fr var(--properties-panel-width);
+  overflow: hidden;
+}
+
+/* -------------------------------------------------------------------------
+ * Slide Panel (left)
+ * ------------------------------------------------------------------------- */
+
+.slide-panel {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slide-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.slide-panel::-webkit-scrollbar-thumb {
+  background: var(--bg-surface-hover);
+  border-radius: 3px;
+}
+
+.slide-thumb {
+  position: relative;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.12s;
+  flex-shrink: 0;
+}
+
+.slide-thumb:hover {
+  border-color: var(--bg-surface-hover);
+}
+
+.slide-thumb.active {
+  border-color: var(--accent);
+}
+
+.slide-thumb img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #fff;
+  border-radius: 2px;
+}
+
+.slide-thumb-label {
+  position: absolute;
+  bottom: 2px;
+  left: 4px;
+  font-size: 10px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1px 5px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.slide-panel-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 16px;
+}
+
+/* -------------------------------------------------------------------------
+ * Canvas Area (center)
+ * ------------------------------------------------------------------------- */
+
+.canvas-area {
+  position: relative;
+  overflow: auto;
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.canvas-area.drop-active {
+  background: rgba(137, 180, 250, 0.05);
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+.canvas-wrapper {
+  position: relative;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  border-radius: 2px;
+  /* Sized dynamically by JS */
+}
+
+.canvas-wrapper canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+  padding: 40px;
+}
+
+.canvas-empty-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.canvas-empty-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Selection overlay on canvas */
+
+.selection-overlay {
+  position: absolute;
+  border: 2px solid var(--selection-border);
+  background: var(--selection-bg);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.selection-handle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--handle-color);
+  border: 1px solid #fff;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.selection-handle.nw { top: -4px; left: -4px; cursor: nwse-resize; }
+.selection-handle.ne { top: -4px; right: -4px; cursor: nesw-resize; }
+.selection-handle.sw { bottom: -4px; left: -4px; cursor: nesw-resize; }
+.selection-handle.se { bottom: -4px; right: -4px; cursor: nwse-resize; }
+
+/* -------------------------------------------------------------------------
+ * Properties Panel (right)
+ * ------------------------------------------------------------------------- */
+
+.properties-panel {
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
+  overflow-y: auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.properties-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.properties-panel::-webkit-scrollbar-thumb {
+  background: var(--bg-surface-hover);
+  border-radius: 3px;
+}
+
+.props-header {
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.props-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.props-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.props-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.props-label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  min-width: 24px;
+  flex-shrink: 0;
+}
+
+.props-input {
+  flex: 1;
+  padding: 3px 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  min-width: 0;
+}
+
+.props-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.props-text-area {
+  width: 100%;
+  min-height: 60px;
+  max-height: 120px;
+  padding: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  resize: vertical;
+}
+
+.props-text-area:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.props-kind-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  background: rgba(137, 180, 250, 0.15);
+  color: var(--accent);
+}
+
+.props-element-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.props-element-id {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 2px;
+  word-break: break-all;
+}
+
+.props-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.props-actions .btn {
+  flex: 1;
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.props-empty {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.props-status {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px 12px;
+}
+
+/* -------------------------------------------------------------------------
+ * Status Bar (bottom)
+ * ------------------------------------------------------------------------- */
+
+.status-bar {
+  background: var(--bg-toolbar);
+  border-top: 1px solid var(--border-color);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.status-bar .status-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-bar .status-separator {
+  width: 1px;
+  height: 16px;
+  background: var(--border-color);
+}
+
+.status-bar .status-spacer {
+  flex: 1;
+}
+
+/* Loading spinner */
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--bg-surface);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-indicator {
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.loading-indicator.visible {
+  display: inline-flex;
+}
+
+/* -------------------------------------------------------------------------
+ * Error banner
+ * ------------------------------------------------------------------------- */
+
+.error-banner {
+  display: none;
+  padding: 8px 16px;
+  background: rgba(243, 139, 168, 0.1);
+  border-bottom: 1px solid var(--danger);
+  color: var(--danger);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error-banner.visible {
+  display: block;
+}
+
+/* -------------------------------------------------------------------------
+ * Performance overlay
+ * ------------------------------------------------------------------------- */
+
+.perf-overlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(17, 17, 27, 0.85);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--success);
+  pointer-events: none;
+  z-index: 10;
+}
