@@ -196,7 +196,8 @@ Deep investigation of top-10 RMSE slides confirms:
 - [ ] Full ChartML parser and renderer (bar, pie, line, scatter, combo) — cached image fallback already renders chart previews (2026-02-26)
 - [ ] CanvasKit WASM integration (3D effects, reflections, advanced filters)
 - [ ] Slide transitions (fade, push, wipe, etc.)
-- [ ] RenderBackend abstraction + PDF export
+- [x] RenderBackend abstraction (CanvasBackend implemented — 2026-03-07)
+- [ ] PDFBackend full fidelity (initial implementation done, gaps tracked in Code Debt)
 - [ ] SVG export
 
 ### Phase 5: DOCX
@@ -231,3 +232,15 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [x] Table row auto-height (rows expand to fit content text — 2026-02-25)
 - [ ] Media LRU cache size limits (currently unbounded)
 - [x] Text direction `vert` attribute parsed + rendered (2026-02-25)
+
+### PDFBackend Gaps (packages/render/src/pdf-backend.ts)
+
+- [ ] `setTransform` should track cumulative CTM and emit inverse + new (currently emits cm which concatenates, not replaces)
+- [ ] Track current path point for accurate quadratic-to-cubic bezier conversion
+- [ ] Implement `arcTo` via tangent circle computation (currently approximated with lineTo)
+- [ ] Wire image XObject embedding for `drawImage` (currently emits placeholder Do operator)
+- [ ] Implement PDF tiling patterns for `createPattern` (currently returns null)
+- [ ] globalAlpha support via ExtGState resources (currently stored but not emitted)
+- [ ] globalCompositeOperation / blend modes via ExtGState (currently stored but not emitted)
+- [ ] Shadow rendering (requires path duplication + blur approximation)
+- [ ] Full PDF shading patterns for gradients (currently approximates with first color stop)
