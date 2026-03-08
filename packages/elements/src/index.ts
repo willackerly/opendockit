@@ -61,3 +61,12 @@ export {
 // ─── Dirty tracking ─────────────────────────────────────
 
 export { WeakDirtyTracker, DirtyTracker } from './dirty-tracking.js';
+
+// ─── Editable document ─────────────────────────────────
+
+export { EditableDocument } from './editable-document.js';
+export type {
+  DocumentSource,
+  EditableElement,
+  InteractionState,
+} from './editable-document.js';
