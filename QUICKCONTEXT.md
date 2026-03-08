@@ -98,6 +98,9 @@ Complete (Waves 0-4, 2026-03-07/08):
 - Font substitutions for Aptos, Verdana, Trebuchet MS, Corbel, Candara, Constantia
 - NativeRenderer improvements: shading patterns, JPEG images, CropBox, indexed colors
 - 5 synthetic stress test PPTX fixtures (gradients, tables, effects, text, connectors)
+- BDD/Gherkin infrastructure: 16 feature files, 38 scenarios across 4 epics, playwright-bdd integration
+- Enhanced test harness editor UI (`tools/test-harness/`) with toolbar, slide panel, canvas editor, properties panel
+- Performance benchmark infrastructure (`tools/perf/`) with 11 Vitest bench benchmarks across parsing/rendering/system
 
 Still deferred:
 1. **CanvasKit** WASM integration (3D effects, reflections, advanced filters)
