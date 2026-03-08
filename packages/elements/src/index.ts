@@ -70,3 +70,13 @@ export type {
   EditableElement,
   InteractionState,
 } from './editable-document.js';
+
+// ─── Text search ────────────────────────────────────────
+
+export { searchText } from './text-search.js';
+export type { SearchResult, SearchOptions } from './text-search.js';
+
+// ─── Clipboard utilities ────────────────────────────────
+
+export { serializeToClipboard, deserializeFromClipboard } from './clipboard.js';
+export type { ClipboardData } from './clipboard.js';
