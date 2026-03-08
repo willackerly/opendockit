@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@opendockit/core": "workspace:*",
+    "@opendockit/pdf-signer": "workspace:*",
     "@opendockit/pptx": "workspace:*"
   },
   "devDependencies": {

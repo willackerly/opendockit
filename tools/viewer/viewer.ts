@@ -1,15 +1,20 @@
 /**
- * OpenDocKit Viewer — dev tool for visual inspection and editing of PPTX rendering.
+ * OpenDocKit Viewer — dev tool for visual inspection and editing of PPTX and PDF rendering.
  *
- * Loads a PPTX file via file picker or drag-and-drop, renders ALL slides
- * vertically in a scrollable layout with slide labels, PNG export, element
- * inspector, and basic editing (move, resize, text edit, delete, save).
+ * Loads a PPTX or PDF file via file picker or drag-and-drop, renders ALL pages/slides
+ * vertically in a scrollable layout with labels, PNG export, element inspector,
+ * and basic editing (PPTX: move, resize, text edit, delete, save; PDF: coming soon).
+ *
+ * Format detection is automatic: .pptx → SlideKit pipeline, .pdf → PDFDocument + NativeRenderer.
+ * Magic bytes fallback: %PDF-1 → PDF, PK\x03\x04 → PPTX.
  */
 
 import { SlideKit, EditableSlideKit, type LoadedPresentation } from '@opendockit/pptx';
 import { emuToPx } from '@opendockit/core';
 import { deriveIR } from '@opendockit/core/edit';
 import type { SlideElementIR, GroupIR, TransformIR, EditableElement, EditableParagraph } from '@opendockit/core';
+import { PDFDocument } from '@opendockit/pdf-signer';
+import { NativeRenderer } from '@opendockit/pdf-signer/render';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -31,6 +36,7 @@ const btnEdit = document.getElementById('btn-edit') as HTMLButtonElement;
 const btnSave = document.getElementById('btn-save') as HTMLButtonElement;
 const fileInput = document.getElementById('file-input') as HTMLInputElement;
 const fileName = document.getElementById('file-name') as HTMLSpanElement;
+const formatBadge = document.getElementById('format-badge') as HTMLSpanElement;
 const dropZone = document.getElementById('drop-zone') as HTMLDivElement;
 const emptyState = document.getElementById('empty-state') as HTMLDivElement;
 const slidesContainer = document.getElementById('slides-container') as HTMLDivElement;
@@ -65,8 +71,19 @@ const editNudgeCenter = document.getElementById('edit-nudge-center') as HTMLButt
 // State
 // ---------------------------------------------------------------------------
 
+/** Active file format — determines which rendering pipeline is used. */
+type FileFormat = 'pptx' | 'pdf' | null;
+let activeFormat: FileFormat = null;
+
+// --- PPTX state ---
 let kit: SlideKit | null = null;
 let presentation: LoadedPresentation | null = null;
+
+// --- PDF state ---
+let pdfDocument: PDFDocument | null = null;
+let pdfRenderer: NativeRenderer | null = null;
+
+// --- Common state ---
 let currentFileName = '';
 let isLoading = false;
 
@@ -128,14 +145,15 @@ function setEditStatus(text: string): void {
 }
 
 function updateSlideInfo(): void {
-  if (!presentation) {
+  if (activeFormat === 'pptx' && presentation) {
+    const wPx = Math.round(emuToPx(presentation.slideWidth));
+    const hPx = Math.round(emuToPx(presentation.slideHeight));
+    slideInfo.textContent = `${presentation.slideCount} slides | ${wPx} x ${hPx} px @ 96 dpi | Theme: ${presentation.theme.name}`;
+  } else if (activeFormat === 'pdf' && pdfRenderer) {
+    slideInfo.textContent = `${pdfRenderer.pageCount} page${pdfRenderer.pageCount !== 1 ? 's' : ''}`;
+  } else {
     slideInfo.textContent = '';
-    return;
   }
-
-  const wPx = Math.round(emuToPx(presentation.slideWidth));
-  const hPx = Math.round(emuToPx(presentation.slideHeight));
-  slideInfo.textContent = `${presentation.slideCount} slides | ${wPx} x ${hPx} px @ 96 dpi | Theme: ${presentation.theme.name}`;
 }
 
 function emuToInches(emu: number): number {
@@ -144,6 +162,42 @@ function emuToInches(emu: number): number {
 
 function inchesToEmu(inches: number): number {
   return Math.round(inches * EMU_PER_INCH);
+}
+
+/**
+ * Detect the format of a file from extension and/or magic bytes.
+ * Returns 'pdf', 'pptx', or null if unrecognized.
+ */
+function detectFormat(file: File, firstBytes?: Uint8Array): FileFormat {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.pdf')) return 'pdf';
+  if (name.endsWith('.pptx')) return 'pptx';
+
+  // Fallback to magic bytes if extension is ambiguous
+  if (firstBytes && firstBytes.length >= 4) {
+    // PDF: starts with %PDF
+    if (firstBytes[0] === 0x25 && firstBytes[1] === 0x50 && firstBytes[2] === 0x44 && firstBytes[3] === 0x46) {
+      return 'pdf';
+    }
+    // PPTX (ZIP): starts with PK\x03\x04
+    if (firstBytes[0] === 0x50 && firstBytes[1] === 0x4b && firstBytes[2] === 0x03 && firstBytes[3] === 0x04) {
+      return 'pptx';
+    }
+  }
+
+  return null;
+}
+
+/** Update the format badge to show the current file format. */
+function updateFormatBadge(format: FileFormat): void {
+  if (!format) {
+    formatBadge.style.display = 'none';
+    formatBadge.className = 'format-badge';
+    return;
+  }
+  formatBadge.style.display = '';
+  formatBadge.className = `format-badge ${format}`;
+  formatBadge.textContent = format.toUpperCase();
 }
 
 // ---------------------------------------------------------------------------
@@ -161,22 +215,32 @@ function yieldToBrowser(): Promise<void> {
 
 async function loadFile(file: File): Promise<void> {
   if (isLoading) return;
-  if (!file.name.toLowerCase().endsWith('.pptx')) {
-    showError('Please select a .pptx file.');
-    return;
-  }
 
   clearError();
   clearEditSelection();
 
-  // Dispose previous instances
+  // Read a small header to enable magic-byte detection
+  const headerSlice = file.slice(0, 8);
+  const headerBuffer = await headerSlice.arrayBuffer();
+  const firstBytes = new Uint8Array(headerBuffer);
+
+  const format = detectFormat(file, firstBytes);
+  if (!format) {
+    showError('Unsupported file type. Please open a .pptx or .pdf file.');
+    return;
+  }
+
+  // Dispose previous instances regardless of old format
   if (kit) {
     kit.dispose();
     kit = null;
     presentation = null;
   }
+  pdfDocument = null;
+  pdfRenderer = null;
   editKit = null;
   currentFileBytes = null;
+  activeFormat = null;
   btnSave.disabled = true;
 
   if (offscreenCanvas) {
@@ -187,6 +251,7 @@ async function loadFile(file: File): Promise<void> {
 
   currentFileName = file.name;
   fileName.textContent = file.name;
+  updateFormatBadge(format);
 
   // Show slides area, hide empty state
   emptyState.style.display = 'none';
@@ -202,40 +267,67 @@ async function loadFile(file: File): Promise<void> {
   try {
     const arrayBuffer = await file.arrayBuffer();
     currentFileBytes = arrayBuffer;
+    activeFormat = format;
 
-    // Create a hidden offscreen canvas — kept alive for re-rendering
-    // invalidated slides when deferred capabilities load.
-    offscreenCanvas = document.createElement('canvas');
-    offscreenCanvas.style.display = 'none';
-    document.body.appendChild(offscreenCanvas);
-
-    kit = new SlideKit({
-      canvas: offscreenCanvas,
-      onProgress: (event) => {
-        const msg = event.message ?? `${event.phase} ${event.current}/${event.total}`;
-        setLoading(true, msg);
-      },
-      onSlideInvalidated: (indices) => {
-        // A new capability loaded — re-render affected slides in-place.
-        reRenderSlides(indices);
-      },
-    });
-
-    presentation = await kit.load(arrayBuffer);
-    updateSlideInfo();
-
-    // Load edit kit in parallel (non-blocking, for when edit mode is needed)
-    loadEditKit(arrayBuffer);
-
-    await renderAllSlides();
+    if (format === 'pptx') {
+      await loadPptxFile(arrayBuffer);
+    } else {
+      await loadPdfFile(arrayBuffer);
+    }
 
   } catch (err) {
     setLoading(false);
+    activeFormat = null;
+    updateFormatBadge(null);
     const message = err instanceof Error ? err.message : String(err);
     showError(`Failed to load ${file.name}: ${message}`);
     setStatus('Error');
     console.error('Load error:', err);
   }
+}
+
+/** Load and render a PPTX file. */
+async function loadPptxFile(arrayBuffer: ArrayBuffer): Promise<void> {
+  // Create a hidden offscreen canvas — kept alive for re-rendering
+  // invalidated slides when deferred capabilities load.
+  offscreenCanvas = document.createElement('canvas');
+  offscreenCanvas.style.display = 'none';
+  document.body.appendChild(offscreenCanvas);
+
+  kit = new SlideKit({
+    canvas: offscreenCanvas,
+    onProgress: (event) => {
+      const msg = event.message ?? `${event.phase} ${event.current}/${event.total}`;
+      setLoading(true, msg);
+    },
+    onSlideInvalidated: (indices) => {
+      // A new capability loaded — re-render affected slides in-place.
+      reRenderSlides(indices);
+    },
+  });
+
+  presentation = await kit.load(arrayBuffer);
+  updateSlideInfo();
+
+  // Load edit kit in parallel (non-blocking, for when edit mode is needed)
+  loadEditKit(arrayBuffer);
+
+  await renderAllSlides();
+}
+
+/** Load and render a PDF file using NativeRenderer. */
+async function loadPdfFile(arrayBuffer: ArrayBuffer): Promise<void> {
+  setLoading(true, 'Parsing PDF...');
+  pdfDocument = await PDFDocument.load(arrayBuffer);
+
+  setLoading(true, 'Setting up renderer...');
+  pdfRenderer = NativeRenderer.fromDocument(pdfDocument);
+
+  updateSlideInfo();
+
+  // PDF edit mode is not yet implemented — disable edit/inspect buttons
+  // (they still exist for future wiring)
+  await renderAllPdfPages();
 }
 
 /** Load the editing kit from file bytes. */
@@ -367,11 +459,111 @@ async function reRenderSlides(indices: number[]): Promise<void> {
   setStatus(`Upgraded ${count} slide${count > 1 ? 's' : ''}.`);
 }
 
+/** Render all pages from the current PDF NativeRenderer. */
+async function renderAllPdfPages(): Promise<void> {
+  if (!pdfRenderer) return;
+
+  const pageCount = pdfRenderer.pageCount;
+
+  // Phase 1: Create all page slots with skeleton placeholders.
+  const slots: { wrapper: HTMLDivElement; skeleton: HTMLDivElement }[] = [];
+  slidesContainer.innerHTML = '';
+  slideImages.clear();
+
+  // Use a default A4 aspect ratio for initial skeletons (1.414 ≈ 297/210)
+  const skeletonAspect = 1.414;
+
+  for (let i = 0; i < pageCount; i++) {
+    const slideWrapper = document.createElement('div');
+    slideWrapper.className = 'slide-wrapper';
+    slideWrapper.dataset.slideIndex = String(i);
+
+    const label = document.createElement('div');
+    label.className = 'slide-label';
+    label.textContent = `Page ${i + 1}`;
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-sm';
+    saveBtn.textContent = 'Save PNG';
+    saveBtn.disabled = true;
+    label.appendChild(saveBtn);
+
+    const skeleton = document.createElement('div');
+    skeleton.className = 'slide-skeleton';
+    skeleton.style.aspectRatio = `1 / ${skeletonAspect}`;
+
+    slideWrapper.appendChild(label);
+    slideWrapper.appendChild(skeleton);
+    slidesContainer.appendChild(slideWrapper);
+    slots.push({ wrapper: slideWrapper, skeleton });
+  }
+
+  // Yield so the browser paints the skeletons first.
+  await yieldToBrowser();
+
+  // Phase 2: Render each page using renderPageToCanvas, snapshot to <img>.
+  const offscreen = document.createElement('canvas');
+  offscreen.style.display = 'none';
+  document.body.appendChild(offscreen);
+
+  const t0 = performance.now();
+  try {
+    for (let i = 0; i < pageCount; i++) {
+      setLoading(true, `Rendering page ${i + 1} of ${pageCount}...`);
+      setStatus(`Rendering page ${i + 1} of ${pageCount}...`);
+
+      // Render directly to our offscreen canvas (scale 1.5 = ~108 DPI)
+      await pdfRenderer.renderPageToCanvas(i, offscreen, { scale: 1.5 });
+
+      // Snapshot the rendered canvas to a data URL
+      const imgContainer = document.createElement('div');
+      imgContainer.className = 'slide-image-container';
+
+      const img = document.createElement('img');
+      img.src = offscreen.toDataURL('image/png');
+      img.alt = `Page ${i + 1}`;
+      img.className = 'slide-image';
+
+      imgContainer.appendChild(img);
+
+      // Track for live updates
+      slideImages.set(i, img);
+
+      // Replace skeleton with rendered image
+      const { wrapper, skeleton } = slots[i];
+      wrapper.replaceChild(imgContainer, skeleton);
+
+      // Enable Save PNG button
+      const saveBtn = wrapper.querySelector('.btn-sm') as HTMLButtonElement;
+      saveBtn.disabled = false;
+      const pageIndex = i;
+      saveBtn.addEventListener('click', () => savePageAsPng(img, pageIndex));
+
+      await yieldToBrowser();
+    }
+  } finally {
+    offscreen.remove();
+  }
+
+  const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+  setLoading(false);
+  setStatus(`Rendered ${pageCount} page${pageCount !== 1 ? 's' : ''} in ${elapsed}s.`);
+}
+
 function saveSlideAsPng(img: HTMLImageElement, index: number): void {
   const a = document.createElement('a');
   a.href = img.src;
   const baseName = currentFileName.replace(/\.pptx$/i, '');
   a.download = `${baseName}_slide${index + 1}.png`;
+  a.click();
+  setStatus(`Saved ${a.download}`);
+}
+
+function savePageAsPng(img: HTMLImageElement, index: number): void {
+  const a = document.createElement('a');
+  a.href = img.src;
+  const baseName = currentFileName.replace(/\.pdf$/i, '');
+  a.download = `${baseName}_page${index + 1}.png`;
   a.click();
   setStatus(`Saved ${a.download}`);
 }
@@ -506,6 +698,9 @@ function hitTestElement(
 
 /** Dispatch click on a slide image to inspector or edit mode. */
 async function handleSlideClick(img: HTMLImageElement, slideIndex: number, event: MouseEvent): Promise<void> {
+  // PDF inspector/edit not yet implemented — ignore clicks in PDF mode
+  if (activeFormat === 'pdf') return;
+
   if (editMode) {
     await handleEditClick(img, slideIndex, event);
   } else if (inspectorActive) {
@@ -549,6 +744,12 @@ async function hitTestSlide(
 // ---------------------------------------------------------------------------
 
 function toggleInspector(): void {
+  // PDF inspector not yet implemented
+  if (activeFormat === 'pdf') {
+    setStatus('Element inspector is not yet available for PDF files.');
+    return;
+  }
+
   // Turn off edit mode if active
   if (editMode) toggleEditMode();
 
@@ -661,6 +862,12 @@ async function handleInspectorClick(img: HTMLImageElement, slideIndex: number, e
 // ---------------------------------------------------------------------------
 
 function toggleEditMode(): void {
+  // PDF edit mode not yet implemented
+  if (activeFormat === 'pdf') {
+    setStatus('Edit mode is not yet available for PDF files.');
+    return;
+  }
+
   // Turn off inspector if active
   if (inspectorActive) {
     inspectorActive = false;
@@ -1205,9 +1412,12 @@ dropZone.addEventListener('click', (e) => {
 (window as any).__debug = {
   get kit() { return kit; },
   get presentation() { return presentation; },
+  get pdfDocument() { return pdfDocument; },
+  get pdfRenderer() { return pdfRenderer; },
+  get activeFormat() { return activeFormat; },
   get editKit() { return editKit; },
   get inspectorActive() { return inspectorActive; },
   get editMode() { return editMode; },
 };
 
-setStatus('No file loaded. Open a PPTX file to begin.');
+setStatus('No file loaded. Open a PPTX or PDF file to begin.');

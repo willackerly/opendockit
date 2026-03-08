@@ -6,6 +6,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const coreBase = resolve(__dirname, '../../packages/core/src');
 const pptxBase = resolve(__dirname, '../../packages/pptx/src');
+const pdfSignerBase = resolve(__dirname, '../../packages/pdf-signer/src');
 
 export default defineConfig({
   root: resolve(__dirname),
@@ -55,6 +56,17 @@ export default defineConfig({
       // Base package aliases (must come after subpath aliases)
       { find: '@opendockit/core', replacement: coreBase },
       { find: '@opendockit/pptx', replacement: pptxBase },
+      // @opendockit/pdf-signer subpath exports (must come before base alias)
+      {
+        find: '@opendockit/pdf-signer/render',
+        replacement: resolve(pdfSignerBase, 'render/index.ts'),
+      },
+      {
+        find: '@opendockit/pdf-signer/elements',
+        replacement: resolve(pdfSignerBase, 'elements/index.ts'),
+      },
+      // Base pdf-signer alias
+      { find: '@opendockit/pdf-signer', replacement: resolve(pdfSignerBase, 'index.ts') },
     ],
   },
   server: {
