@@ -1,0 +1,17 @@
+{
+  "name": "@opendockit/perf",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "bench": "vitest bench --run",
+    "bench:update": "node scripts/update-baselines.mjs"
+  },
+  "dependencies": {
+    "@opendockit/core": "workspace:*",
+    "@opendockit/pptx": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0"
+  }
+}

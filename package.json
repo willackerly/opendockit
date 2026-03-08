@@ -23,7 +23,9 @@
     "fonts:woff2": "python3 scripts/bundle-woff2-fonts.py",
     "fonts:bundle": "pnpm fonts:metrics && pnpm fonts:woff2",
     "fonts:rebuild": "pnpm fonts:download && pnpm fonts:bundle",
-    "test:bdd:matrix": "node scripts/bdd-coverage-matrix.mjs"
+    "test:bdd:matrix": "node scripts/bdd-coverage-matrix.mjs",
+    "perf": "pnpm --filter @opendockit/perf bench",
+    "perf:update": "node tools/perf/scripts/update-baselines.mjs"
   },
   "devDependencies": {
     "@cucumber/cucumber": "^12.7.0",
