@@ -15,6 +15,8 @@
     "clean": "pnpm -r clean && rm -rf node_modules",
     "test:visual": "node scripts/visual-compare.mjs",
     "test:visual:corpus": "node scripts/visual-compare-corpus.mjs",
+    "test:visual:export": "node scripts/visual-compare-export.mjs",
+    "test:scripts": "node --test scripts/__tests__/visual-compare-export.test.mjs",
     "fonts:download": "bash scripts/download-google-fonts.sh",
     "fonts:metrics": "bash scripts/regenerate-metrics.sh",
     "fonts:woff2": "python3 scripts/bundle-woff2-fonts.py",
