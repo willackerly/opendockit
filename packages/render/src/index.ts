@@ -53,3 +53,7 @@ export {
   compose,
 } from './matrix.js';
 export type { Matrix2D, Vec2, MatrixDecomposition } from './matrix.js';
+
+// PDF backend
+export { PDFBackend, PDFGradient, parseCssColor } from './pdf-backend.js';
+export type { TextMeasurer } from './pdf-backend.js';
