@@ -109,7 +109,7 @@ describe('renderTable', () => {
 
     renderTable(table, rctx);
 
-    const calls = rctx.ctx._calls;
+    const calls = rctx.backend._calls;
     const methods = calls.map((c) => c.method);
 
     // Should save and restore context
@@ -131,7 +131,7 @@ describe('renderTable', () => {
 
     renderTable(table, rctx);
 
-    expect(rctx.ctx._calls).toHaveLength(0);
+    expect(rctx.backend._calls).toHaveLength(0);
   });
 
   it('skips rendering when table has no rows', () => {
@@ -140,7 +140,7 @@ describe('renderTable', () => {
 
     renderTable(table, rctx);
 
-    expect(rctx.ctx._calls).toHaveLength(0);
+    expect(rctx.backend._calls).toHaveLength(0);
   });
 
   it('draws cell borders', () => {
@@ -163,7 +163,7 @@ describe('renderTable', () => {
 
     renderTable(table, rctx);
 
-    const calls = rctx.ctx._calls;
+    const calls = rctx.backend._calls;
 
     // Each border draws: beginPath, moveTo, lineTo, stroke = 4 calls per border
     // 4 borders x 4 calls = 16 border-related calls
@@ -191,7 +191,7 @@ describe('renderTable', () => {
 
     renderTable(table, rctx);
 
-    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+    const fillTextCalls = rctx.backend._calls.filter((c) => c.method === 'fillText');
     // Should have at least 2 fillText calls (one per cell text)
     expect(fillTextCalls.length).toBeGreaterThanOrEqual(2);
   });
@@ -206,7 +206,7 @@ describe('renderTable', () => {
     renderTable(table, rctx);
 
     // Only 1 fill call — the hMerge cell is skipped
-    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
     expect(fillCalls).toHaveLength(1);
   });
 
@@ -223,7 +223,7 @@ describe('renderTable', () => {
     renderTable(table, rctx);
 
     // Only 1 fill call — the vMerge cell is skipped
-    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
     expect(fillCalls).toHaveLength(1);
   });
 
@@ -233,7 +233,7 @@ describe('renderTable', () => {
 
     renderTable(table, rctx);
 
-    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
     expect(fillCalls).toHaveLength(0);
   });
 
@@ -243,7 +243,7 @@ describe('renderTable', () => {
 
     renderTable(table, rctx);
 
-    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
     expect(fillCalls).toHaveLength(0);
   });
 
@@ -257,11 +257,11 @@ describe('renderTable', () => {
     renderTable(table, rctx);
 
     // Should still render both cells
-    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
     expect(fillCalls).toHaveLength(2);
 
     // Verify rect calls: two cells, each should be half the table width
-    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    const rectCalls = rctx.backend._calls.filter((c) => c.method === 'rect');
     expect(rectCalls).toHaveLength(2);
 
     // At dpiScale=1: tableW = 5486400 EMU / 9525 = 576px
@@ -281,7 +281,7 @@ describe('renderTable', () => {
     renderTable(table, rctx);
 
     // The spanning cell should have a rect with width = full table width
-    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    const rectCalls = rctx.backend._calls.filter((c) => c.method === 'rect');
     expect(rectCalls).toHaveLength(1);
 
     // At dpiScale=1: total table width = 5486400 EMU, each col = 2743200
@@ -304,7 +304,7 @@ describe('renderTable', () => {
     renderTable(table, rctx);
 
     // The spanning cell should have a rect with height = both rows
-    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    const rectCalls = rctx.backend._calls.filter((c) => c.method === 'rect');
     expect(rectCalls).toHaveLength(1);
 
     const cellRectH = rectCalls[0].args[3] as number;
@@ -337,7 +337,7 @@ describe('renderTable — row auto-height', () => {
     renderTable(table, rctx);
 
     // The text should still be rendered — the row expanded to fit.
-    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+    const fillTextCalls = rctx.backend._calls.filter((c) => c.method === 'fillText');
     expect(fillTextCalls.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -357,7 +357,7 @@ describe('renderTable — row auto-height', () => {
     renderTable(table, rctx);
 
     // The cell's rect should use the original large height, not shrink.
-    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    const rectCalls = rctx.backend._calls.filter((c) => c.method === 'rect');
     if (rectCalls.length > 0) {
       // rect args: [x, y, w, h] — height should be at least 192px
       const cellH = rectCalls[0].args[3] as number;
@@ -385,7 +385,7 @@ describe('renderTable — row auto-height', () => {
 
     // Both cells should have the same height (expanded to fit the longer text).
     // Check that text from both cells is rendered.
-    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+    const fillTextCalls = rctx.backend._calls.filter((c) => c.method === 'fillText');
     const allText = fillTextCalls.map((c) => c.args[0] as string).join('');
     expect(allText).toContain('Hi');
     expect(allText).toContain('longer');
@@ -411,7 +411,7 @@ describe('renderTable via renderSlideElement', () => {
 
     renderSlideElement(table, rctx);
 
-    const calls = rctx.ctx._calls;
+    const calls = rctx.backend._calls;
 
     // Should NOT render the placeholder "Table" text label
     const fillTextCalls = calls.filter((c) => c.method === 'fillText' && c.args[0] === 'Table');

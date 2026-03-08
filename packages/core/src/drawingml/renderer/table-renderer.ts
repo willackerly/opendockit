@@ -11,6 +11,7 @@
 import type { TableIR, LineIR, ResolvedColor } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
+import type { RenderBackend } from './render-backend.js';
 import { applyFill } from './fill-renderer.js';
 import { renderTextBody, measureTextBodyHeight } from './text-renderer.js';
 
@@ -35,7 +36,7 @@ function colorToRgba(c: ResolvedColor): string {
  * @param rctx - The render context for unit conversion.
  */
 function drawBorderLine(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  backend: RenderBackend,
   line: LineIR,
   x1: number,
   y1: number,
@@ -45,13 +46,13 @@ function drawBorderLine(
 ): void {
   if (!line.color) return;
 
-  ctx.beginPath();
-  ctx.strokeStyle = colorToRgba(line.color);
+  backend.beginPath();
+  backend.strokeStyle = colorToRgba(line.color);
   const widthEmu = line.width ?? 9525; // default 0.75pt
-  ctx.lineWidth = emuToScaledPx(widthEmu, rctx);
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
+  backend.lineWidth = emuToScaledPx(widthEmu, rctx);
+  backend.moveTo(x1, y1);
+  backend.lineTo(x2, y2);
+  backend.stroke();
 }
 
 // ---------------------------------------------------------------------------
@@ -75,7 +76,7 @@ function drawBorderLine(
  * @param rctx  - The shared render context.
  */
 export function renderTable(table: TableIR, rctx: RenderContext): void {
-  const { ctx } = rctx;
+  const { backend } = rctx;
   const transform = table.properties.transform;
   if (!transform) return;
 
@@ -178,7 +179,7 @@ export function renderTable(table: TableIR, rctx: RenderContext): void {
     rowYOffsets.push(rowYOffsets[r] + rowHeightsPx[r]);
   }
 
-  ctx.save();
+  backend.save();
 
   // Render each cell.
   for (let rowIdx = 0; rowIdx < table.rows.length; rowIdx++) {
@@ -212,19 +213,19 @@ export function renderTable(table: TableIR, rctx: RenderContext): void {
 
       // Fill cell background.
       if (cell.fill && cell.fill.type !== 'none') {
-        ctx.beginPath();
-        ctx.rect(cellX, cellY, cellW, cellH);
+        backend.beginPath();
+        backend.rect(cellX, cellY, cellW, cellH);
         applyFill(cell.fill, rctx, { x: cellX, y: cellY, width: cellW, height: cellH });
       }
 
       // Draw cell borders.
       if (cell.borders) {
         if (cell.borders.left) {
-          drawBorderLine(ctx, cell.borders.left, cellX, cellY, cellX, cellY + cellH, rctx);
+          drawBorderLine(backend, cell.borders.left, cellX, cellY, cellX, cellY + cellH, rctx);
         }
         if (cell.borders.right) {
           drawBorderLine(
-            ctx,
+            backend,
             cell.borders.right,
             cellX + cellW,
             cellY,
@@ -234,11 +235,11 @@ export function renderTable(table: TableIR, rctx: RenderContext): void {
           );
         }
         if (cell.borders.top) {
-          drawBorderLine(ctx, cell.borders.top, cellX, cellY, cellX + cellW, cellY, rctx);
+          drawBorderLine(backend, cell.borders.top, cellX, cellY, cellX + cellW, cellY, rctx);
         }
         if (cell.borders.bottom) {
           drawBorderLine(
-            ctx,
+            backend,
             cell.borders.bottom,
             cellX,
             cellY + cellH,
@@ -278,5 +279,5 @@ export function renderTable(table: TableIR, rctx: RenderContext): void {
     }
   }
 
-  ctx.restore();
+  backend.restore();
 }

@@ -77,7 +77,7 @@ describe('renderGroup', () => {
 
     renderGroup(group, rctx);
 
-    const methods = rctx.ctx._calls.map((c) => c.method);
+    const methods = rctx.backend._calls.map((c) => c.method);
     // Group rendering should include save/restore and child fill.
     expect(methods[0]).toBe('save');
     expect(methods[methods.length - 1]).toBe('restore');
@@ -91,7 +91,7 @@ describe('renderGroup', () => {
 
     renderGroup(group, rctx);
 
-    const calls = rctx.ctx._calls;
+    const calls = rctx.backend._calls;
     const methods = calls.map((c) => c.method);
 
     // The first call should be save (group save).
@@ -120,7 +120,7 @@ describe('renderGroup', () => {
 
     renderGroup(group, rctx);
 
-    const scaleCalls = rctx.ctx._calls.filter((c) => c.method === 'scale');
+    const scaleCalls = rctx.backend._calls.filter((c) => c.method === 'scale');
     // Should have one scale call for child space mapping.
     expect(scaleCalls.length).toBeGreaterThanOrEqual(1);
     // The child space scale should be 0.5, 0.5.
@@ -146,7 +146,7 @@ describe('renderGroup', () => {
     renderGroup(group, rctx);
 
     // Both children should produce fill calls.
-    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
     expect(fillCalls).toHaveLength(2);
   });
 
@@ -171,8 +171,8 @@ describe('renderGroup', () => {
     renderGroup(outerGroup, rctx);
 
     // Should have multiple save/restore pairs (outer group + inner group + child shape).
-    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
-    const restoreCalls = rctx.ctx._calls.filter((c) => c.method === 'restore');
+    const saveCalls = rctx.backend._calls.filter((c) => c.method === 'save');
+    const restoreCalls = rctx.backend._calls.filter((c) => c.method === 'restore');
     expect(saveCalls.length).toBeGreaterThanOrEqual(3); // outer + inner + child shape
     expect(saveCalls.length).toBe(restoreCalls.length);
   });
@@ -184,7 +184,7 @@ describe('renderGroup', () => {
     expect(() => renderGroup(group, rctx)).not.toThrow();
 
     // Should still have save/restore for the group transform.
-    const methods = rctx.ctx._calls.map((c) => c.method);
+    const methods = rctx.backend._calls.map((c) => c.method);
     expect(methods[0]).toBe('save');
     expect(methods[methods.length - 1]).toBe('restore');
   });
@@ -197,7 +197,7 @@ describe('renderGroup', () => {
 
     renderGroup(group, rctx);
 
-    expect(rctx.ctx._calls).toHaveLength(0);
+    expect(rctx.backend._calls).toHaveLength(0);
   });
 
   it('applies rotation to group transform', () => {
@@ -211,7 +211,7 @@ describe('renderGroup', () => {
 
     renderGroup(group, rctx);
 
-    const rotateCalls = rctx.ctx._calls.filter((c) => c.method === 'rotate');
+    const rotateCalls = rctx.backend._calls.filter((c) => c.method === 'rotate');
     expect(rotateCalls).toHaveLength(1);
     expect(rotateCalls[0].args[0]).toBeCloseTo((90 * Math.PI) / 180, 10);
   });
@@ -227,7 +227,7 @@ describe('renderGroup', () => {
 
     renderGroup(group, rctx);
 
-    const scaleCalls = rctx.ctx._calls.filter((c) => c.method === 'scale');
+    const scaleCalls = rctx.backend._calls.filter((c) => c.method === 'scale');
     // flipH: scale(-1, 1), flipV: scale(1, -1), then child space scale
     expect(scaleCalls.length).toBeGreaterThanOrEqual(2);
     expect(scaleCalls[0].args).toEqual([-1, 1]);
@@ -250,7 +250,7 @@ describe('renderGroup', () => {
     renderGroup(group, rctx);
 
     // Should include translate calls for child offset mapping.
-    const translateCalls = rctx.ctx._calls.filter((c) => c.method === 'translate');
+    const translateCalls = rctx.backend._calls.filter((c) => c.method === 'translate');
     // At least 3 translates: center, back, and child offset
     expect(translateCalls.length).toBeGreaterThanOrEqual(3);
   });

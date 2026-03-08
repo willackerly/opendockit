@@ -28,8 +28,8 @@ describe('renderBackground', () => {
     const rctx = createMockRenderContext();
     renderBackground(undefined, rctx, 960, 540);
 
-    expect(rctx.ctx.fillStyle).toBe('#FFFFFF');
-    const rects = findFillRectCalls(rctx.ctx);
+    expect(rctx.backend.fillStyle).toBe('#FFFFFF');
+    const rects = findFillRectCalls(rctx.backend);
     expect(rects).toHaveLength(1);
     expect(rects[0].args).toEqual([0, 0, 960, 540]);
   });
@@ -39,8 +39,8 @@ describe('renderBackground', () => {
     const bg: BackgroundIR = {};
     renderBackground(bg, rctx, 960, 540);
 
-    expect(rctx.ctx.fillStyle).toBe('#FFFFFF');
-    const rects = findFillRectCalls(rctx.ctx);
+    expect(rctx.backend.fillStyle).toBe('#FFFFFF');
+    const rects = findFillRectCalls(rctx.backend);
     expect(rects).toHaveLength(1);
   });
 
@@ -50,7 +50,7 @@ describe('renderBackground', () => {
     const bg: BackgroundIR = { fill: noFill };
     renderBackground(bg, rctx, 960, 540);
 
-    expect(rctx.ctx.fillStyle).toBe('#FFFFFF');
+    expect(rctx.backend.fillStyle).toBe('#FFFFFF');
   });
 
   it('renders solid fill background', () => {
@@ -62,8 +62,8 @@ describe('renderBackground', () => {
     const bg: BackgroundIR = { fill: solidFill };
     renderBackground(bg, rctx, 960, 540);
 
-    expect(rctx.ctx.fillStyle).toBe('rgba(33, 66, 99, 0.8)');
-    const rects = findFillRectCalls(rctx.ctx);
+    expect(rctx.backend.fillStyle).toBe('rgba(33, 66, 99, 0.8)');
+    const rects = findFillRectCalls(rctx.backend);
     expect(rects).toHaveLength(1);
     expect(rects[0].args).toEqual([0, 0, 960, 540]);
   });
@@ -83,11 +83,11 @@ describe('renderBackground', () => {
     renderBackground(bg, rctx, 960, 540);
 
     // Gradient was created and applied
-    expect(rctx.ctx._gradients).toHaveLength(1);
-    expect(rctx.ctx._gradients[0].type).toBe('linear');
-    expect(rctx.ctx._gradients[0].stops).toHaveLength(2);
+    expect(rctx.backend._gradients).toHaveLength(1);
+    expect(rctx.backend._gradients[0].type).toBe('linear');
+    expect(rctx.backend._gradients[0].stops).toHaveLength(2);
 
-    const rects = findFillRectCalls(rctx.ctx);
+    const rects = findFillRectCalls(rctx.backend);
     expect(rects).toHaveLength(1);
     expect(rects[0].args).toEqual([0, 0, 960, 540]);
   });
@@ -105,8 +105,8 @@ describe('renderBackground', () => {
     const bg: BackgroundIR = { fill: gradFill };
     renderBackground(bg, rctx, 800, 600);
 
-    expect(rctx.ctx._gradients).toHaveLength(1);
-    expect(rctx.ctx._gradients[0].type).toBe('radial');
+    expect(rctx.backend._gradients).toHaveLength(1);
+    expect(rctx.backend._gradients[0].type).toBe('radial');
   });
 
   it('renders pattern fill as foreground color', () => {
@@ -120,7 +120,7 @@ describe('renderBackground', () => {
     const bg: BackgroundIR = { fill: patternFill };
     renderBackground(bg, rctx, 960, 540);
 
-    expect(rctx.ctx.fillStyle).toBe('rgba(128, 128, 128, 1)');
+    expect(rctx.backend.fillStyle).toBe('rgba(128, 128, 128, 1)');
   });
 
   it('falls back to white for picture fill', () => {
@@ -133,7 +133,7 @@ describe('renderBackground', () => {
     };
     renderBackground(bg, rctx, 960, 540);
 
-    expect(rctx.ctx.fillStyle).toBe('#FFFFFF');
+    expect(rctx.backend.fillStyle).toBe('#FFFFFF');
   });
 
   it('uses the full slide dimensions for fill', () => {
@@ -146,7 +146,7 @@ describe('renderBackground', () => {
     };
     renderBackground(bg, rctx, 1280, 720);
 
-    const rects = findFillRectCalls(rctx.ctx);
+    const rects = findFillRectCalls(rctx.backend);
     expect(rects).toHaveLength(1);
     expect(rects[0].args).toEqual([0, 0, 1280, 720]);
   });

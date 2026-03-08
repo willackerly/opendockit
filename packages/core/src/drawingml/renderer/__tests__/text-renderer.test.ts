@@ -120,7 +120,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     expect(fillTexts.length).toBeGreaterThanOrEqual(1);
     expect(fillTexts.some((c) => c.args[0] === 'Hello')).toBe(true);
   });
@@ -134,12 +134,12 @@ describe('renderTextBody', () => {
     renderTextBody(body, rctx, BOUNDS);
 
     // Text may be split into words; concatenate all fillText calls.
-    const allText = allFillTexts(rctx.ctx._calls);
+    const allText = allFillTexts(rctx.backend._calls);
     expect(allText).toContain('Bold');
     expect(allText).toContain('Italic');
     // The font string should include 'italic' and 'bold'.
-    expect(rctx.ctx.font).toContain('bold');
-    expect(rctx.ctx.font).toContain('italic');
+    expect(rctx.backend.font).toContain('bold');
+    expect(rctx.backend.font).toContain('italic');
   });
 
   it('renders paragraph with custom color', () => {
@@ -150,10 +150,10 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const allText = allFillTexts(rctx.ctx._calls);
+    const allText = allFillTexts(rctx.backend._calls);
     expect(allText).toContain('RedText');
     // fillStyle should have been set to the red color.
-    expect(rctx.ctx.fillStyle).toBe('rgba(255, 0, 0, 1)');
+    expect(rctx.backend.fillStyle).toBe('rgba(255, 0, 0, 1)');
   });
 
   it('renders paragraph with custom font size', () => {
@@ -164,9 +164,9 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const allText = allFillTexts(rctx.ctx._calls);
+    const allText = allFillTexts(rctx.backend._calls);
     expect(allText).toContain('BigText');
-    expect(rctx.ctx.font).toContain('48px'); // 36pt * 96/72 = 48px
+    expect(rctx.backend.font).toContain('48px'); // 36pt * 96/72 = 48px
   });
 
   // -------------------------------------------------------------------------
@@ -182,7 +182,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const firstCall = fillTexts.find((c) => c.args[0] === 'First');
     const secondCall = fillTexts.find((c) => c.args[0] === 'Second');
     expect(firstCall).toBeDefined();
@@ -204,7 +204,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const call = fillTexts.find((c) => c.args[0] === 'Centered');
     expect(call).toBeDefined();
 
@@ -219,7 +219,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const call = fillTexts.find((c) => c.args[0] === 'Right');
     expect(call).toBeDefined();
 
@@ -245,7 +245,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const call = fillTexts.find((c) => (c.args[0] as string).includes('Inset'));
     expect(call).toBeDefined();
 
@@ -270,14 +270,14 @@ describe('renderTextBody', () => {
     });
 
     renderTextBody(bodyTop, rctx, BOUNDS);
-    const topCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const topCalls = filterCalls(rctx.backend._calls, 'fillText');
     const topY = topCalls.find((c) => c.args[0] === 'Top')!.args[2] as number;
 
     // Reset mock
-    rctx.ctx._calls.length = 0;
+    rctx.backend._calls.length = 0;
 
     renderTextBody(bodyMiddle, rctx, BOUNDS);
-    const midCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const midCalls = filterCalls(rctx.backend._calls, 'fillText');
     const midY = midCalls.find((c) => c.args[0] === 'Middle')!.args[2] as number;
 
     // Middle-aligned text should start lower than top-aligned text.
@@ -292,13 +292,13 @@ describe('renderTextBody', () => {
     });
 
     renderTextBody(bodyTop, rctx, BOUNDS);
-    const topCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const topCalls = filterCalls(rctx.backend._calls, 'fillText');
     const topY = topCalls.find((c) => c.args[0] === 'Top')!.args[2] as number;
 
-    rctx.ctx._calls.length = 0;
+    rctx.backend._calls.length = 0;
 
     renderTextBody(bodyBottom, rctx, BOUNDS);
-    const botCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const botCalls = filterCalls(rctx.backend._calls, 'fillText');
     const botY = botCalls.find((c) => c.args[0] === 'Bottom')!.args[2] as number;
 
     // Bottom-aligned text should start much lower than top-aligned text.
@@ -322,7 +322,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     // The bullet should appear before the item text.
     const bulletCall = fillTexts.find((c) => (c.args[0] as string).includes('\u2022'));
     const itemCall = fillTexts.find((c) => c.args[0] === 'Item');
@@ -364,7 +364,7 @@ describe('renderTextBody', () => {
     renderTextBody(body, rctx, BOUNDS);
 
     // Underline is drawn as a fillRect beneath the text.
-    const fillRects = filterCalls(rctx.ctx._calls, 'fillRect');
+    const fillRects = filterCalls(rctx.backend._calls, 'fillRect');
     expect(fillRects.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -374,7 +374,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillRects = filterCalls(rctx.ctx._calls, 'fillRect');
+    const fillRects = filterCalls(rctx.backend._calls, 'fillRect');
     expect(fillRects).toHaveLength(0);
   });
 
@@ -396,11 +396,11 @@ describe('renderTextBody', () => {
     renderTextBody(body, rctx, BOUNDS);
 
     // Underline is drawn as a fillRect — should have been called.
-    const fillRects = filterCalls(rctx.ctx._calls, 'fillRect');
+    const fillRects = filterCalls(rctx.backend._calls, 'fillRect');
     expect(fillRects.length).toBeGreaterThanOrEqual(1);
     // The last fillStyle set should be the underline red color (since underline
     // is drawn after fillText and is the last drawing operation).
-    expect(rctx.ctx.fillStyle).toBe('rgba(255, 0, 0, 1)');
+    expect(rctx.backend.fillStyle).toBe('rgba(255, 0, 0, 1)');
   });
 
   it('falls back to text color when underlineFill is not set', () => {
@@ -417,9 +417,9 @@ describe('renderTextBody', () => {
     renderTextBody(body, rctx, BOUNDS);
 
     // Underline should use the text color (green).
-    const fillRects = filterCalls(rctx.ctx._calls, 'fillRect');
+    const fillRects = filterCalls(rctx.backend._calls, 'fillRect');
     expect(fillRects.length).toBeGreaterThanOrEqual(1);
-    expect(rctx.ctx.fillStyle).toBe('rgba(0, 128, 0, 1)');
+    expect(rctx.backend.fillStyle).toBe('rgba(0, 128, 0, 1)');
   });
 
   // -------------------------------------------------------------------------
@@ -432,7 +432,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillRects = filterCalls(rctx.ctx._calls, 'fillRect');
+    const fillRects = filterCalls(rctx.backend._calls, 'fillRect');
     expect(fillRects.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -457,10 +457,10 @@ describe('renderTextBody', () => {
 
     // After rendering, the ctx.font should reflect the last run's font.
     // The font string format is: "italic bold 32px \"Arial\"" (24pt * 96/72 = 32px)
-    expect(rctx.ctx.font).toContain('italic');
-    expect(rctx.ctx.font).toContain('bold');
-    expect(rctx.ctx.font).toContain('32px');
-    expect(rctx.ctx.font).toContain('Arial');
+    expect(rctx.backend.font).toContain('italic');
+    expect(rctx.backend.font).toContain('bold');
+    expect(rctx.backend.font).toContain('32px');
+    expect(rctx.backend.font).toContain('Arial');
   });
 
   it('uses latin font when fontFamily is not set', () => {
@@ -471,7 +471,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    expect(rctx.ctx.font).toContain('Times New Roman');
+    expect(rctx.backend.font).toContain('Times New Roman');
   });
 
   it('defaults to sans-serif when no font is specified', () => {
@@ -482,7 +482,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    expect(rctx.ctx.font).toContain('sans-serif');
+    expect(rctx.backend.font).toContain('sans-serif');
   });
 
   // -------------------------------------------------------------------------
@@ -500,8 +500,8 @@ describe('renderTextBody', () => {
 
     // The mock theme has majorLatin: 'Calibri Light'.
     // Since resolveFont is identity, the font string should contain 'Calibri Light'.
-    expect(rctx.ctx.font).toContain('Calibri Light');
-    expect(rctx.ctx.font).not.toContain('+mj-lt');
+    expect(rctx.backend.font).toContain('Calibri Light');
+    expect(rctx.backend.font).not.toContain('+mj-lt');
   });
 
   it('resolves +mn-lt theme font placeholder to minor Latin font', () => {
@@ -513,8 +513,8 @@ describe('renderTextBody', () => {
     renderTextBody(body, rctx, BOUNDS);
 
     // The mock theme has minorLatin: 'Calibri'.
-    expect(rctx.ctx.font).toContain('Calibri');
-    expect(rctx.ctx.font).not.toContain('+mn-lt');
+    expect(rctx.backend.font).toContain('Calibri');
+    expect(rctx.backend.font).not.toContain('+mn-lt');
   });
 
   it('resolves theme font placeholder in fontFamily field', () => {
@@ -526,8 +526,8 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    expect(rctx.ctx.font).toContain('Calibri Light');
-    expect(rctx.ctx.font).not.toContain('+mj-lt');
+    expect(rctx.backend.font).toContain('Calibri Light');
+    expect(rctx.backend.font).not.toContain('+mj-lt');
   });
 
   it('passes through unresolvable theme font ref gracefully', () => {
@@ -541,7 +541,7 @@ describe('renderTextBody', () => {
 
     // Should fall through to the original placeholder (not crash), since the
     // theme doesn't have minorComplexScript defined.
-    const allText = allFillTexts(rctx.ctx._calls);
+    const allText = allFillTexts(rctx.backend._calls);
     expect(allText).toContain('CSFont');
   });
 
@@ -566,8 +566,8 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    expect(rctx.ctx.font).toContain('Calibri Light');
-    expect(rctx.ctx.font).not.toContain('+mj-lt');
+    expect(rctx.backend.font).toContain('Calibri Light');
+    expect(rctx.backend.font).not.toContain('+mj-lt');
   });
 
   it('resolves theme font placeholder in bullet font', () => {
@@ -585,13 +585,13 @@ describe('renderTextBody', () => {
     renderTextBody(body, rctx, BOUNDS);
 
     // The bullet should render, and its font should be resolved.
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const bulletCall = fillTexts.find((c) => (c.args[0] as string).includes('\u2022'));
     expect(bulletCall).toBeDefined();
     // The bullet's font shouldn't contain the raw placeholder.
     // Note: We can't easily check the bullet's font string directly since
     // ctx.font is overwritten by subsequent runs, but we verify no crash.
-    const allText = allFillTexts(rctx.ctx._calls);
+    const allText = allFillTexts(rctx.backend._calls);
     expect(allText).toContain('BulletItem');
   });
 
@@ -613,13 +613,13 @@ describe('renderTextBody', () => {
     ]);
 
     renderTextBody(bodyNoSpace, rctx, BOUNDS);
-    const noSpaceCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const noSpaceCalls = filterCalls(rctx.backend._calls, 'fillText');
     const noSpaceSecondY = noSpaceCalls.find((c) => c.args[0] === 'Second')!.args[2] as number;
 
-    rctx.ctx._calls.length = 0;
+    rctx.backend._calls.length = 0;
 
     renderTextBody(bodyWithSpace, rctx, BOUNDS);
-    const withSpaceCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const withSpaceCalls = filterCalls(rctx.backend._calls, 'fillText');
     const withSpaceSecondY = withSpaceCalls.find((c) => c.args[0] === 'Second')!.args[2] as number;
 
     // With 36pt space before, the second paragraph should be lower.
@@ -640,13 +640,13 @@ describe('renderTextBody', () => {
     ]);
 
     renderTextBody(bodyNoSpace, rctx, BOUNDS);
-    const noSpaceCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const noSpaceCalls = filterCalls(rctx.backend._calls, 'fillText');
     const noSpaceSecondY = noSpaceCalls.find((c) => c.args[0] === 'Second')!.args[2] as number;
 
-    rctx.ctx._calls.length = 0;
+    rctx.backend._calls.length = 0;
 
     renderTextBody(bodyWithSpace, rctx, BOUNDS);
-    const withSpaceCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const withSpaceCalls = filterCalls(rctx.backend._calls, 'fillText');
     const withSpaceSecondY = withSpaceCalls.find((c) => c.args[0] === 'Second')!.args[2] as number;
 
     expect(withSpaceSecondY).toBeGreaterThan(noSpaceSecondY);
@@ -666,7 +666,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const beforeCall = fillTexts.find((c) => c.args[0] === 'Before');
     const afterCall = fillTexts.find((c) => c.args[0] === 'After');
     expect(beforeCall).toBeDefined();
@@ -689,10 +689,10 @@ describe('renderTextBody', () => {
     renderTextBody(body, rctx, BOUNDS);
 
     // Should call save(), rect(), clip() for clipping, and restore() at the end.
-    const saveCalls = filterCalls(rctx.ctx._calls, 'save');
-    const rectCalls = filterCalls(rctx.ctx._calls, 'rect');
-    const clipCalls = filterCalls(rctx.ctx._calls, 'clip');
-    const restoreCalls = filterCalls(rctx.ctx._calls, 'restore');
+    const saveCalls = filterCalls(rctx.backend._calls, 'save');
+    const rectCalls = filterCalls(rctx.backend._calls, 'rect');
+    const clipCalls = filterCalls(rctx.backend._calls, 'clip');
+    const restoreCalls = filterCalls(rctx.backend._calls, 'restore');
 
     expect(saveCalls.length).toBeGreaterThanOrEqual(1);
     expect(rectCalls.length).toBeGreaterThanOrEqual(1);
@@ -706,7 +706,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const clipCalls = filterCalls(rctx.ctx._calls, 'clip');
+    const clipCalls = filterCalls(rctx.backend._calls, 'clip');
     expect(clipCalls.length).toBe(0);
   });
 
@@ -722,7 +722,7 @@ describe('renderTextBody', () => {
 
     // The fillStyle should be black at the time fillText is called.
     // Since we default to 'rgba(0, 0, 0, 1)', check the ctx state.
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     expect(fillTexts.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -742,13 +742,13 @@ describe('renderTextBody', () => {
     });
 
     renderTextBody(body, rctx1x, BOUNDS);
-    const calls1x = filterCalls(rctx1x.ctx._calls, 'fillText');
+    const calls1x = filterCalls(rctx1x.backend._calls, 'fillText');
     const call1x = calls1x.find((c) => (c.args[0] as string).includes('DPI'));
     expect(call1x).toBeDefined();
     const x1 = call1x!.args[1] as number;
 
     renderTextBody(body, rctx2x, BOUNDS);
-    const calls2x = filterCalls(rctx2x.ctx._calls, 'fillText');
+    const calls2x = filterCalls(rctx2x.backend._calls, 'fillText');
     const call2x = calls2x.find((c) => (c.args[0] as string).includes('DPI'));
     expect(call2x).toBeDefined();
     const x2 = call2x!.args[1] as number;
@@ -769,7 +769,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, { x: 0, y: 0, width: 50, height: 300 });
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     // All words should be on the same y coordinate (no wrapping).
     const yValues = fillTexts.map((c) => c.args[2] as number);
     const uniqueY = new Set(yValues);
@@ -790,13 +790,13 @@ describe('renderTextBody', () => {
     });
 
     renderTextBody(bodyNormal, rctx, BOUNDS);
-    const normalFont = rctx.ctx.font;
+    const normalFont = rctx.backend.font;
     expect(normalFont).toContain('24px'); // 18pt * 96/72 = 24px
 
-    rctx.ctx._calls.length = 0;
+    rctx.backend._calls.length = 0;
 
     renderTextBody(bodyScaled, rctx, BOUNDS);
-    const scaledFont = rctx.ctx.font;
+    const scaledFont = rctx.backend.font;
     expect(scaledFont).toContain('12px'); // 9pt * 96/72 = 12px
   });
 
@@ -810,7 +810,7 @@ describe('renderTextBody', () => {
     renderTextBody(body, rctx, BOUNDS);
 
     // Font should still be the full 18pt = 24px.
-    expect(rctx.ctx.font).toContain('24px');
+    expect(rctx.backend.font).toContain('24px');
   });
 
   it('applies line spacing reduction when autoFit is shrink', () => {
@@ -831,15 +831,15 @@ describe('renderTextBody', () => {
     );
 
     renderTextBody(bodyNormal, rctx, BOUNDS);
-    const normalCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const normalCalls = filterCalls(rctx.backend._calls, 'fillText');
     const normalFirstY = normalCalls.find((c) => c.args[0] === 'First')!.args[2] as number;
     const normalSecondY = normalCalls.find((c) => c.args[0] === 'Second')!.args[2] as number;
     const normalGap = normalSecondY - normalFirstY;
 
-    rctx.ctx._calls.length = 0;
+    rctx.backend._calls.length = 0;
 
     renderTextBody(bodyReduced, rctx, BOUNDS);
-    const reducedCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const reducedCalls = filterCalls(rctx.backend._calls, 'fillText');
     const reducedFirstY = reducedCalls.find((c) => c.args[0] === 'First')!.args[2] as number;
     const reducedSecondY = reducedCalls.find((c) => c.args[0] === 'Second')!.args[2] as number;
     const reducedGap = reducedSecondY - reducedFirstY;
@@ -868,7 +868,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const bulletTexts = fillTexts.map((c) => c.args[0] as string).filter((t) => /^\d+\.\s/.test(t));
 
     expect(bulletTexts).toEqual(['1. ', '2. ', '3. ']);
@@ -887,7 +887,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const bulletTexts = fillTexts.map((c) => c.args[0] as string).filter((t) => /^\d+\.\s/.test(t));
 
     expect(bulletTexts).toEqual(['5. ', '6. ']);
@@ -911,7 +911,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const bulletTexts = fillTexts.map((c) => c.args[0] as string).filter((t) => /^\d+\.\s/.test(t));
 
     // After the break, numbering restarts from 1.
@@ -938,7 +938,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const bulletTexts = fillTexts.map((c) => c.args[0] as string).filter((t) => /^\d+\.\s/.test(t));
 
     // Level 0: 1, 2. Level 1: 1 (resets because level 0 paragraph resets deeper).
@@ -961,7 +961,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const bulletTexts = fillTexts
       .map((c) => c.args[0] as string)
       .filter((t) => /^[IVXLCDM]+\.\s/.test(t));
@@ -985,7 +985,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const bulletTexts = fillTexts
       .map((c) => c.args[0] as string)
       .filter((t) => /^[a-z]+\.\s/.test(t));
@@ -1008,7 +1008,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const calls = rctx.ctx._calls;
+    const calls = rctx.backend._calls;
     const strokeCalls = filterCalls(calls, 'strokeText');
     const fillCalls = filterCalls(calls, 'fillText');
 
@@ -1036,7 +1036,7 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const strokeCalls = filterCalls(rctx.ctx._calls, 'strokeText');
+    const strokeCalls = filterCalls(rctx.backend._calls, 'strokeText');
     expect(strokeCalls.length).toBe(0);
   });
 });
@@ -1181,7 +1181,7 @@ describe('renderTextBody — vertical text direction', () => {
     renderTextBody(body, rctx, BOUNDS);
 
     // Should have translate-rotate-translate sequence for 90° CW
-    const rotateCalls = filterCalls(rctx.ctx._calls, 'rotate');
+    const rotateCalls = filterCalls(rctx.backend._calls, 'rotate');
     expect(rotateCalls.length).toBeGreaterThanOrEqual(1);
     // The vert rotation should be PI/2 (90° CW)
     expect(rotateCalls.some((c) => Math.abs((c.args[0] as number) - Math.PI / 2) < 0.001)).toBe(
@@ -1195,7 +1195,7 @@ describe('renderTextBody — vertical text direction', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const rotateCalls = filterCalls(rctx.ctx._calls, 'rotate');
+    const rotateCalls = filterCalls(rctx.backend._calls, 'rotate');
     expect(rotateCalls.length).toBeGreaterThanOrEqual(1);
     // The vert270 rotation should be -PI/2 (90° CCW)
     expect(rotateCalls.some((c) => Math.abs((c.args[0] as number) + Math.PI / 2) < 0.001)).toBe(
@@ -1209,7 +1209,7 @@ describe('renderTextBody — vertical text direction', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const rotateCalls = filterCalls(rctx.ctx._calls, 'rotate');
+    const rotateCalls = filterCalls(rctx.backend._calls, 'rotate');
     // No rotation should be applied (only body rotation would add rotate calls,
     // and we haven't set body.rotation)
     expect(rotateCalls.length).toBe(0);
@@ -1221,7 +1221,7 @@ describe('renderTextBody — vertical text direction', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const rotateCalls = filterCalls(rctx.ctx._calls, 'rotate');
+    const rotateCalls = filterCalls(rctx.backend._calls, 'rotate');
     expect(rotateCalls.length).toBe(0);
   });
 
@@ -1231,7 +1231,7 @@ describe('renderTextBody — vertical text direction', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const rotateCalls = filterCalls(rctx.ctx._calls, 'rotate');
+    const rotateCalls = filterCalls(rctx.backend._calls, 'rotate');
     expect(rotateCalls.length).toBeGreaterThanOrEqual(1);
     expect(rotateCalls.some((c) => Math.abs((c.args[0] as number) - Math.PI / 2) < 0.001)).toBe(
       true
@@ -1244,7 +1244,7 @@ describe('renderTextBody — vertical text direction', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const rotateCalls = filterCalls(rctx.ctx._calls, 'rotate');
+    const rotateCalls = filterCalls(rctx.backend._calls, 'rotate');
     expect(rotateCalls.length).toBeGreaterThanOrEqual(1);
     expect(rotateCalls.some((c) => Math.abs((c.args[0] as number) - Math.PI / 2) < 0.001)).toBe(
       true
@@ -1305,7 +1305,7 @@ describe('renderTextBody — vertical text direction', () => {
     renderTextBody(body, rctx, bounds);
 
     // Center of bounds: cx=200, cy=200
-    const translateCalls = filterCalls(rctx.ctx._calls, 'translate');
+    const translateCalls = filterCalls(rctx.backend._calls, 'translate');
     // Should have translate(cx, cy) before rotate and translate(-cx, -cy) after
     expect(translateCalls.length).toBeGreaterThanOrEqual(2);
     // First translate should be to center (200, 200)
@@ -1320,7 +1320,7 @@ describe('renderTextBody — vertical text direction', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     expect(fillTexts.length).toBeGreaterThanOrEqual(1);
     expect(fillTexts.some((c) => c.args[0] === 'Vertical')).toBe(true);
   });
@@ -1337,18 +1337,18 @@ describe('RTL text rendering', () => {
     const bodyLtr = makeTextBody([makeParagraph([makeRun('LTR')], 'left')]);
 
     renderTextBody(bodyLtr, rctx, BOUNDS);
-    const ltrCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const ltrCalls = filterCalls(rctx.backend._calls, 'fillText');
     const ltrCall = ltrCalls.find((c) => c.args[0] === 'LTR');
     expect(ltrCall).toBeDefined();
     const ltrX = ltrCall!.args[1] as number;
 
-    rctx.ctx._calls.length = 0;
+    rctx.backend._calls.length = 0;
 
     // RTL paragraph with 'left' alignment should be mirrored to right-aligned.
     const bodyRtl = makeTextBody([makeParagraph([makeRun('RTL')], 'left', { rtl: true })]);
 
     renderTextBody(bodyRtl, rctx, BOUNDS);
-    const rtlCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const rtlCalls = filterCalls(rctx.backend._calls, 'fillText');
     const rtlCall = rtlCalls.find((c) => c.args[0] === 'RTL');
     expect(rtlCall).toBeDefined();
     const rtlX = rtlCall!.args[1] as number;
@@ -1365,18 +1365,18 @@ describe('RTL text rendering', () => {
     const bodyLtrRight = makeTextBody([makeParagraph([makeRun('LTR-R')], 'right')]);
 
     renderTextBody(bodyLtrRight, rctx, BOUNDS);
-    const ltrRightCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const ltrRightCalls = filterCalls(rctx.backend._calls, 'fillText');
     const ltrRightCall = ltrRightCalls.find((c) => c.args[0] === 'LTR-R');
     expect(ltrRightCall).toBeDefined();
     const ltrRightX = ltrRightCall!.args[1] as number;
 
-    rctx.ctx._calls.length = 0;
+    rctx.backend._calls.length = 0;
 
     // RTL paragraph with 'right' alignment should be mirrored to left-aligned.
     const bodyRtlRight = makeTextBody([makeParagraph([makeRun('RTL-R')], 'right', { rtl: true })]);
 
     renderTextBody(bodyRtlRight, rctx, BOUNDS);
-    const rtlRightCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const rtlRightCalls = filterCalls(rctx.backend._calls, 'fillText');
     const rtlRightCall = rtlRightCalls.find((c) => c.args[0] === 'RTL-R');
     expect(rtlRightCall).toBeDefined();
     const rtlRightX = rtlRightCall!.args[1] as number;
@@ -1392,12 +1392,12 @@ describe('RTL text rendering', () => {
     const bodyLtrCenter = makeTextBody([makeParagraph([makeRun('Center')], 'center')]);
 
     renderTextBody(bodyLtrCenter, rctx, BOUNDS);
-    const ltrCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const ltrCalls = filterCalls(rctx.backend._calls, 'fillText');
     const ltrCall = ltrCalls.find((c) => c.args[0] === 'Center');
     expect(ltrCall).toBeDefined();
     const ltrX = ltrCall!.args[1] as number;
 
-    rctx.ctx._calls.length = 0;
+    rctx.backend._calls.length = 0;
 
     // RTL centered paragraph — center alignment should remain the same.
     const bodyRtlCenter = makeTextBody([
@@ -1405,7 +1405,7 @@ describe('RTL text rendering', () => {
     ]);
 
     renderTextBody(bodyRtlCenter, rctx, BOUNDS);
-    const rtlCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const rtlCalls = filterCalls(rctx.backend._calls, 'fillText');
     const rtlCall = rtlCalls.find((c) => c.args[0] === 'Center');
     expect(rtlCall).toBeDefined();
     const rtlX = rtlCall!.args[1] as number;
@@ -1424,7 +1424,7 @@ describe('RTL text rendering', () => {
     ]);
 
     renderTextBody(bodyLtr, rctx, BOUNDS);
-    const ltrCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const ltrCalls = filterCalls(rctx.backend._calls, 'fillText');
     const ltrBullet = ltrCalls.find((c) => (c.args[0] as string).includes('\u2022'));
     const ltrItem = ltrCalls.find((c) => c.args[0] === 'Item');
     expect(ltrBullet).toBeDefined();
@@ -1435,7 +1435,7 @@ describe('RTL text rendering', () => {
     // LTR: bullet should be to the left of text.
     expect(ltrBulletX).toBeLessThanOrEqual(ltrItemX);
 
-    rctx.ctx._calls.length = 0;
+    rctx.backend._calls.length = 0;
 
     // RTL bullet.
     const bodyRtl = makeTextBody([
@@ -1446,7 +1446,7 @@ describe('RTL text rendering', () => {
     ]);
 
     renderTextBody(bodyRtl, rctx, BOUNDS);
-    const rtlCalls = filterCalls(rctx.ctx._calls, 'fillText');
+    const rtlCalls = filterCalls(rctx.backend._calls, 'fillText');
     const rtlBullet = rtlCalls.find((c) => (c.args[0] as string).includes('\u2022'));
     const rtlItem = rtlCalls.find((c) => c.args[0] === 'Item');
     expect(rtlBullet).toBeDefined();
@@ -1468,7 +1468,7 @@ describe('RTL text rendering', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const rtlCall = fillTexts.find((c) => c.args[0] === 'RTL-Text');
     const ltrCall = fillTexts.find((c) => c.args[0] === 'LTR-Text');
     expect(rtlCall).toBeDefined();
@@ -1495,7 +1495,7 @@ describe('renderTextBody — tab stops', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     // Should have separate fragments: 'A', '\t' (not drawn as visible text), 'B'.
     const textFragments = fillTexts.map((c) => c.args[0] as string);
     expect(textFragments).toContain('A');
@@ -1521,7 +1521,7 @@ describe('renderTextBody — tab stops', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const xCall = fillTexts.find((c) => c.args[0] === 'X');
     const yCall = fillTexts.find((c) => c.args[0] === 'Y');
     expect(xCall).toBeDefined();
@@ -1547,7 +1547,7 @@ describe('renderTextBody — tab stops', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const bCall = fillTexts.find((c) => c.args[0] === 'B');
     expect(bCall).toBeDefined();
     // B should be near 192px (the explicit tab stop position).
@@ -1562,7 +1562,7 @@ describe('renderTextBody — tab stops', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const aCall = fillTexts.find((c) => c.args[0] === 'A');
     const bCall = fillTexts.find((c) => c.args[0] === 'B');
     expect(aCall).toBeDefined();
@@ -1580,7 +1580,7 @@ describe('renderTextBody — tab stops', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    const fillTexts = filterCalls(rctx.ctx._calls, 'fillText');
+    const fillTexts = filterCalls(rctx.backend._calls, 'fillText');
     const allText = fillTexts.map((c) => c.args[0] as string).join('');
     expect(allText).toContain('Hello');
     expect(allText).toContain('World');

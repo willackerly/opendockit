@@ -8,7 +8,7 @@
  */
 
 import type { BackgroundIR } from '../model/index.js';
-import type { RenderContext } from '@opendockit/core/drawingml/renderer';
+import type { RenderContext, RenderBackend } from '@opendockit/core/drawingml/renderer';
 import type { FillIR, GradientFillIR, ResolvedColor } from '@opendockit/core';
 
 // ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ function linearGradientEndpoints(
  * Apply a gradient fill directly to a rectangular area on the canvas.
  */
 function fillGradient(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  backend: RenderBackend,
   fillIR: GradientFillIR,
   width: number,
   height: number
@@ -57,21 +57,21 @@ function fillGradient(
   if (fillIR.kind === 'linear') {
     const angle = fillIR.angle ?? 0;
     const [x0, y0, x1, y1] = linearGradientEndpoints(angle, width, height);
-    gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+    gradient = backend.createLinearGradient(x0, y0, x1, y1);
   } else {
     // Radial and path gradients: centered radial gradient.
     const cx = width / 2;
     const cy = height / 2;
     const radius = Math.max(width, height) / 2;
-    gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    gradient = backend.createRadialGradient(cx, cy, 0, cx, cy, radius);
   }
 
   for (const stop of fillIR.stops) {
     gradient.addColorStop(stop.position, colorToRgba(stop.color));
   }
 
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
+  backend.fillStyle = gradient;
+  backend.fillRect(0, 0, width, height);
 }
 
 // ---------------------------------------------------------------------------
@@ -95,12 +95,12 @@ export function renderBackground(
   width: number,
   height: number
 ): void {
-  const { ctx } = rctx;
+  const { backend } = rctx;
 
   // No background or no fill: default to white.
   if (!background?.fill || background.fill.type === 'none') {
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, width, height);
+    backend.fillStyle = '#FFFFFF';
+    backend.fillRect(0, 0, width, height);
     return;
   }
 
@@ -108,31 +108,31 @@ export function renderBackground(
 
   switch (fill.type) {
     case 'solid': {
-      ctx.fillStyle = colorToRgba(fill.color);
-      ctx.fillRect(0, 0, width, height);
+      backend.fillStyle = colorToRgba(fill.color);
+      backend.fillRect(0, 0, width, height);
       break;
     }
 
     case 'gradient': {
-      fillGradient(ctx, fill, width, height);
+      fillGradient(backend, fill, width, height);
       break;
     }
 
     case 'pattern': {
       // Simplified: use the foreground color for the entire background.
-      ctx.fillStyle = colorToRgba(fill.foreground);
-      ctx.fillRect(0, 0, width, height);
+      backend.fillStyle = colorToRgba(fill.foreground);
+      backend.fillRect(0, 0, width, height);
       break;
     }
 
     case 'picture': {
       const image = rctx.mediaCache.get(fill.imagePartUri);
       if (image && !(image instanceof Uint8Array)) {
-        ctx.drawImage(image, 0, 0, width, height);
+        backend.drawImage(image, 0, 0, width, height);
       } else {
         // Image not yet loaded or raw bytes — white fallback
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, width, height);
+        backend.fillStyle = '#FFFFFF';
+        backend.fillRect(0, 0, width, height);
       }
       break;
     }

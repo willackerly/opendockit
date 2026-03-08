@@ -26,6 +26,7 @@ import type { RelationshipMap } from '@opendockit/core/opc';
 import { OpcPackageReader } from '@opendockit/core/opc';
 import { MediaCache, loadAndCacheImage } from '@opendockit/core/media';
 import type { RenderContext, DynamicRenderer } from '@opendockit/core/drawingml/renderer';
+import { CanvasBackend } from '@opendockit/core/drawingml/renderer';
 import { CapabilityRegistry } from '@opendockit/core/capability';
 import type { CoverageReport } from '@opendockit/core/capability';
 import { WasmModuleLoader } from '@opendockit/core/wasm';
@@ -310,7 +311,7 @@ export class SlideKit {
 
     // Build render context — include dynamic renderers for progressive fidelity.
     const rctx: RenderContext = {
-      ctx,
+      backend: new CanvasBackend(ctx),
       dpiScale: this._dpiScale,
       theme: pres.theme,
       mediaCache: this._mediaCache,
@@ -413,7 +414,7 @@ export class SlideKit {
     const loadingKinds = this._getLoadingKinds();
 
     const rctx: RenderContext = {
-      ctx,
+      backend: new CanvasBackend(ctx),
       dpiScale: this._dpiScale,
       theme: pres.theme,
       mediaCache: this._mediaCache,

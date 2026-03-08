@@ -97,7 +97,7 @@ describe('renderShape', () => {
 
     renderShape(shape, rctx);
 
-    const calls = rctx.ctx._calls;
+    const calls = rctx.backend._calls;
     const methods = calls.map((c) => c.method);
 
     // Must start with save and end with restore.
@@ -121,7 +121,7 @@ describe('renderShape', () => {
 
     renderShape(shape, rctx);
 
-    const rotateCalls = rctx.ctx._calls.filter((c) => c.method === 'rotate');
+    const rotateCalls = rctx.backend._calls.filter((c) => c.method === 'rotate');
     expect(rotateCalls).toHaveLength(1);
     expect(rotateCalls[0].args[0]).toBeCloseTo((45 * Math.PI) / 180, 10);
   });
@@ -136,7 +136,7 @@ describe('renderShape', () => {
 
     renderShape(shape, rctx);
 
-    const scaleCalls = rctx.ctx._calls.filter((c) => c.method === 'scale');
+    const scaleCalls = rctx.backend._calls.filter((c) => c.method === 'scale');
     expect(scaleCalls).toHaveLength(1);
     expect(scaleCalls[0].args).toEqual([-1, 1]);
   });
@@ -151,7 +151,7 @@ describe('renderShape', () => {
 
     renderShape(shape, rctx);
 
-    const scaleCalls = rctx.ctx._calls.filter((c) => c.method === 'scale');
+    const scaleCalls = rctx.backend._calls.filter((c) => c.method === 'scale');
     expect(scaleCalls).toHaveLength(1);
     expect(scaleCalls[0].args).toEqual([1, -1]);
   });
@@ -165,7 +165,7 @@ describe('renderShape', () => {
     renderShape(shape, rctx);
 
     // No canvas calls should be made.
-    expect(rctx.ctx._calls).toHaveLength(0);
+    expect(rctx.backend._calls).toHaveLength(0);
   });
 
   it('renders text body when present', () => {
@@ -178,7 +178,7 @@ describe('renderShape', () => {
     renderShape(shape, rctx);
 
     // Text rendering involves fillText calls.
-    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+    const fillTextCalls = rctx.backend._calls.filter((c) => c.method === 'fillText');
     expect(fillTextCalls.length).toBeGreaterThan(0);
   });
 
@@ -193,7 +193,7 @@ describe('renderShape', () => {
 
     renderShape(shape, rctx);
 
-    const strokeCalls = rctx.ctx._calls.filter((c) => c.method === 'stroke');
+    const strokeCalls = rctx.backend._calls.filter((c) => c.method === 'stroke');
     expect(strokeCalls).toHaveLength(1);
   });
 
@@ -221,7 +221,7 @@ describe('renderShape', () => {
     // the shadow should have been reset.
     // We verify by checking the shadowColor was set and then reset.
     // The cleanup resets to 'transparent'.
-    expect(rctx.ctx.shadowColor).toBe('transparent');
+    expect(rctx.backend.shadowColor).toBe('transparent');
   });
 
   it('does not call fill when no fill is specified', () => {
@@ -235,7 +235,7 @@ describe('renderShape', () => {
 
     renderShape(shape, rctx);
 
-    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
     expect(fillCalls).toHaveLength(0);
   });
 
@@ -250,7 +250,7 @@ describe('renderShape', () => {
 
     renderShape(shape, rctx);
 
-    const strokeCalls = rctx.ctx._calls.filter((c) => c.method === 'stroke');
+    const strokeCalls = rctx.backend._calls.filter((c) => c.method === 'stroke');
     expect(strokeCalls).toHaveLength(0);
   });
 
@@ -263,7 +263,7 @@ describe('renderShape', () => {
 
     renderShape(shape, rctx);
 
-    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+    const fillTextCalls = rctx.backend._calls.filter((c) => c.method === 'fillText');
     expect(fillTextCalls).toHaveLength(0);
   });
 
@@ -277,7 +277,7 @@ describe('renderShape', () => {
 
     renderShape(shape, rctx);
 
-    const scaleCalls = rctx.ctx._calls.filter((c) => c.method === 'scale');
+    const scaleCalls = rctx.backend._calls.filter((c) => c.method === 'scale');
     expect(scaleCalls).toHaveLength(2);
     expect(scaleCalls[0].args).toEqual([-1, 1]);
     expect(scaleCalls[1].args).toEqual([1, -1]);
@@ -297,7 +297,7 @@ describe('renderShape', () => {
 
     renderShape(shape, rctx);
 
-    const translateCalls = rctx.ctx._calls.filter((c) => c.method === 'translate');
+    const translateCalls = rctx.backend._calls.filter((c) => c.method === 'translate');
     // First translate: to center (48, 48)
     expect(translateCalls[0].args[0]).toBeCloseTo(48, 0);
     expect(translateCalls[0].args[1]).toBeCloseTo(48, 0);
@@ -324,8 +324,8 @@ describe('renderSlideElement', () => {
     renderSlideElement(shape, rctx);
 
     // Should have rendering calls (save, translate, etc.)
-    expect(rctx.ctx._calls.length).toBeGreaterThan(0);
-    expect(rctx.ctx._calls[0].method).toBe('save');
+    expect(rctx.backend._calls.length).toBeGreaterThan(0);
+    expect(rctx.backend._calls[0].method).toBe('save');
   });
 
   it('dispatches picture to renderPicture', () => {
@@ -340,7 +340,7 @@ describe('renderSlideElement', () => {
     renderSlideElement(picture, rctx);
 
     // Picture without cached media renders a placeholder with fillRect.
-    const fillRects = rctx.ctx._calls.filter((c) => c.method === 'fillRect');
+    const fillRects = rctx.backend._calls.filter((c) => c.method === 'fillRect');
     expect(fillRects.length).toBeGreaterThan(0);
   });
 
@@ -366,7 +366,7 @@ describe('renderSlideElement', () => {
     renderSlideElement(group, rctx);
 
     // Group rendering involves save, translate, and recursive child rendering.
-    const methods = rctx.ctx._calls.map((c) => c.method);
+    const methods = rctx.backend._calls.map((c) => c.method);
     expect(methods).toContain('save');
     expect(methods).toContain('restore');
     expect(methods).toContain('fill');
@@ -384,7 +384,7 @@ describe('renderSlideElement', () => {
 
     renderSlideElement(connector, rctx);
 
-    const methods = rctx.ctx._calls.map((c) => c.method);
+    const methods = rctx.backend._calls.map((c) => c.method);
     expect(methods).toContain('save');
     expect(methods).toContain('moveTo');
     expect(methods).toContain('lineTo');
@@ -413,13 +413,13 @@ describe('renderSlideElement', () => {
     renderSlideElement(table, rctx);
 
     // Should NOT have the placeholder "Table" text label
-    const placeholderTextCalls = rctx.ctx._calls.filter(
+    const placeholderTextCalls = rctx.backend._calls.filter(
       (c) => c.method === 'fillText' && c.args[0] === 'Table'
     );
     expect(placeholderTextCalls).toHaveLength(0);
 
     // Should have fill calls from the real table renderer
-    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
     expect(fillCalls).toHaveLength(1);
   });
 
@@ -434,7 +434,7 @@ describe('renderSlideElement', () => {
 
     renderSlideElement(chart, rctx);
 
-    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+    const fillTextCalls = rctx.backend._calls.filter((c) => c.method === 'fillText');
     expect(fillTextCalls).toHaveLength(1);
     expect(fillTextCalls[0].args[0]).toBe('Chart');
   });
@@ -455,7 +455,7 @@ describe('renderSlideElement', () => {
 
     renderSlideElement(unsupported, rctx);
 
-    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+    const fillTextCalls = rctx.backend._calls.filter((c) => c.method === 'fillText');
     expect(fillTextCalls).toHaveLength(1);
     expect(fillTextCalls[0].args[0]).toBe('mc:AlternateContent');
   });
@@ -472,7 +472,7 @@ describe('renderSlideElement', () => {
     renderSlideElement(unsupported, rctx);
 
     // No rendering calls should be made.
-    expect(rctx.ctx._calls).toHaveLength(0);
+    expect(rctx.backend._calls).toHaveLength(0);
   });
 
   it('chart grey box includes hatch lines and border', () => {
@@ -486,7 +486,7 @@ describe('renderSlideElement', () => {
 
     renderSlideElement(chart, rctx);
 
-    const methods = rctx.ctx._calls.map((c) => c.method);
+    const methods = rctx.backend._calls.map((c) => c.method);
     // renderGreyBox draws: save, fillRect, clip, hatch lines, strokeRect, fillText, restore
     expect(methods).toContain('save');
     expect(methods).toContain('fillRect');
@@ -511,7 +511,7 @@ describe('renderSlideElement', () => {
 
     renderSlideElement(chart, rctx);
 
-    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+    const fillTextCalls = rctx.backend._calls.filter((c) => c.method === 'fillText');
     expect(fillTextCalls).toHaveLength(1);
     expect(fillTextCalls[0].args[0]).toContain('loading');
   });
@@ -528,7 +528,7 @@ describe('renderSlideElement', () => {
 
     renderSlideElement(chart, rctx);
 
-    const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+    const fillTextCalls = rctx.backend._calls.filter((c) => c.method === 'fillText');
     expect(fillTextCalls).toHaveLength(1);
     expect(fillTextCalls[0].args[0]).toBe('Chart');
   });
@@ -542,7 +542,7 @@ describe('renderSlideElement', () => {
 
     renderSlideElement(connector, rctx);
 
-    expect(rctx.ctx._calls).toHaveLength(0);
+    expect(rctx.backend._calls).toHaveLength(0);
   });
 });
 
@@ -588,7 +588,7 @@ describe('renderShape — style reference resolution', () => {
 
     // The shape should have a fill call because fillRef idx=1 resolves
     // to the first fill style (solid { r: 100, g: 150, b: 200 }).
-    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
     expect(fillCalls).toHaveLength(1);
   });
 
@@ -606,12 +606,12 @@ describe('renderShape — style reference resolution', () => {
 
     renderShape(shape, rctx);
 
-    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
     expect(fillCalls).toHaveLength(1);
 
     // The fillStyle should be the inline blue, not the theme fill.
     // Solid blue = rgba(0, 0, 255, 1)
-    expect(rctx.ctx.fillStyle).toContain('0, 0, 255');
+    expect(rctx.backend.fillStyle).toContain('0, 0, 255');
   });
 
   it('uses theme line from style reference when no inline line', () => {
@@ -630,7 +630,7 @@ describe('renderShape — style reference resolution', () => {
 
     // The shape should have a stroke call because lnRef idx=2 resolves
     // to the second line style.
-    const strokeCalls = rctx.ctx._calls.filter((c) => c.method === 'stroke');
+    const strokeCalls = rctx.backend._calls.filter((c) => c.method === 'stroke');
     expect(strokeCalls).toHaveLength(1);
   });
 
@@ -648,11 +648,11 @@ describe('renderShape — style reference resolution', () => {
 
     renderShape(shape, rctx);
 
-    const strokeCalls = rctx.ctx._calls.filter((c) => c.method === 'stroke');
+    const strokeCalls = rctx.backend._calls.filter((c) => c.method === 'stroke');
     expect(strokeCalls).toHaveLength(1);
 
     // The strokeStyle should be the inline red line color.
-    expect(rctx.ctx.strokeStyle).toContain('255, 0, 0');
+    expect(rctx.backend.strokeStyle).toContain('255, 0, 0');
   });
 
   it('does not apply style fill when fillRef idx is 0', () => {
@@ -668,7 +668,7 @@ describe('renderShape — style reference resolution', () => {
 
     renderShape(shape, rctx);
 
-    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+    const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
     expect(fillCalls).toHaveLength(0);
   });
 
@@ -685,7 +685,7 @@ describe('renderShape — style reference resolution', () => {
 
     renderShape(shape, rctx);
 
-    const strokeCalls = rctx.ctx._calls.filter((c) => c.method === 'stroke');
+    const strokeCalls = rctx.backend._calls.filter((c) => c.method === 'stroke');
     expect(strokeCalls).toHaveLength(0);
   });
 
@@ -700,8 +700,8 @@ describe('renderShape — style reference resolution', () => {
 
     renderShape(shape, rctx);
 
-    const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
-    const strokeCalls = rctx.ctx._calls.filter((c) => c.method === 'stroke');
+    const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
+    const strokeCalls = rctx.backend._calls.filter((c) => c.method === 'stroke');
     expect(fillCalls).toHaveLength(0);
     expect(strokeCalls).toHaveLength(0);
   });
@@ -766,7 +766,7 @@ describe('renderShape — spAutoFit (shape auto-fit)', () => {
 
     // The fallback rect call should use expanded height, not the original 9.6px.
     // Find the rect call that draws the shape background.
-    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    const rectCalls = rctx.backend._calls.filter((c) => c.method === 'rect');
     expect(rectCalls.length).toBeGreaterThan(0);
     // The rect height (4th arg, index 3) should be larger than the
     // original 9.6px (91440 EMU at dpiScale 1).
@@ -791,7 +791,7 @@ describe('renderShape — spAutoFit (shape auto-fit)', () => {
     renderShape(shape, rctx);
 
     // The rect height should remain at the original 960px.
-    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    const rectCalls = rctx.backend._calls.filter((c) => c.method === 'rect');
     expect(rectCalls.length).toBeGreaterThan(0);
     const bgRect = rectCalls[0];
     const rectHeight = bgRect.args[3] as number;
@@ -814,7 +814,7 @@ describe('renderShape — spAutoFit (shape auto-fit)', () => {
     renderShape(shape, rctx);
 
     // Width of the rect call should remain at the original 960px.
-    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    const rectCalls = rctx.backend._calls.filter((c) => c.method === 'rect');
     expect(rectCalls.length).toBeGreaterThan(0);
     const bgRect = rectCalls[0];
     const rectWidth = bgRect.args[2] as number;
@@ -867,7 +867,7 @@ describe('renderShape — spAutoFit (shape auto-fit)', () => {
     renderShape(shape, rctx);
 
     // The rect height should remain at the original 9.6px (no expansion).
-    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    const rectCalls = rctx.backend._calls.filter((c) => c.method === 'rect');
     expect(rectCalls.length).toBeGreaterThan(0);
     const bgRect = rectCalls[0];
     const rectHeight = bgRect.args[3] as number;
@@ -909,7 +909,7 @@ describe('renderShape — spAutoFit (shape auto-fit)', () => {
     renderShape(shape, rctx);
 
     // The rect height should remain at the original 9.6px (no expansion).
-    const rectCalls = rctx.ctx._calls.filter((c) => c.method === 'rect');
+    const rectCalls = rctx.backend._calls.filter((c) => c.method === 'rect');
     expect(rectCalls.length).toBeGreaterThan(0);
     const bgRect = rectCalls[0];
     const rectHeight = bgRect.args[3] as number;
