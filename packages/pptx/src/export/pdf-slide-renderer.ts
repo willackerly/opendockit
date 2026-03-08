@@ -310,7 +310,6 @@ function renderShapeLine(
 const DEFAULT_LEFT_INSET = 91440; // 0.1" in EMU
 const DEFAULT_RIGHT_INSET = 91440;
 const DEFAULT_TOP_INSET = 45720; // 0.05" in EMU
-const DEFAULT_BOTTOM_INSET = 45720;
 
 /** Default font size in hundredths of a point. */
 const DEFAULT_FONT_SIZE_HPT = 1800; // 18pt
@@ -343,13 +342,10 @@ function renderTextBodyToPdf(
   const leftInset = emuToPt(bp.leftInset ?? DEFAULT_LEFT_INSET);
   const rightInset = emuToPt(bp.rightInset ?? DEFAULT_RIGHT_INSET);
   const topInset = emuToPt(bp.topInset ?? DEFAULT_TOP_INSET);
-  const bottomInset = emuToPt(bp.bottomInset ?? DEFAULT_BOTTOM_INSET);
-
   // Available text area
   const textX = x + leftInset;
   const textW = w - leftInset - rightInset;
   const textAreaTop = y + h - topInset; // PDF Y: top of text area
-  const _textAreaBottom = y + bottomInset;
 
   if (textW <= 0) return;
 

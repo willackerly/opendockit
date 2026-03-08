@@ -6,7 +6,7 @@
 
 ## What Is This?
 
-OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer and editor. It reads PPTX files (eventually DOCX/XLSX) and renders them in the browser using Canvas2D, with optional WASM modules for advanced features. The editing pipeline supports programmatic mutations (move, resize, text edit, delete, slide reorder/delete) with surgical XML patching for full-fidelity save. Phase 4 adds a PDF/Office unified architecture: a RenderBackend abstraction (CanvasBackend + PDFBackend), unified element model (PageModel/PageElement), cross-format text search, clipboard serialize/deserialize, PDF export pipeline, and batch PPTX→PDF conversion.
+OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer and editor. It reads PPTX and DOCX files (eventually XLSX) and renders them in the browser using Canvas2D, with optional WASM modules for advanced features. The editing pipeline supports programmatic mutations (move, resize, text edit, delete, slide reorder/delete) with surgical XML patching for full-fidelity save. Phase 4 adds a PDF/Office unified architecture: a RenderBackend abstraction (CanvasBackend + PDFBackend), unified element model (PageModel/PageElement), cross-format text search, clipboard serialize/deserialize, PDF export pipeline, and batch PPTX→PDF conversion.
 
 ## Where to Find Things
 
@@ -31,13 +31,14 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer and editor
 
 The full PPTX rendering pipeline is implemented, tested, and visually validated. The editing pipeline (Phase 0-3) is complete. Phase 4 (Waves 0-4) of the PDF/Office unified architecture is complete:
 
-- **4,128 tests** passing (1,716 core + 203 elements + 206 render + 381 pptx + 1,598 pdf-signer + 24 pdf), typecheck clean
+- **4,296 tests** passing (1,716 core + 203 elements + 207 render + 419 pptx + 1,598 pdf-signer + 129 docx + 24 pdf), typecheck clean
 - **Visual regression**: 54-slide real-world PPTX with per-slide RMSE baselines (`pnpm test:visual`) + 10-file corpus (67 slides) with self-referential regression guard (`pnpm test:visual:corpus`) + PDF visual regression with RMSE baselines (`pnpm test:visual:pdf`)
 - **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (42 families, 130 faces) + bundled WOFF2 fonts (42 families, ~5MB, 100% offline), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks, video placeholder detection, field codes, diagram drawing), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation + font-metric-based line height + ascender baseline positioning + text outline + underline fill color, media cache, capability registry, WASM module loader, diagnostics system (DiagnosticEmitter + RenderContext wiring)
 - **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance + table textDefaults), SlideKit viewport API (hyperlinks, notes, element inspector), SmartArt fallback renderer, chart cached image fallback renderer
 - **@opendockit/elements**: Unified element model — PageModel/PageElement types, spatial utilities, dirty tracking. Shared contract between PPTX and PDF renderers.
 - **@opendockit/render**: Shared render utilities — font metrics, color resolution, matrix math. Used by both CanvasBackend and PDFBackend.
 - **@opendockit/pdf**: PDF rendering package — PDFBackend implementation, PDF export pipeline, basic shapes/fills, batch PPTX→PDF conversion script.
+- **@opendockit/docx**: DOCX rendering package — WordprocessingML parser (document/paragraph/run/styles/numbering/section), block layout engine, DocKit viewport with Canvas2D rendering. 129 tests.
 - **@opendockit/pdf-signer**: Signing primitives (COS objects, COSWriter, xref generation, signature dictionary patching) — ported from Apache PDFBox.
 - **@opendockit/core edit module**: Branded EMU types (compile-time unit safety), EditablePresentation with dirty tracking (WeakSet-based, mirrors pdfbox-ts COSUpdateTracker), element ID registry (`partUri#shapeId`), XML reconstitution engine (surgical DOM patching via @xmldom/xmldom), OPC Package Writer (JSZip-based, unchanged parts copied as raw bytes), IR re-derivation engine (zero-alloc fast path for clean elements)
 - **@opendockit/pptx edit module**: EditableSlideKit API (load/edit/save), editable builder (IR → mutable model), save pipeline (dirty part patching → OPC writer → ZIP)
@@ -90,7 +91,7 @@ Complete (Waves 0-4, 2026-03-07/08):
 - Unified element model: @opendockit/elements
 - Unified render utilities: @opendockit/render
 - PDF rendering package: @opendockit/pdf
-- PDF export pipeline (basic shapes/fills + text with standard font fallback)
+- PDF export pipeline (shapes/fills + text with standard font fallback + JPEG/PNG image XObjects + gradient shading + transparency)
 - Cross-format text search
 - Clipboard serialize/deserialize
 - Batch PPTX→PDF conversion script
@@ -101,12 +102,13 @@ Complete (Waves 0-4, 2026-03-07/08):
 - BDD/Gherkin infrastructure: 16 feature files, 38 scenarios across 4 epics, playwright-bdd integration
 - Enhanced test harness editor UI (`tools/test-harness/`) with toolbar, slide panel, canvas editor, properties panel
 - Performance benchmark infrastructure (`tools/perf/`) with 11 Vitest bench benchmarks across parsing/rendering/system
+- DOCX scaffold: @opendockit/docx package with full WordprocessingML parser + DocKit viewport (129 tests)
 
 Still deferred:
 1. **CanvasKit** WASM integration (3D effects, reflections, advanced filters)
 2. **Slide transitions**
 3. **SVG export**
-4. **PDF image/gradient/transparency** in PPTX→PDF export
+4. **PDF custom font embedding** (currently uses standard font fallback — WOFF2→TTF decode needed)
 
 Permanently deferred:
 - **ChartML** — cached image fallback renders chart previews. Not worth the complexity.
@@ -137,6 +139,7 @@ packages/
 ├── elements/     @opendockit/elements     — Unified element model (PageModel/PageElement), spatial utilities, dirty tracking
 ├── render/       @opendockit/render       — Shared render utilities: font metrics, color resolution, matrix math
 ├── pdf/          @opendockit/pdf          — PDF rendering (PDFBackend), PDF export pipeline, batch conversion
+├── docx/         @opendockit/docx         — WordprocessingML parser, block layout, DocKit viewport
 ├── pdf-signer/   @opendockit/pdf-signer   — PDF signing primitives (COS objects, COSWriter, xref, signature dict)
 └── wasm-modules/ —                        — On-demand WASM accelerators (future)
 ```

@@ -332,7 +332,7 @@ function createXObjectStream(
   const cosCtors = ensureCosConstructors(ctx);
   if (!cosCtors) return streamRef;
 
-  const stream = streamObj as { setItem(k: string, v: unknown): void };
+  const stream = streamObj as unknown as { setItem(k: string, v: unknown): void };
 
   // Set XObject properties on the stream
   stream.setItem('Type', new cosCtors.Name('XObject'));

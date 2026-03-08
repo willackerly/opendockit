@@ -873,7 +873,7 @@ class EvalContext {
       if (fontInfo) this.fontCache.set(fontNameVal, fontInfo);
     }
 
-    this.currentFont = fontInfo ?? null;
+    this.currentFont = fontInfo ?? undefined;
     const css = fontInfo?.css ?? {
       family: 'Helvetica, Arial, sans-serif',
       weight: 'normal',
@@ -1988,7 +1988,7 @@ function decodeShadingFunction(shadingDict: COSDictionary, resolve: ObjectResolv
 
 function decodeExponentialFunction(
   funcDict: COSDictionary,
-  domain: number[],
+  _domain: number[],
   cs: string,
   resolve: ObjectResolver
 ): ShadingStop[] {
@@ -2036,8 +2036,8 @@ function decodeStitchingFunction(
 
   // Get bounds
   const bounds = getNumberArray(funcDict, 'Bounds', resolve) ?? [];
-  // Get encode
-  const encode = getNumberArray(funcDict, 'Encode', resolve) ?? [];
+  // Encode array (used by PDF spec for mapping — not needed for stop extraction)
+  const _encode = getNumberArray(funcDict, 'Encode', resolve) ?? [];
 
   const stops: ShadingStop[] = [];
   const allBounds = [domain[0], ...bounds, domain[1]];
@@ -2091,7 +2091,7 @@ function decodeSampledFunction(
 
 function decodeFunctionArray(
   funcs: COSDictionary[],
-  domain: number[],
+  _domain: number[],
   cs: string,
   resolve: ObjectResolver
 ): ShadingStop[] {
@@ -2139,7 +2139,7 @@ function getNumberArray(
   return result;
 }
 
-function componentsToCSS(components: number[], cs: string): string {
+function componentsToCSS(components: number[], _cs: string): string {
   if (components.length === 1) {
     // Gray
     const v = Math.round(Math.max(0, Math.min(1, components[0])) * 255);

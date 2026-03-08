@@ -29,9 +29,6 @@ export class NativeRenderer {
   private pages: Array<{ pageDict: COSDictionary }>;
   private resolve: ObjectResolver;
 
-  /** Shared font cache across all pages — avoids re-parsing fonts per page. */
-  private _fontCache: Map<string, any> | null = null;
-
   private constructor(pages: Array<{ pageDict: COSDictionary }>, resolve: ObjectResolver) {
     this.pages = pages;
     this.resolve = resolve;
