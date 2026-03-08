@@ -6,7 +6,7 @@ Renders PPTX presentations (and eventually DOCX/XLSX) directly in the browser us
 
 ## Status
 
-**Pre-alpha** — Phase 0 (Core Foundation) in progress.
+**Alpha** — Phase 4 (PDF/Office unified architecture) complete. PPTX rendering, editing, and PDF export operational.
 
 ## Quick Start
 
@@ -18,16 +18,22 @@ pnpm test
 
 ## Packages
 
-| Package            | Description                                                                   | Status  |
-| ------------------ | ----------------------------------------------------------------------------- | ------- |
-| `@opendockit/core` | Shared OOXML infrastructure (OPC, DrawingML, themes, colors, fonts, geometry) | Phase 0 |
-| `@opendockit/pptx` | PPTX renderer (SlideKit)                                                      | Phase 2 |
-| `@opendockit/docx` | DOCX renderer (future)                                                        | Planned |
-| `@opendockit/xlsx` | XLSX renderer (future)                                                        | Planned |
+| Package                    | Description                                                                   | Status   |
+| -------------------------- | ----------------------------------------------------------------------------- | -------- |
+| `@opendockit/core`         | Shared OOXML infrastructure (OPC, DrawingML, themes, colors, fonts, geometry) | Complete |
+| `@opendockit/pptx`         | PPTX renderer and editor (SlideKit)                                           | Complete |
+| `@opendockit/elements`     | Unified element model (PageModel/PageElement), spatial utilities              | Complete |
+| `@opendockit/render`       | Shared render utilities: font metrics, color resolution, matrix math          | Complete |
+| `@opendockit/pdf`          | PDF rendering (PDFBackend), PDF export pipeline, batch PPTX→PDF conversion    | Alpha    |
+| `@opendockit/pdf-signer`   | PDF signing primitives (COS objects, xref generation, signature dict)         | Complete |
+| `@opendockit/docx`         | DOCX renderer (future)                                                        | Planned  |
+| `@opendockit/xlsx`         | XLSX renderer (future)                                                        | Planned  |
 
 ## Architecture
 
 The key insight: **DrawingML is shared across all three OOXML formats.** Shapes, fills, effects, pictures, charts, and themes use identical markup regardless of whether they appear in a PPTX, DOCX, or XLSX.
+
+The RenderBackend abstraction decouples renderers from their output target: `CanvasBackend` writes to Canvas2D, `PDFBackend` produces PDF content streams. All 10 DrawingML renderers use `rctx.backend: RenderBackend`.
 
 ```
                     @opendockit/core
@@ -43,6 +49,22 @@ The key insight: **DrawingML is shared across all three OOXML formats.** Shapes,
               ▼            ▼            ▼
         @opendockit/  @opendockit/  @opendockit/
         pptx          docx          xlsx
+              │
+              ▼
+        RenderBackend
+        ├── CanvasBackend  →  Canvas2D
+        └── PDFBackend     →  @opendockit/pdf
+```
+
+```
+packages/
+├── core/         — OPC, DrawingML, themes, geometry
+├── pptx/         — PresentationML parser, SlideKit API
+├── elements/     — Unified element model (PageModel/PageElement)
+├── render/       — Font metrics, color resolution, matrix math
+├── pdf/          — PDF export, PDFBackend, batch conversion
+├── pdf-signer/   — PDF signing primitives
+└── wasm-modules/ — On-demand WASM accelerators (future)
 ```
 
 See `docs/architecture/` for full details.

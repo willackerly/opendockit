@@ -105,21 +105,30 @@ Multiple agents work async on this codebase. Docs drift when agents complete wor
 
 `packages/pptx` (`@opendockit/pptx`) is the PPTX renderer (SlideKit) — PresentationML parser, slide master/layout inheritance, slide renderer, SlideViewport, public API.
 
+`packages/elements` (`@opendockit/elements`) is the unified element model — PageModel/PageElement types, spatial utilities, dirty tracking. Shared contract between PPTX and PDF renderers.
+
+`packages/render` (`@opendockit/render`) holds shared render utilities — font metrics, color resolution, matrix math. Imports from `@opendockit/core`; does not maintain its own copy of the metrics bundle.
+
+`packages/pdf` (`@opendockit/pdf`) is the PDF rendering package — PDFBackend implementation, PDF export pipeline for basic shapes/fills, batch PPTX→PDF conversion script.
+
+`packages/pdf-signer` (`@opendockit/pdf-signer`) holds PDF signing primitives ported from Apache PDFBox — COS objects, COSWriter, xref generation, signature dictionary patching.
+
 `packages/wasm-modules` will hold on-demand WASM accelerators (CanvasKit, HarfBuzz, etc.) — empty for now.
 
 `tools/` contains development tooling: visual regression runner (LibreOffice oracle + pixelmatch), corpus test runner, coverage dashboard.
 
 `test-data/` holds PPTX/DOCX/XLSX test fixtures. `docs/` mirrors the project hierarchy.
 
-## Active Workstreams (2026-02-26)
+## Active Workstreams (2026-03-08)
 
 - **Phase 0: Core Foundation (COMPLETE)** — OPC reader, XML parser, units, IR types, theme engine, color resolver, font resolver
 - **Phase 1: DrawingML Pipeline (COMPLETE)** — All parsers, 187 preset geometries, Canvas2D renderers, media cache
 - **Phase 2: PPTX Integration (COMPLETE)** — PresentationML parser, slide renderer, SlideKit API
 - **Phase 3: Progressive Fidelity (COMPLETE)** — Capability registry, WASM loader, tables, connectors, auto-fit, placeholder resolution, style refs, hyperlinks, notes, visual regression pipeline
 - **Phase 3.5: Diagnostics & Polish (COMPLETE)** — DiagnosticEmitter, vert/RTL text, tab stops, table auto-height, spAutoFit, placeholder content inheritance, theme fonts, SmartArt fallback, chart cached image fallback, text outline, underline fill, element inspector
-- **Visual Validation (COMPLETE)** — Dev harness with element inspector, 54-slide PDF-referenced regression (`pnpm test:visual`), 10-file corpus self-referential regression (`pnpm test:visual:corpus`), 1,435 tests passing
-- **Phase 4: Charts + Export (planned)** — Full ChartML parser (cached image fallback already done), CanvasKit WASM, transitions, PDF/SVG export
+- **Phase Edit: Mutable Object Model (COMPLETE)** — EditablePresentation, dirty tracking, XML reconstitution, OPC writer, EditableSlideKit, round-trip tests, visual regression for edits
+- **Phase 4: PDF/Office Unified Architecture (Waves 0-4 COMPLETE)** — RenderBackend abstraction (CanvasBackend + PDFBackend), @opendockit/elements (unified element model), @opendockit/render (shared render utilities), @opendockit/pdf (PDF export pipeline), cross-format text search, clipboard serialize/deserialize, batch PPTX→PDF conversion, unified viewer. **3,841 tests passing** (1,570 core + 146 elements + 201 render + 322 pptx + 1,578 pdf-signer + 24 pdf).
+- **Phase 4 remaining (deferred)** — Full ChartML parser, CanvasKit WASM, slide transitions, SVG export
 - **DOCX support (future)** — WordprocessingML parser + page layout engine, reuses ~40% of core
 - **XLSX support (future)** — SpreadsheetML parser + grid layout, reuses ~35% of core
 
@@ -428,6 +437,10 @@ Unit/integration coverage runs through Vitest; co-locate specs beside code or in
 | -------------------------------- | ------------------------------------------------------------------------------ | ------------------ |
 | **Core (OPC, DrawingML, theme)** | `packages/core/`, `docs/architecture/OOXML_RENDERER.md`                        | Active development |
 | **PPTX (SlideKit)**              | `packages/pptx/`, `docs/architecture/PPTX_SLIDEKIT.md`                         | Active development |
+| **Elements (unified model)**     | `packages/elements/`                                                           | Active development |
+| **Render (shared utilities)**    | `packages/render/`                                                             | Active development |
+| **PDF (export pipeline)**        | `packages/pdf/`                                                                | Active development |
+| **PDF Signer**                   | `packages/pdf-signer/`                                                         | Active development |
 | **WASM Modules**                 | `packages/wasm-modules/`                                                       | Future             |
 | **Testing Infrastructure**       | `tools/`, `docs/testing/`                                                      | Active development |
 | **Cross-cutting**                | `AGENTS.md`, `QUICKCONTEXT.md`, `KNOWN_ISSUES.md`, `TODO.md`, `docs/README.md` | All agents share   |

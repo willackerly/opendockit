@@ -28,4 +28,6 @@
 
 **Key reference:** `docs/architecture/PPTX_SLIDEKIT.md` "Key Technical Decisions > Font Handling"
 
+**Authoritative metrics source:** The precomputed metrics bundle (`packages/core/src/font/data/metrics-bundle.ts`) is the single authoritative source for font metrics. `@opendockit/render` imports its font metrics from `@opendockit/core` and must not maintain its own copy. Do not duplicate or diverge the metrics bundle in any other package.
+
 **Testing:** Test substitution table completeness. Test metrics estimation against known widths. Font loading tests may need browser environment or mocks.

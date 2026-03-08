@@ -1,6 +1,6 @@
 # TODO
 
-**Last synced:** 2026-02-28
+**Last synced:** 2026-03-08
 
 ## Completed
 
@@ -152,7 +152,6 @@ These are known gaps. They can be tackled opportunistically or when a real-world
 Found by property-by-property audit of real-world PPTX XML vs parser/renderer.
 
 **Done:**
-
 - [x] `<a:buSzPts>` — absolute bullet size (2026-02-24)
 - [x] `anchorCtr` — text body horizontal centering (2026-02-24)
 - [x] `marR` — right paragraph margin (2026-02-24)
@@ -165,7 +164,6 @@ Found by property-by-property audit of real-world PPTX XML vs parser/renderer.
 - [x] LineHeight fallback improved to 1.2 for unknown fonts (2026-02-24)
 
 **Remaining:**
-
 - [x] `vert` — text direction (`<a:bodyPr vert="vert270">`) parsed + rendered via canvas rotation (2026-02-25)
 - [x] `rtl` — now consumed by text renderer with alignment mirroring + bullet repositioning (2026-02-25)
 - [x] `defTabSz` / `a:tabLst` (tab stops) — parsed + rendered with explicit stops and default grid (2026-02-25)
@@ -178,7 +176,6 @@ Found by property-by-property audit of real-world PPTX XML vs parser/renderer.
 ### Visual Regression Ceiling Analysis (2026-02-24)
 
 Deep investigation of top-10 RMSE slides confirms:
-
 - **Font sizes and layout are correct** — pixel-level audit of slide 35 (worst RMSE) shows glyph heights match within 1px
 - **Remaining RMSE (0.15-0.19) is dominated by Canvas2D vs PDF font rendering** — antialiasing, kerning, hinting, sub-pixel positioning
 - **This is fundamentally a rendering engine ceiling** — addressable via CanvasKit/Skia WASM (Phase 4) for higher-fidelity text
@@ -196,17 +193,21 @@ Deep investigation of top-10 RMSE slides confirms:
 
 ### Phase 4: Charts + Export
 
+**Complete (Waves 0-4 — 2026-03-07/08):**
+- [x] RenderBackend abstraction (CanvasBackend — 2026-03-07)
+- [x] PDF export pipeline basic shapes/fills (2026-03-07)
+- [x] Unified element model: @opendockit/elements (2026-03-07)
+- [x] Unified render utilities: @opendockit/render (2026-03-07)
+- [x] PDF rendering package: @opendockit/pdf (2026-03-07)
+- [x] Cross-format text search (2026-03-08)
+- [x] Clipboard serialize/deserialize (2026-03-08)
+- [x] Batch PPTX→PDF conversion script (2026-03-08)
+- [x] Unified viewer (PPTX + PDF format detection) (2026-03-08)
+
+**Still deferred:**
 - [ ] Full ChartML parser and renderer (bar, pie, line, scatter, combo) — cached image fallback already renders chart previews (2026-02-26)
 - [ ] CanvasKit WASM integration (3D effects, reflections, advanced filters)
 - [ ] Slide transitions (fade, push, wipe, etc.)
-- [x] RenderBackend abstraction (CanvasBackend implemented — 2026-03-07)
-- [x] PDF export pipeline (PPTX -> PDF via ContentStreamBuilder) — basic shapes/fills, no text/images yet (2026-03-07)
-- [ ] PDFBackend full fidelity (initial implementation done, gaps tracked in Code Debt)
-- [ ] PDF export: gradient shading objects for gradient backgrounds and shape fills
-- [ ] PDF export: image XObject embedding for picture backgrounds, shape picture fills, and picture elements
-- [ ] PDF export: connector line rendering
-- [ ] PDF export: table rendering
-- [ ] PDF export: text rendering with font embedding/subsetting
 - [ ] SVG export
 
 ### Phase 5: DOCX
@@ -241,15 +242,3 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [x] Table row auto-height (rows expand to fit content text — 2026-02-25)
 - [ ] Media LRU cache size limits (currently unbounded)
 - [x] Text direction `vert` attribute parsed + rendered (2026-02-25)
-
-### PDFBackend Gaps (packages/render/src/pdf-backend.ts)
-
-- [ ] `setTransform` should track cumulative CTM and emit inverse + new (currently emits cm which concatenates, not replaces)
-- [ ] Track current path point for accurate quadratic-to-cubic bezier conversion
-- [ ] Implement `arcTo` via tangent circle computation (currently approximated with lineTo)
-- [ ] Wire image XObject embedding for `drawImage` (currently emits placeholder Do operator)
-- [ ] Implement PDF tiling patterns for `createPattern` (currently returns null)
-- [ ] globalAlpha support via ExtGState resources (currently stored but not emitted)
-- [ ] globalCompositeOperation / blend modes via ExtGState (currently stored but not emitted)
-- [ ] Shadow rendering (requires path duplication + blur approximation)
-- [ ] Full PDF shading patterns for gradients (currently approximates with first color stop)

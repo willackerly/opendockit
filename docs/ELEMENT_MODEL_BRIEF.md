@@ -1,14 +1,22 @@
 # Unified Element Model — opendockit Brief
 
-_Created: 2026-02-25_
+_Created: 2026-02-25 | Updated: 2026-03-08_
+
+## Status
+
+**As of 2026-03-08, the `@opendockit/elements` package exists and is fully implemented.** The "What opendockit Needs to Build" items below are complete. See `packages/pdf-signer/src/elements/types.ts` for the canonical type definitions (re-exported from `@opendockit/elements`).
+
+The PPTX→Elements bridge (`packages/pptx/src/elements/`) is complete. The `@opendockit/render` package provides `FontMetricsDB`, color utilities, and matrix math. The `PDFBackend` (`packages/render/src/pdf-backend.ts`) is complete for Wave 2 scope.
+
+See `docs/plans/fan-out-strategy.md` for current status of Waves 3–4 (text, images, gradients in PDF export).
+
+---
 
 ## Context
 
-pdfbox-ts is building a **Unified Element Model** — a format-agnostic representation of positioned content on fixed-size pages. The full plan lives in `pdfbox-ts/docs/ELEMENT_MODEL_PLAN.md`.
+pdfbox-ts built a **Unified Element Model** — a format-agnostic representation of positioned content on fixed-size pages. The types now live in `packages/pdf-signer/src/elements/types.ts` and are published as `@opendockit/elements`.
 
-The same model is designed to work for both **PDF pages** and **PPTX slides**, since both are fundamentally fixed-size canvases with positioned elements (text, shapes, images).
-
-This document tracks what opendockit needs to do to participate.
+The model works for both **PDF pages** and **PPTX slides**, since both are fundamentally fixed-size canvases with positioned elements (text, shapes, images).
 
 ---
 
@@ -26,19 +34,17 @@ The parser, Canvas2D renderer, and font system do NOT need to change.
 
 ---
 
-## What opendockit Needs to Build
+## What opendockit Built (Completed 2026-03-08)
 
-### 1. Import shared PageModel types
+### 1. Import shared PageModel types — DONE
 
-When pdfbox-ts extracts `src/elements/` to `@dockit/elements`, import the types:
+Types live in `@opendockit/elements` (published from `packages/pdf-signer/src/elements/types.ts`):
 
 ```typescript
-import type { PageModel, PageElement, TextElement, ShapeElement } from '@dockit/elements';
+import type { PageModel, PageElement, TextElement, ShapeElement } from '@opendockit/elements';
 ```
 
-Until then, can copy the interfaces (they're ~150 LOC of pure TypeScript types).
-
-### 2. SlideElementIR → PageModel bridge (~200 LOC)
+### 2. SlideElementIR → PageModel bridge — DONE (~200 LOC in `packages/pptx/src/elements/`)
 
 Map existing IR to the shared model:
 
@@ -76,7 +82,7 @@ Import multiplies group transforms into children (absolute positions). The origi
 group transform is stored in `source.groupTransform` + `GroupElement.groupTransform`
 for reconstructing nested XML on export.
 
-### 3. Wire interaction layer into SlideViewport
+### 3. Wire interaction layer into SlideViewport — FUTURE (Wave 3+)
 
 Import shared interaction components (DOM overlay, hit tester, selection manager) and wire into the existing `SlideViewport`:
 
@@ -85,27 +91,29 @@ Import shared interaction components (DOM overlay, hit tester, selection manager
 - Add `SlideKit.getSlideElements()` API
 - Add interaction events: `onElementSelect`, `onElementHover`, `onElementMove`
 
-### 4. PPTX write-back (future)
+### 4. PPTX write-back — PARTIAL (edit pipeline complete, PageModel delta write-back future)
 
-When editing is needed:
-- `PageModel` changes → update `SlideElementIR`
-- `SlideElementIR` changes → mutate OOXML DrawingML XML
-- Rebuild ZIP and save
+PPTX edit pipeline is complete (Wave 0, 2026-02-27):
+- `EditablePresentation` + `EditableSlideKit` + save pipeline
+- `getDirtyParts()` → `patchPartXml()` → `OpcPackageWriter.build()`
 
-This is the most complex piece and should be deferred until the read-only interaction layer is solid.
+PageModel-level interaction (drag handles, resize) is deferred until Wave 3 interaction layer.
 
 ---
 
-## Timeline
+## Timeline (Updated 2026-03-08)
 
-| Phase | pdfbox-ts | opendockit |
-|-------|-----------|------------|
-| **Now** | Element model types + evaluator instrumentation | Nothing (keep shipping PPTX features) |
-| **After Phase 1** | Redaction v2, interaction layer | Import types, build IR→PageModel bridge |
-| **After Phase 3** | Extract shared package | Import interaction layer, wire into SlideViewport |
-| **Stretch** | Text editing, PDF write-back | Text editing, PPTX write-back |
-
-opendockit should continue its current roadmap (Phase 3.5 diagnostics, charts, etc.) — the element model work is additive and doesn't block anything.
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Element model types | **Done** | `@opendockit/elements` published |
+| PPTX edit pipeline | **Done** | `EditablePresentation`, save pipeline, round-trip tests |
+| IR→PageModel bridge | **Done** | `packages/pptx/src/elements/` |
+| RenderBackend + CanvasBackend | **Done** | All 10 renderers migrated |
+| PDFBackend (shapes, paths) | **Done** | Wave 2 scope |
+| PDF export text | In Progress | Wave 3 |
+| PDF export images, gradients | Planned | Wave 3 |
+| DOM overlay interaction layer | Planned | Wave 4 |
+| Text editing, write-back | Stretch | Wave 4+ |
 
 ---
 

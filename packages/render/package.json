@@ -19,6 +19,9 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist *.tsbuildinfo"
   },
+  "dependencies": {
+    "@opendockit/core": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"

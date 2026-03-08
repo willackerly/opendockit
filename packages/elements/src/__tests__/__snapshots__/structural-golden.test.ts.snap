@@ -1,0 +1,339 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`structural golden: clipboard round-trip > mixed element set: types and positions snapshot (IDs excluded) 1`] = `
+[
+  {
+    "height": 50,
+    "type": "shape",
+    "width": 50,
+    "x": 0,
+    "y": 0,
+  },
+  {
+    "height": 20,
+    "type": "text",
+    "width": 100,
+    "x": 60,
+    "y": 0,
+  },
+  {
+    "height": 50,
+    "type": "image",
+    "width": 50,
+    "x": 0,
+    "y": 60,
+  },
+]
+`;
+
+exports[`structural golden: clipboard round-trip > shape serialization snapshot (source bag stripped) 1`] = `
+{
+  "elements": [
+    {
+      "cornerRadius": undefined,
+      "fill": {
+        "color": {
+          "b": 0,
+          "g": 0,
+          "r": 255,
+        },
+        "stops": undefined,
+        "type": "solid",
+      },
+      "height": 60,
+      "id": "s1",
+      "index": "0",
+      "locked": false,
+      "opacity": 1,
+      "parentId": null,
+      "rotation": 0,
+      "shapeType": "rectangle",
+      "stroke": {
+        "color": {
+          "b": 0,
+          "g": 0,
+          "r": 0,
+        },
+        "dashArray": undefined,
+        "width": 2,
+      },
+      "type": "shape",
+      "width": 80,
+      "x": 15,
+      "y": 25,
+    },
+  ],
+  "sourceFormat": "pptx",
+  "sourcePage": 0,
+}
+`;
+
+exports[`structural golden: clipboard round-trip > text element serialization snapshot preserves paragraphs 1`] = `
+{
+  "elements": [
+    {
+      "height": 40,
+      "id": "t1",
+      "index": "0",
+      "locked": false,
+      "opacity": 1,
+      "paragraphs": [
+        {
+          "align": undefined,
+          "runs": [
+            {
+              "color": {
+                "b": 0,
+                "g": 0,
+                "r": 0,
+              },
+              "fontFamily": "Helvetica",
+              "fontSize": 12,
+              "height": 40,
+              "text": "Hello World",
+              "width": 200,
+              "x": 0,
+              "y": 0,
+            },
+          ],
+        },
+      ],
+      "parentId": null,
+      "rotation": 0,
+      "type": "text",
+      "width": 200,
+      "x": 0,
+      "y": 0,
+    },
+  ],
+  "sourceFormat": "pptx",
+  "sourcePage": 0,
+}
+`;
+
+exports[`structural golden: spatial queries > boundingBox of multiple elements snapshot 1`] = `
+{
+  "height": 390,
+  "width": 390,
+  "x": 10,
+  "y": 10,
+}
+`;
+
+exports[`structural golden: spatial queries > extractTextInRect from page elements snapshot 1`] = `
+"First line
+Second line"
+`;
+
+exports[`structural golden: spatial queries > getBounds snapshot for text element 1`] = `
+{
+  "height": 30,
+  "width": 200,
+  "x": 10,
+  "y": 20,
+}
+`;
+
+exports[`structural golden: spatial queries > getOverlapping finds all elements in a large rect (snapshot) 1`] = `
+[
+  "s1",
+  "t1",
+]
+`;
+
+exports[`structural golden: spatial queries > queryElementsInRect snapshot for partial coverage rect 1`] = `
+[
+  {
+    "id": "s1",
+    "type": "shape",
+  },
+  {
+    "id": "t1",
+    "type": "text",
+  },
+]
+`;
+
+exports[`structural golden: spatial queries > queryTextInRect returns only text elements (not shapes or images) 1`] = `
+[
+  "t1",
+]
+`;
+
+exports[`structural golden: text search > basic "Hello" search result structure matches snapshot 1`] = `
+[
+  {
+    "bounds": {
+      "height": 30,
+      "width": 90.90909090909092,
+      "x": 10,
+      "y": 20,
+    },
+    "elementId": "t1",
+    "matchEnd": 5,
+    "matchStart": 0,
+    "pageIndex": 0,
+    "text": "Hello World",
+  },
+  {
+    "bounds": {
+      "height": 30,
+      "width": 90.90909090909092,
+      "x": 10,
+      "y": 20,
+    },
+    "elementId": "t3",
+    "matchEnd": 5,
+    "matchStart": 0,
+    "pageIndex": 1,
+    "text": "Hello again",
+  },
+]
+`;
+
+exports[`structural golden: text search > case-insensitive search for "hello" matches snapshot 1`] = `
+[
+  {
+    "bounds": {
+      "height": 30,
+      "width": 90.90909090909092,
+      "x": 10,
+      "y": 20,
+    },
+    "elementId": "t1",
+    "matchEnd": 5,
+    "matchStart": 0,
+    "pageIndex": 0,
+    "text": "Hello World",
+  },
+  {
+    "bounds": {
+      "height": 30,
+      "width": 90.90909090909092,
+      "x": 10,
+      "y": 20,
+    },
+    "elementId": "t3",
+    "matchEnd": 5,
+    "matchStart": 0,
+    "pageIndex": 1,
+    "text": "Hello again",
+  },
+]
+`;
+
+exports[`structural golden: text search > case-sensitive search for "Hello" matches snapshot 1`] = `
+[
+  {
+    "bounds": {
+      "height": 30,
+      "width": 90.90909090909092,
+      "x": 10,
+      "y": 20,
+    },
+    "elementId": "t1",
+    "matchEnd": 5,
+    "matchStart": 0,
+    "pageIndex": 0,
+    "text": "Hello World",
+  },
+  {
+    "bounds": {
+      "height": 30,
+      "width": 90.90909090909092,
+      "x": 10,
+      "y": 20,
+    },
+    "elementId": "t3",
+    "matchEnd": 5,
+    "matchStart": 0,
+    "pageIndex": 1,
+    "text": "Hello again",
+  },
+]
+`;
+
+exports[`structural golden: text search > multi-run text element: partial match within first run only 1`] = `
+[
+  {
+    "bounds": {
+      "height": 30,
+      "width": 49.99999999999999,
+      "x": 10,
+      "y": 20,
+    },
+    "elementId": "mr1",
+    "matchEnd": 5,
+    "matchStart": 0,
+    "pageIndex": 0,
+    "text": "Hello World",
+  },
+]
+`;
+
+exports[`structural golden: text search > multi-run text element: search spanning both runs matches snapshot 1`] = `
+[
+  {
+    "bounds": {
+      "height": 30,
+      "width": 110,
+      "x": 10,
+      "y": 20,
+    },
+    "elementId": "mr1",
+    "matchEnd": 11,
+    "matchStart": 0,
+    "pageIndex": 0,
+    "text": "Hello World",
+  },
+]
+`;
+
+exports[`structural golden: text search > regex search for "H[ea]llo" matches snapshot 1`] = `
+[
+  {
+    "bounds": {
+      "height": 30,
+      "width": 90.90909090909092,
+      "x": 10,
+      "y": 20,
+    },
+    "elementId": "t1",
+    "matchEnd": 5,
+    "matchStart": 0,
+    "pageIndex": 0,
+    "text": "Hello World",
+  },
+  {
+    "bounds": {
+      "height": 30,
+      "width": 90.90909090909092,
+      "x": 10,
+      "y": 20,
+    },
+    "elementId": "t3",
+    "matchEnd": 5,
+    "matchStart": 0,
+    "pageIndex": 1,
+    "text": "Hello again",
+  },
+]
+`;
+
+exports[`structural golden: text search > whole-word search for "fox" matches snapshot 1`] = `
+[
+  {
+    "bounds": {
+      "height": 30,
+      "width": 13.95348837209302,
+      "x": 84.4186046511628,
+      "y": 60,
+    },
+    "elementId": "t2",
+    "matchEnd": 19,
+    "matchStart": 16,
+    "pageIndex": 0,
+    "text": "The quick brown fox jumps over the lazy dog",
+  },
+]
+`;

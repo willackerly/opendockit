@@ -23,7 +23,7 @@
 
 ```typescript
 interface RenderContext {
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+  backend: RenderBackend;  // CanvasBackend or PDFBackend — do NOT use ctx directly
   dpiScale: number;
   theme: ThemeIR;
   mediaCache: MediaCache;
@@ -31,6 +31,8 @@ interface RenderContext {
   capabilityRegistry: CapabilityRegistry;
 }
 ```
+
+**RenderBackend migration (complete 2026-03-07):** All 10 renderers now use `rctx.backend: RenderBackend` instead of `rctx.ctx: CanvasRenderingContext2D`. Never add direct Canvas2D calls (`rctx.ctx.*`) to any renderer — always go through `rctx.backend.*`. `CanvasBackend` is a 1:1 passthrough to Canvas2D. `PDFBackend` produces PDF content streams. SlideKit wraps the canvas context with `new CanvasBackend(ctx)` before passing it into renderers.
 
 **Dependencies:**
 
