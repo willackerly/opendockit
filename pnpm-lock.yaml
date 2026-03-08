@@ -122,6 +122,9 @@ importers:
       '@opendockit/elements':
         specifier: workspace:*
         version: link:../elements
+      '@opendockit/pdf-signer':
+        specifier: workspace:*
+        version: link:../pdf-signer
     devDependencies:
       jszip:
         specifier: ^3.10.0
