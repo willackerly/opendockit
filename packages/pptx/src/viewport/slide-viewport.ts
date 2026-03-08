@@ -62,6 +62,8 @@ import { parseSlideMaster } from '../parser/slide-master.js';
 import { resolveChartFallbacks } from '../parser/chart-fallback.js';
 import { renderSlide } from '../renderer/index.js';
 import { scanXmlForTypefaces } from './font-discovery.js';
+import { exportPresentationToPdf } from '../export/pdf-exporter.js';
+import type { PdfExportOptions, PdfExportResult } from '../export/pdf-exporter.js';
 
 // ---------------------------------------------------------------------------
 // Public interfaces
@@ -458,6 +460,35 @@ export class SlideKit {
   }
 
   /**
+   * Export the loaded presentation to PDF.
+   *
+   * Parses all slides (if not already cached) and renders them into a PDF
+   * document using the same slide IR as screen rendering. The PDF is returned
+   * as raw bytes suitable for download or further processing.
+   *
+   * This is the first cross-format feature in OpenDocKit: PPTX -> PDF.
+   *
+   * @param options - Optional export configuration (DPI, notes, etc.)
+   * @returns PDF bytes and metadata (page count)
+   */
+  async exportPDF(options?: PdfExportOptions): Promise<PdfExportResult> {
+    this._assertNotDisposed();
+    this._assertLoaded();
+
+    const pres = this._presentation!;
+
+    // Parse all slides (lazy — skips already-cached slides)
+    const allSlides: EnrichedSlideData[] = [];
+    for (let i = 0; i < pres.slideCount; i++) {
+      const enriched = await this._getOrParseSlide(i);
+      allSlides.push(enriched);
+    }
+
+    // Delegate to the PDF exporter
+    return exportPresentationToPdf(pres, allSlides, options);
+  }
+
+  /**
    * Get the speaker notes text for a specific slide.
    *
    * Lazily parses the slide (and its notes) if not already cached.
@@ -595,9 +626,7 @@ export class SlideKit {
    * @param slideIndex - Zero-based slide index.
    * @returns Object with elements array, slide dimensions in EMU, and layer info.
    */
-  async getSlideElements(
-    slideIndex: number
-  ): Promise<{
+  async getSlideElements(slideIndex: number): Promise<{
     elements: { element: SlideElementIR; layer: 'master' | 'layout' | 'slide' }[];
     slideWidth: number;
     slideHeight: number;

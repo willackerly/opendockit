@@ -20,7 +20,8 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@opendockit/core": "workspace:*"
+    "@opendockit/core": "workspace:*",
+    "@opendockit/pdf-signer": "workspace:*"
   },
   "devDependencies": {
     "jszip": "^3.10.0",

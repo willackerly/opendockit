@@ -43,3 +43,7 @@ export { renderSlide, renderBackground } from './renderer/index.js';
 export { EditableSlideKit } from './edit/index.js';
 export type { EditableLoadResult } from './edit/index.js';
 export { buildEditablePresentation, savePptx } from './edit/index.js';
+
+// Export API (PPTX -> PDF)
+export { exportPresentationToPdf } from './export/index.js';
+export type { PdfExportOptions, PdfExportResult } from './export/index.js';
