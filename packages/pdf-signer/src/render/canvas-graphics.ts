@@ -14,7 +14,7 @@
 
 import { OPS } from './ops.js';
 import type { OperatorList } from './operator-list.js';
-import type { NativeFont, Glyph, NativeImage } from './evaluator.js';
+import type { NativeFont, Glyph, NativeImage, NativeShading } from './evaluator.js';
 
 // ---------------------------------------------------------------------------
 // Graphics state
@@ -95,6 +95,9 @@ export class NativeCanvasGraphics {
   // Current path (for deferred clip)
   private pendingClip: 'nonzero' | 'evenodd' | null = null;
 
+  // Track current point for curveTo2 (v operator)
+  private currentPoint: [number, number] = [0, 0];
+
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
   }
@@ -117,65 +120,161 @@ export class NativeCanvasGraphics {
   private dispatch(fn: number, args: any[] | null): void {
     switch (fn) {
       // ---- Graphics state ----
-      case OPS.save: this.save(); break;
-      case OPS.restore: this.restore(); break;
-      case OPS.transform: this.transform(args!); break;
-      case OPS.setLineWidth: this.setLineWidth(args![0]); break;
-      case OPS.setLineCap: this.setLineCap(args![0]); break;
-      case OPS.setLineJoin: this.setLineJoin(args![0]); break;
-      case OPS.setMiterLimit: this.setMiterLimit(args![0]); break;
-      case OPS.setDash: this.setDash(args![0], args![1]); break;
-      case OPS.setGState: this.setGState(args![0]); break;
+      case OPS.save:
+        this.save();
+        break;
+      case OPS.restore:
+        this.restore();
+        break;
+      case OPS.transform:
+        this.transform(args!);
+        break;
+      case OPS.setLineWidth:
+        this.setLineWidth(args![0]);
+        break;
+      case OPS.setLineCap:
+        this.setLineCap(args![0]);
+        break;
+      case OPS.setLineJoin:
+        this.setLineJoin(args![0]);
+        break;
+      case OPS.setMiterLimit:
+        this.setMiterLimit(args![0]);
+        break;
+      case OPS.setDash:
+        this.setDash(args![0], args![1]);
+        break;
+      case OPS.setGState:
+        this.setGState(args![0]);
+        break;
 
       // ---- Path construction ----
-      case OPS.moveTo: this.ctx.moveTo(args![0], args![1]); break;
-      case OPS.lineTo: this.ctx.lineTo(args![0], args![1]); break;
-      case OPS.curveTo: this.ctx.bezierCurveTo(args![0], args![1], args![2], args![3], args![4], args![5]); break;
+      case OPS.moveTo:
+        this.ctx.moveTo(args![0], args![1]);
+        this.currentPoint = [args![0], args![1]];
+        break;
+      case OPS.lineTo:
+        this.ctx.lineTo(args![0], args![1]);
+        this.currentPoint = [args![0], args![1]];
+        break;
+      case OPS.curveTo:
+        this.ctx.bezierCurveTo(args![0], args![1], args![2], args![3], args![4], args![5]);
+        this.currentPoint = [args![4], args![5]];
+        break;
       case OPS.curveTo2: {
-        // v: first control point is current point (not provided)
-        // Canvas doesn't have this — we'd need to track current point.
-        // Approximation: use quadraticCurveTo
-        this.ctx.quadraticCurveTo(args![0], args![1], args![2], args![3]);
+        // v: first control point is current point
+        // args = [cp2x, cp2y, endX, endY]
+        const cp1 = this.currentPoint;
+        this.ctx.bezierCurveTo(cp1[0], cp1[1], args![0], args![1], args![2], args![3]);
+        this.currentPoint = [args![2], args![3]];
         break;
       }
       case OPS.curveTo3: {
         // y: second control point equals endpoint
         this.ctx.bezierCurveTo(args![0], args![1], args![2], args![3], args![2], args![3]);
+        this.currentPoint = [args![2], args![3]];
         break;
       }
-      case OPS.closePath: this.ctx.closePath(); break;
-      case OPS.rectangle: this.ctx.rect(args![0], args![1], args![2], args![3]); break;
+      case OPS.closePath:
+        this.ctx.closePath();
+        break;
+      case OPS.rectangle:
+        this.ctx.rect(args![0], args![1], args![2], args![3]);
+        this.currentPoint = [args![0], args![1]];
+        break;
 
       // ---- Path painting ----
-      case OPS.stroke: this.strokePath(); break;
-      case OPS.closeStroke: this.ctx.closePath(); this.strokePath(); break;
-      case OPS.fill: this.fillPath('nonzero'); break;
-      case OPS.eoFill: this.fillPath('evenodd'); break;
-      case OPS.fillStroke: this.fillPath('nonzero'); this.strokePath(); break;
-      case OPS.eoFillStroke: this.fillPath('evenodd'); this.strokePath(); break;
-      case OPS.closeFillStroke: this.ctx.closePath(); this.fillPath('nonzero'); this.strokePath(); break;
-      case OPS.closeEOFillStroke: this.ctx.closePath(); this.fillPath('evenodd'); this.strokePath(); break;
-      case OPS.endPath: this.endPath(); break;
-      case OPS.clip: this.pendingClip = 'nonzero'; break;
-      case OPS.eoClip: this.pendingClip = 'evenodd'; break;
+      case OPS.stroke:
+        this.strokePath();
+        break;
+      case OPS.closeStroke:
+        this.ctx.closePath();
+        this.strokePath();
+        break;
+      case OPS.fill:
+        this.fillPath('nonzero');
+        break;
+      case OPS.eoFill:
+        this.fillPath('evenodd');
+        break;
+      case OPS.fillStroke:
+        this.fillPath('nonzero');
+        this.strokePath();
+        break;
+      case OPS.eoFillStroke:
+        this.fillPath('evenodd');
+        this.strokePath();
+        break;
+      case OPS.closeFillStroke:
+        this.ctx.closePath();
+        this.fillPath('nonzero');
+        this.strokePath();
+        break;
+      case OPS.closeEOFillStroke:
+        this.ctx.closePath();
+        this.fillPath('evenodd');
+        this.strokePath();
+        break;
+      case OPS.endPath:
+        this.endPath();
+        break;
+      case OPS.clip:
+        this.pendingClip = 'nonzero';
+        break;
+      case OPS.eoClip:
+        this.pendingClip = 'evenodd';
+        break;
 
       // ---- Text ----
-      case OPS.beginText: this.beginText(); break;
-      case OPS.endText: this.endText(); break;
-      case OPS.setCharSpacing: this.state.charSpacing = args![0]; break;
-      case OPS.setWordSpacing: this.state.wordSpacing = args![0]; break;
-      case OPS.setHScale: this.state.horizontalScaling = args![0]; break;
-      case OPS.setLeading: this.state.textLeading = args![0]; break;
-      case OPS.setFont: this.setFont(args![0], args![1], args![2]); break;
-      case OPS.setTextRenderingMode: this.state.textRenderingMode = args![0]; break;
-      case OPS.setTextRise: this.state.textRise = args![0]; break;
-      case OPS.moveText: this.moveText(args![0], args![1]); break;
-      case OPS.setLeadingMoveText: this.setLeadingMoveText(args![0], args![1]); break;
-      case OPS.setTextMatrix: this.setTextMatrix(args!); break;
-      case OPS.nextLine: this.nextLine(); break;
-      case OPS.showText: this.showText(args![0]); break;
-      case OPS.showSpacedText: this.showSpacedText(args![0]); break;
-      case OPS.nextLineShowText: this.nextLine(); this.showText(args![0]); break;
+      case OPS.beginText:
+        this.beginText();
+        break;
+      case OPS.endText:
+        this.endText();
+        break;
+      case OPS.setCharSpacing:
+        this.state.charSpacing = args![0];
+        break;
+      case OPS.setWordSpacing:
+        this.state.wordSpacing = args![0];
+        break;
+      case OPS.setHScale:
+        this.state.horizontalScaling = args![0];
+        break;
+      case OPS.setLeading:
+        this.state.textLeading = args![0];
+        break;
+      case OPS.setFont:
+        this.setFont(args![0], args![1], args![2]);
+        break;
+      case OPS.setTextRenderingMode:
+        this.state.textRenderingMode = args![0];
+        break;
+      case OPS.setTextRise:
+        this.state.textRise = args![0];
+        break;
+      case OPS.moveText:
+        this.moveText(args![0], args![1]);
+        break;
+      case OPS.setLeadingMoveText:
+        this.setLeadingMoveText(args![0], args![1]);
+        break;
+      case OPS.setTextMatrix:
+        this.setTextMatrix(args!);
+        break;
+      case OPS.nextLine:
+        this.nextLine();
+        break;
+      case OPS.showText:
+        this.showText(args![0]);
+        break;
+      case OPS.showSpacedText:
+        this.showSpacedText(args![0]);
+        break;
+      case OPS.nextLineShowText:
+        this.nextLine();
+        this.showText(args![0]);
+        break;
       case OPS.nextLineSetSpacingShowText: {
         this.state.wordSpacing = args![0];
         this.state.charSpacing = args![1];
@@ -185,12 +284,30 @@ export class NativeCanvasGraphics {
       }
 
       // ---- Color ----
-      case OPS.setStrokeGray: this.state.strokeColor = grayToCSS(args![0]); this.applyStrokeColor(); break;
-      case OPS.setFillGray: this.state.fillColor = grayToCSS(args![0]); this.applyFillColor(); break;
-      case OPS.setStrokeRGBColor: this.state.strokeColor = rgbToCSS(args![0], args![1], args![2]); this.applyStrokeColor(); break;
-      case OPS.setFillRGBColor: this.state.fillColor = rgbToCSS(args![0], args![1], args![2]); this.applyFillColor(); break;
-      case OPS.setStrokeCMYKColor: this.state.strokeColor = cmykToCSS(args![0], args![1], args![2], args![3]); this.applyStrokeColor(); break;
-      case OPS.setFillCMYKColor: this.state.fillColor = cmykToCSS(args![0], args![1], args![2], args![3]); this.applyFillColor(); break;
+      case OPS.setStrokeGray:
+        this.state.strokeColor = grayToCSS(args![0]);
+        this.applyStrokeColor();
+        break;
+      case OPS.setFillGray:
+        this.state.fillColor = grayToCSS(args![0]);
+        this.applyFillColor();
+        break;
+      case OPS.setStrokeRGBColor:
+        this.state.strokeColor = rgbToCSS(args![0], args![1], args![2]);
+        this.applyStrokeColor();
+        break;
+      case OPS.setFillRGBColor:
+        this.state.fillColor = rgbToCSS(args![0], args![1], args![2]);
+        this.applyFillColor();
+        break;
+      case OPS.setStrokeCMYKColor:
+        this.state.strokeColor = cmykToCSS(args![0], args![1], args![2], args![3]);
+        this.applyStrokeColor();
+        break;
+      case OPS.setFillCMYKColor:
+        this.state.fillColor = cmykToCSS(args![0], args![1], args![2], args![3]);
+        this.applyFillColor();
+        break;
       case OPS.setStrokeColor: {
         const c = args ?? [];
         if (c.length === 1) this.state.strokeColor = grayToCSS(c[0]);
@@ -208,22 +325,43 @@ export class NativeCanvasGraphics {
         break;
       }
 
+      // ---- Shading ----
+      case OPS.shadingFill:
+        this.shadingFill(args![0]);
+        break;
+
       // ---- XObjects ----
-      case OPS.paintImageXObject: this.paintImage(args![0]); break;
-      case OPS.paintInlineImageXObject: this.paintImage(args![0]); break;
-      case OPS.paintFormXObjectBegin: this.paintFormBegin(args![0], args![1]); break;
-      case OPS.paintFormXObjectEnd: this.paintFormEnd(); break;
+      case OPS.paintImageXObject:
+        this.paintImage(args![0]);
+        break;
+      case OPS.paintInlineImageXObject:
+        this.paintImage(args![0]);
+        break;
+      case OPS.paintFormXObjectBegin:
+        this.paintFormBegin(args![0], args![1]);
+        break;
+      case OPS.paintFormXObjectEnd:
+        this.paintFormEnd();
+        break;
 
       // ---- Marked content (no-op for rendering) ----
-      case OPS.beginMarkedContent: break;
-      case OPS.beginMarkedContentProps: break;
-      case OPS.endMarkedContent: break;
-      case OPS.markPoint: break;
-      case OPS.markPointProps: break;
-      case OPS.beginCompat: break;
-      case OPS.endCompat: break;
+      case OPS.beginMarkedContent:
+        break;
+      case OPS.beginMarkedContentProps:
+        break;
+      case OPS.endMarkedContent:
+        break;
+      case OPS.markPoint:
+        break;
+      case OPS.markPointProps:
+        break;
+      case OPS.beginCompat:
+        break;
+      case OPS.endCompat:
+        break;
 
-      default: break; // Unknown op — skip
+      default:
+        break; // Unknown op — skip
     }
   }
 
@@ -389,8 +527,9 @@ export class NativeCanvasGraphics {
     const renderMode = this.state.textRenderingMode;
 
     // Skip invisible text (renderMode 3 = invisible)
-    const shouldFill = (renderMode % 2 === 0) || renderMode >= 4;
-    const shouldStroke = renderMode === 1 || renderMode === 2 || renderMode === 5 || renderMode === 6;
+    const shouldFill = renderMode % 2 === 0 || renderMode >= 4;
+    const shouldStroke =
+      renderMode === 1 || renderMode === 2 || renderMode === 5 || renderMode === 6;
     if (!shouldFill && !shouldStroke) return;
 
     for (const glyph of glyphs) {
@@ -439,7 +578,7 @@ export class NativeCanvasGraphics {
     y: number,
     fontSize: number,
     fill: boolean,
-    stroke: boolean,
+    stroke: boolean
   ): void {
     if (!text) return;
 
@@ -478,6 +617,58 @@ export class NativeCanvasGraphics {
   }
 
   // ================================================================
+  // Shading
+  // ================================================================
+
+  private shadingFill(shading: NativeShading | null): void {
+    if (!shading) return;
+
+    const ctx = this.ctx;
+    ctx.save();
+
+    try {
+      let gradient: CanvasGradient;
+
+      if (shading.type === 'linear') {
+        // Linear gradient: coords = [x0, y0, x1, y1]
+        gradient = ctx.createLinearGradient(
+          shading.coords[0],
+          shading.coords[1],
+          shading.coords[2],
+          shading.coords[3]
+        );
+      } else if (shading.type === 'radial') {
+        // Radial gradient: coords = [x0, y0, r0, x1, y1, r1]
+        gradient = ctx.createRadialGradient(
+          shading.coords[0],
+          shading.coords[1],
+          shading.coords[2],
+          shading.coords[3],
+          shading.coords[4],
+          shading.coords[5]
+        );
+      } else {
+        ctx.restore();
+        return;
+      }
+
+      // Add color stops
+      for (const stop of shading.stops) {
+        gradient.addColorStop(stop.offset, stop.color);
+      }
+
+      ctx.fillStyle = gradient;
+      // Fill the entire page area (shading fills are unbounded by default)
+      // Use a very large rect to cover the visible area
+      ctx.fillRect(-10000, -10000, 20000, 20000);
+    } catch {
+      // Skip unsupported shadings
+    }
+
+    ctx.restore();
+  }
+
+  // ================================================================
   // Images
   // ================================================================
 
@@ -485,52 +676,53 @@ export class NativeCanvasGraphics {
     if (!image) return;
 
     const ctx = this.ctx;
-    const { width, height, data, isJpeg, decoded } = image;
+    const { width, height, data, isJpeg } = image;
 
-    if (isJpeg && !decoded) {
-      // JPEG not yet decoded (no pre-decode pass ran).
-      // This should not happen when NativeRenderer is used — it runs decodeJpegImages()
-      // before executing the op list. But if execute() is called directly, skip gracefully.
-      return;
-    }
-
-    // RGBA pixel data → ImageData → putImageData via temp canvas
     try {
-      // PDF image space: origin at bottom-left, 1 unit = full image
-      // Current transform positions the image in page space
       ctx.save();
 
       // PDF images are drawn in a 1×1 unit square that the CTM scales.
-      // The CTM is already applied. We need to flip Y because our pixel
-      // data is top-down but PDF image space is bottom-up.
+      // Flip Y because pixel data is top-down but PDF image space is bottom-up.
       ctx.transform(1, 0, 0, -1, 0, 1);
 
-      if (decoded) {
-        // Pre-decoded canvas element (e.g. from async JPEG decode)
-        ctx.drawImage(decoded as any, 0, 0, 1, 1);
-      } else {
-        // Scale from 1×1 to pixel dimensions for putImageData
-        ctx.scale(1 / width, 1 / height);
-
-        // Create ImageData and draw
-        const imageData = new ImageData(
-          new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength),
-          width,
-          height,
-        );
-
-        // Use a temp canvas for the image (putImageData ignores transforms)
-        const tempCanvas = createOffscreenCanvas(width, height);
-        if (tempCanvas) {
-          const tempCtx = tempCanvas.getContext('2d')!;
-          tempCtx.putImageData(imageData, 0, 0);
-          ctx.drawImage(tempCanvas as any, 0, 0);
+      if (isJpeg) {
+        // JPEG: decode raw bytes using node-canvas Image (sync)
+        const jpegImage = decodeJpegSync(data);
+        if (jpegImage) {
+          ctx.drawImage(jpegImage as any, 0, 0, 1, 1);
+          ctx.restore();
+          return;
         }
+        // Fallback: skip if decode fails
+        ctx.restore();
+        return;
+      }
+
+      // Scale from 1×1 to pixel dimensions for putImageData
+      ctx.scale(1 / width, 1 / height);
+
+      // Create ImageData and draw via temp canvas (putImageData ignores transforms)
+      const imageData = new ImageData(
+        new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength),
+        width,
+        height
+      );
+
+      const tempCanvas = createOffscreenCanvas(width, height);
+      if (tempCanvas) {
+        const tempCtx = tempCanvas.getContext('2d')!;
+        tempCtx.putImageData(imageData, 0, 0);
+        ctx.drawImage(tempCanvas as any, 0, 0);
       }
 
       ctx.restore();
     } catch {
       // Skip images that fail to render
+      try {
+        ctx.restore();
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -608,7 +800,36 @@ function multiplyMatrices(m1: number[], m2: number[]): number[] {
 // Canvas helpers
 // ================================================================
 
-function createOffscreenCanvas(width: number, height: number): OffscreenCanvas | HTMLCanvasElement | null {
+/**
+ * Decode JPEG bytes synchronously using node-canvas's Image.
+ * In Node.js, setting img.src = Buffer is synchronous.
+ * Returns null if decoding fails or in browser environment.
+ */
+function decodeJpegSync(data: Uint8Array): any | null {
+  try {
+    // Node.js: use node-canvas Image (sync decode)
+    if (
+      typeof globalThis.OffscreenCanvas === 'undefined' &&
+      typeof process !== 'undefined' &&
+      process.versions?.node
+    ) {
+      const { Image } = require('canvas');
+      const img = new Image();
+      img.src = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+      if (img.width > 0 && img.height > 0) {
+        return img;
+      }
+    }
+  } catch {
+    // Decode failed
+  }
+  return null;
+}
+
+function createOffscreenCanvas(
+  width: number,
+  height: number
+): OffscreenCanvas | HTMLCanvasElement | null {
   // Node.js: use node-canvas if available
   if (typeof globalThis.OffscreenCanvas !== 'undefined') {
     return new OffscreenCanvas(width, height);

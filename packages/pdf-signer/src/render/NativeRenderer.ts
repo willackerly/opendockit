@@ -12,15 +12,12 @@
 
 import type { RenderOptions, RenderResult } from './types.js';
 import { evaluatePage, evaluatePageWithElements } from './evaluator.js';
-import type { NativeImage } from './evaluator.js';
 import type { PageElement } from '../elements/types.js';
 import { NativeCanvasGraphics } from './canvas-graphics.js';
 import { canvasToPng, isNodeEnvironment } from './canvas-factory.js';
 import type { COSDictionary } from '../pdfbox/cos/COSTypes.js';
 import { COSArray, COSFloat, COSInteger, COSObjectReference } from '../pdfbox/cos/COSTypes.js';
 import type { ObjectResolver } from '../document/extraction/FontDecoder.js';
-import { OPS } from './ops.js';
-import { OperatorList } from './operator-list.js';
 
 const DEFAULT_SCALE = 1.5;
 
@@ -32,10 +29,10 @@ export class NativeRenderer {
   private pages: Array<{ pageDict: COSDictionary }>;
   private resolve: ObjectResolver;
 
-  private constructor(
-    pages: Array<{ pageDict: COSDictionary }>,
-    resolve: ObjectResolver,
-  ) {
+  /** Shared font cache across all pages — avoids re-parsing fonts per page. */
+  private _fontCache: Map<string, any> | null = null;
+
+  private constructor(pages: Array<{ pageDict: COSDictionary }>, resolve: ObjectResolver) {
     this.pages = pages;
     this.resolve = resolve;
   }
@@ -49,7 +46,7 @@ export class NativeRenderer {
     if (!ctx) {
       throw new Error(
         'NativeRenderer.fromDocument() requires a native PDFDocument. ' +
-        'Use PDFRenderer for legacy documents.',
+          'Use PDFRenderer for legacy documents.'
       );
     }
 
@@ -61,8 +58,8 @@ export class NativeRenderer {
     const resolve: ObjectResolver = (ref: COSObjectReference) => ctx.resolveRef(ref);
 
     return new NativeRenderer(
-      pageList.map(p => ({ pageDict: p.pageDict })),
-      resolve,
+      pageList.map((p) => ({ pageDict: p.pageDict })),
+      resolve
     );
   }
 
@@ -72,7 +69,7 @@ export class NativeRenderer {
    */
   static fromPages(
     pages: Array<{ pageDict: COSDictionary }>,
-    resolve: ObjectResolver,
+    resolve: ObjectResolver
   ): NativeRenderer {
     return new NativeRenderer(pages, resolve);
   }
@@ -94,12 +91,10 @@ export class NativeRenderer {
   async renderPageToCanvas(
     pageIndex: number,
     canvas: HTMLCanvasElement,
-    options?: RenderOptions,
+    options?: RenderOptions
   ): Promise<{ width: number; height: number; timeMs: number }> {
     if (pageIndex < 0 || pageIndex >= this.pages.length) {
-      throw new RangeError(
-        `Page index ${pageIndex} out of range (0..${this.pages.length - 1})`,
-      );
+      throw new RangeError(`Page index ${pageIndex} out of range (0..${this.pages.length - 1})`);
     }
 
     const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -107,9 +102,10 @@ export class NativeRenderer {
     const background = options?.background ?? 'white';
     const pageDict = this.pages[pageIndex].pageDict;
 
-    const mediaBox = getMediaBox(pageDict, this.resolve);
-    const pageWidth = mediaBox[2] - mediaBox[0];
-    const pageHeight = mediaBox[3] - mediaBox[1];
+    // Use CropBox for visible dimensions (falls back to MediaBox)
+    const visibleBox = getVisibleBox(pageDict, this.resolve);
+    const pageWidth = visibleBox[2] - visibleBox[0];
+    const pageHeight = visibleBox[3] - visibleBox[1];
 
     const canvasWidth = Math.floor(pageWidth * scale);
     const canvasHeight = Math.floor(pageHeight * scale);
@@ -123,11 +119,10 @@ export class NativeRenderer {
       context.fillRect(0, 0, canvasWidth, canvasHeight);
     }
 
-    context.transform(scale, 0, 0, -scale, -mediaBox[0] * scale, mediaBox[3] * scale);
+    // Transform: scale + flip Y, offset by visible box origin
+    context.transform(scale, 0, 0, -scale, -visibleBox[0] * scale, visibleBox[3] * scale);
 
     const opList = evaluatePage(pageDict, this.resolve);
-    // Pre-decode any JPEG images (async — must happen before sync execution)
-    await decodeJpegImages(opList);
     const graphics = new NativeCanvasGraphics(context);
     graphics.execute(opList);
 
@@ -144,19 +139,17 @@ export class NativeRenderer {
    */
   async renderPage(pageIndex: number, options?: RenderOptions): Promise<RenderResult> {
     if (pageIndex < 0 || pageIndex >= this.pages.length) {
-      throw new RangeError(
-        `Page index ${pageIndex} out of range (0..${this.pages.length - 1})`,
-      );
+      throw new RangeError(`Page index ${pageIndex} out of range (0..${this.pages.length - 1})`);
     }
 
     const scale = options?.scale ?? DEFAULT_SCALE;
     const background = options?.background ?? 'white';
     const pageDict = this.pages[pageIndex].pageDict;
 
-    // Get page dimensions from /MediaBox
-    const mediaBox = getMediaBox(pageDict, this.resolve);
-    const pageWidth = mediaBox[2] - mediaBox[0];
-    const pageHeight = mediaBox[3] - mediaBox[1];
+    // Use CropBox for visible dimensions (falls back to MediaBox)
+    const visibleBox = getVisibleBox(pageDict, this.resolve);
+    const pageWidth = visibleBox[2] - visibleBox[0];
+    const pageHeight = visibleBox[3] - visibleBox[1];
 
     const canvasWidth = Math.floor(pageWidth * scale);
     const canvasHeight = Math.floor(pageHeight * scale);
@@ -173,14 +166,11 @@ export class NativeRenderer {
     // Set up viewport transform: scale + flip Y
     // PDF coordinate system: origin at bottom-left, Y goes up
     // Canvas: origin at top-left, Y goes down
-    // Transform: scale by `scale`, then translate origin to bottom-left
-    context.transform(scale, 0, 0, -scale, -mediaBox[0] * scale, mediaBox[3] * scale);
+    // Transform: scale + flip Y, offset by visible box origin
+    context.transform(scale, 0, 0, -scale, -visibleBox[0] * scale, visibleBox[3] * scale);
 
     // Evaluate page content stream → OperatorList
     const opList = evaluatePage(pageDict, this.resolve);
-
-    // Pre-decode any JPEG images (async — must happen before sync execution)
-    await decodeJpegImages(opList);
 
     // Render OperatorList to canvas
     const graphics = new NativeCanvasGraphics(context);
@@ -213,9 +203,7 @@ export class NativeRenderer {
    */
   getPageElements(pageIndex: number): PageElement[] {
     if (pageIndex < 0 || pageIndex >= this.pages.length) {
-      throw new RangeError(
-        `Page index ${pageIndex} out of range (0..${this.pages.length - 1})`,
-      );
+      throw new RangeError(`Page index ${pageIndex} out of range (0..${this.pages.length - 1})`);
     }
 
     const pageDict = this.pages[pageIndex].pageDict;
@@ -235,7 +223,7 @@ export class NativeRenderer {
 export async function renderPageNative(
   doc: any /* PDFDocument */,
   pageIndex = 0,
-  options?: RenderOptions,
+  options?: RenderOptions
 ): Promise<RenderResult> {
   const renderer = NativeRenderer.fromDocument(doc);
   return renderer.renderPage(pageIndex, options);
@@ -245,89 +233,9 @@ export async function renderPageNative(
  * Extract positioned elements from a PDFDocument page.
  * Convenience wrapper around NativeRenderer.getPageElements().
  */
-export function getPageElements(
-  doc: any /* PDFDocument */,
-  pageIndex = 0,
-): PageElement[] {
+export function getPageElements(doc: any /* PDFDocument */, pageIndex = 0): PageElement[] {
   const renderer = NativeRenderer.fromDocument(doc);
   return renderer.getPageElements(pageIndex);
-}
-
-// ---------------------------------------------------------------------------
-// JPEG image pre-decoder
-// ---------------------------------------------------------------------------
-
-/**
- * Scan an OperatorList for JPEG images and pre-decode them to canvas elements.
- * This is an async pre-processing step that runs before NativeCanvasGraphics.execute().
- *
- * Mutates the NativeImage objects in-place by setting the `decoded` field.
- * After this runs, canvas-graphics can use drawImage() for JPEG without async ops.
- */
-async function decodeJpegImages(opList: OperatorList): Promise<void> {
-  const jpegOps = [OPS.paintImageXObject, OPS.paintInlineImageXObject];
-
-  for (let i = 0; i < opList.length; i++) {
-    if (!jpegOps.includes(opList.fnArray[i] as any)) continue;
-    const args = opList.argsArray[i];
-    if (!args || !args[0]) continue;
-    const image: NativeImage = args[0];
-    if (!image.isJpeg || image.decoded) continue;
-
-    try {
-      const decoded = await decodeJpegToCanvas(image.data, image.width, image.height);
-      if (decoded) {
-        image.decoded = decoded;
-      }
-    } catch {
-      // If decode fails, canvas-graphics will skip gracefully
-    }
-  }
-}
-
-/**
- * Decode JPEG bytes to a canvas element.
- * Returns null if decoding is not possible in this environment.
- */
-async function decodeJpegToCanvas(
-  jpegBytes: Uint8Array,
-  _width: number,
-  _height: number,
-): Promise<OffscreenCanvas | HTMLCanvasElement | null> {
-  // Node.js: use node-canvas Image (loads synchronously when given a Buffer)
-  if (isNodeEnvironment) {
-    try {
-      const { createCanvas, Image } = await import('canvas');
-      const img = new Image();
-      // node-canvas Image.src = Buffer loads synchronously
-      (img as any).src = Buffer.from(jpegBytes.buffer, jpegBytes.byteOffset, jpegBytes.byteLength);
-      if (!img.width || !img.height) return null;
-      const canvas = createCanvas(img.width, img.height);
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img as any, 0, 0);
-      return canvas as any;
-    } catch {
-      return null;
-    }
-  }
-
-  // Browser: use createImageBitmap() (async, returns ImageBitmap)
-  if (typeof createImageBitmap !== 'undefined') {
-    try {
-      const blob = new Blob([jpegBytes], { type: 'image/jpeg' });
-      const bitmap = await createImageBitmap(blob);
-      // Wrap in OffscreenCanvas so drawImage(canvas, 0, 0, 1, 1) works
-      const offscreen = new OffscreenCanvas(bitmap.width, bitmap.height);
-      const ctx = offscreen.getContext('2d')!;
-      ctx.drawImage(bitmap, 0, 0);
-      bitmap.close();
-      return offscreen;
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -336,18 +244,31 @@ async function decodeJpegToCanvas(
 
 function getMediaBox(
   pageDict: COSDictionary,
-  resolve: ObjectResolver,
+  resolve: ObjectResolver
 ): [number, number, number, number] {
   let mb = pageDict.getItem('MediaBox');
   if (mb instanceof COSObjectReference) mb = resolve(mb);
   if (mb instanceof COSArray && mb.size() >= 4) {
-    return [
-      cosNum(mb, 0), cosNum(mb, 1),
-      cosNum(mb, 2), cosNum(mb, 3),
-    ];
+    return [cosNum(mb, 0), cosNum(mb, 1), cosNum(mb, 2), cosNum(mb, 3)];
   }
   // Default to US Letter
   return [0, 0, 612, 792];
+}
+
+/**
+ * Get the effective visible area (CropBox if present, else MediaBox).
+ * CropBox defines the region of the page to which the contents are clipped.
+ */
+function getVisibleBox(
+  pageDict: COSDictionary,
+  resolve: ObjectResolver
+): [number, number, number, number] {
+  let cb = pageDict.getItem('CropBox');
+  if (cb instanceof COSObjectReference) cb = resolve(cb);
+  if (cb instanceof COSArray && cb.size() >= 4) {
+    return [cosNum(cb, 0), cosNum(cb, 1), cosNum(cb, 2), cosNum(cb, 3)];
+  }
+  return getMediaBox(pageDict, resolve);
 }
 
 function cosNum(arr: COSArray, idx: number): number {
@@ -361,7 +282,7 @@ function cosNum(arr: COSArray, idx: number): number {
 
 async function createCanvas(
   width: number,
-  height: number,
+  height: number
 ): Promise<{ canvas: any; context: CanvasRenderingContext2D }> {
   if (isNodeEnvironment) {
     const { createCanvas: nodeCreateCanvas } = await import('canvas');
