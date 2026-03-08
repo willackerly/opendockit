@@ -139,6 +139,22 @@ Note: E2E tests run separately from unit tests and are not included in the `pnpm
 
 ---
 
+## Synthetic Test Fixtures
+
+Generated PPTX files targeting specific feature categories for visual regression testing.
+Scripts live in `scripts/`, output goes to `test-data/`.
+
+| Fixture                         | Script                              | Slides | Focus                                                  |
+| ------------------------------- | ----------------------------------- | ------ | ------------------------------------------------------ |
+| `font-stress-test.pptx`        | `generate-font-stress-test.py`      | 20     | All 42 bundled families, bold/italic, sizes, mixed runs |
+| `gradient-stress-test.pptx`    | `generate-gradient-stress-test.py`  | 5      | Linear/radial gradients, multi-stop, shape types, line  |
+| `table-stress-test.pptx`       | `generate-table-stress-test.py`     | 5      | Borders, merged cells, alignment grid, banded rows      |
+| `effect-stress-test.pptx`      | `generate-effect-stress-test.py`    | 5      | Drop shadow, glow, reflection, soft edge, combinations  |
+| `text-stress-test.pptx`        | `generate-text-stress-test.py`      | 6      | Alignment, bullets, autofit, rotation, spacing          |
+| `connector-stress-test.pptx`   | `generate-connector-stress-test.py` | 4      | Arrow styles, bent/curved, dash patterns                |
+
+Regenerate all: `for f in scripts/generate-*-stress-test.py; do python3 "$f"; done`
+
 ## Spec Coverage Matrix
 
 See `../specifications/README.md` for OOXML spec section → implementation mapping.

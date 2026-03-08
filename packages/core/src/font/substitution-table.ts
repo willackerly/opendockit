@@ -18,6 +18,9 @@
  */
 const SUBSTITUTIONS: Record<string, string> = {
   // Sans-serif — prefer metric-compatible open fonts first
+  aptos: "'Noto Sans', sans-serif",
+  'aptos display': "'Noto Sans', sans-serif",
+  'aptos narrow': "'Noto Sans', sans-serif",
   calibri: "Carlito, 'Segoe UI', Arial, sans-serif",
   'calibri light': "Carlito, 'Segoe UI Light', Arial, sans-serif",
   'segoe ui': 'Selawik, system-ui, sans-serif',
@@ -25,6 +28,10 @@ const SUBSTITUTIONS: Record<string, string> = {
   'segoe ui semibold': "'Selawik Semibold', Selawik, system-ui, sans-serif",
   'segoe ui semilight': "'Selawik Semilight', Selawik, system-ui, sans-serif",
   tahoma: 'Arial, sans-serif',
+  verdana: "'DejaVu Sans', Arial, sans-serif",
+  'trebuchet ms': 'Ubuntu, sans-serif',
+  corbel: "'Source Sans Pro', sans-serif",
+  candara: 'Raleway, sans-serif',
   'arial narrow': "'Liberation Sans Narrow', 'Arial Narrow', sans-serif",
   'century gothic': "'Gill Sans', sans-serif",
   'franklin gothic': 'Arial, sans-serif',
@@ -33,6 +40,7 @@ const SUBSTITUTIONS: Record<string, string> = {
   // Serif — prefer metric-compatible open fonts first
   cambria: 'Caladea, Georgia, serif',
   'cambria math': 'Caladea, Georgia, serif',
+  constantia: "'TeX Gyre Pagella', Georgia, serif",
   'book antiqua': "'TeX Gyre Pagella', 'Palatino Linotype', Palatino, serif",
   garamond: 'Georgia, serif',
   'palatino linotype': "'TeX Gyre Pagella', Palatino, serif",
@@ -106,8 +114,6 @@ const WEB_SAFE_FONTS = new Set([
   'arial',
   'arial black',
   'helvetica',
-  'verdana',
-  'trebuchet ms',
   'times new roman',
   'times',
   'georgia',

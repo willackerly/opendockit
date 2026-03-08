@@ -6,6 +6,19 @@ import { getFontSubstitution, resolveFontName } from '../substitution-table.js';
 // ---------------------------------------------------------------------------
 
 describe('getFontSubstitution', () => {
+  // Aptos family (Office 2024 default)
+  it('substitutes Aptos', () => {
+    expect(getFontSubstitution('Aptos')).toBe("'Noto Sans', sans-serif");
+  });
+
+  it('substitutes Aptos Display', () => {
+    expect(getFontSubstitution('Aptos Display')).toBe("'Noto Sans', sans-serif");
+  });
+
+  it('substitutes Aptos Narrow', () => {
+    expect(getFontSubstitution('Aptos Narrow')).toBe("'Noto Sans', sans-serif");
+  });
+
   // Sans-serif substitutions
   it('substitutes Calibri', () => {
     expect(getFontSubstitution('Calibri')).toBe("Carlito, 'Segoe UI', Arial, sans-serif");
@@ -23,6 +36,22 @@ describe('getFontSubstitution', () => {
 
   it('substitutes Tahoma', () => {
     expect(getFontSubstitution('Tahoma')).toBe('Arial, sans-serif');
+  });
+
+  it('substitutes Verdana to DejaVu Sans', () => {
+    expect(getFontSubstitution('Verdana')).toBe("'DejaVu Sans', Arial, sans-serif");
+  });
+
+  it('substitutes Trebuchet MS to Ubuntu', () => {
+    expect(getFontSubstitution('Trebuchet MS')).toBe('Ubuntu, sans-serif');
+  });
+
+  it('substitutes Corbel to Source Sans Pro', () => {
+    expect(getFontSubstitution('Corbel')).toBe("'Source Sans Pro', sans-serif");
+  });
+
+  it('substitutes Candara to Raleway', () => {
+    expect(getFontSubstitution('Candara')).toBe('Raleway, sans-serif');
   });
 
   it('substitutes Century Gothic', () => {
@@ -72,6 +101,10 @@ describe('getFontSubstitution', () => {
     expect(getFontSubstitution('Century Schoolbook')).toBe(
       "'TeX Gyre Schola', 'Century Schoolbook', serif"
     );
+  });
+
+  it('substitutes Constantia to TeX Gyre Pagella', () => {
+    expect(getFontSubstitution('Constantia')).toBe("'TeX Gyre Pagella', Georgia, serif");
   });
 
   // Monospace substitutions
@@ -155,12 +188,12 @@ describe('getFontSubstitution', () => {
     expect(getFontSubstitution('Helvetica')).toBeUndefined();
   });
 
-  it('returns undefined for Verdana', () => {
-    expect(getFontSubstitution('Verdana')).toBeUndefined();
+  it('returns substitution for Verdana (no longer web-safe)', () => {
+    expect(getFontSubstitution('Verdana')).toBe("'DejaVu Sans', Arial, sans-serif");
   });
 
-  it('returns undefined for Trebuchet MS', () => {
-    expect(getFontSubstitution('Trebuchet MS')).toBeUndefined();
+  it('returns substitution for Trebuchet MS (no longer web-safe)', () => {
+    expect(getFontSubstitution('Trebuchet MS')).toBe('Ubuntu, sans-serif');
   });
 
   it('returns undefined for Courier New', () => {
@@ -207,8 +240,8 @@ describe('resolveFontName', () => {
     expect(resolveFontName('Georgia')).toBe('Georgia');
   });
 
-  it('returns original for web-safe font Verdana', () => {
-    expect(resolveFontName('Verdana')).toBe('Verdana');
+  it('returns substitution for Verdana (now has substitute)', () => {
+    expect(resolveFontName('Verdana')).toBe("'DejaVu Sans', Arial, sans-serif");
   });
 
   it('returns original for web-safe font Courier New', () => {
@@ -225,6 +258,30 @@ describe('resolveFontName', () => {
 
   it('returns substitution for Consolas', () => {
     expect(resolveFontName('Consolas')).toBe("'Courier New', monospace");
+  });
+
+  it('returns substitution for Aptos (Office 2024 default)', () => {
+    expect(resolveFontName('Aptos')).toBe("'Noto Sans', sans-serif");
+  });
+
+  it('returns substitution for Aptos Display', () => {
+    expect(resolveFontName('Aptos Display')).toBe("'Noto Sans', sans-serif");
+  });
+
+  it('returns substitution for Corbel', () => {
+    expect(resolveFontName('Corbel')).toBe("'Source Sans Pro', sans-serif");
+  });
+
+  it('returns substitution for Candara', () => {
+    expect(resolveFontName('Candara')).toBe('Raleway, sans-serif');
+  });
+
+  it('returns substitution for Constantia', () => {
+    expect(resolveFontName('Constantia')).toBe("'TeX Gyre Pagella', Georgia, serif");
+  });
+
+  it('returns substitution for Trebuchet MS', () => {
+    expect(resolveFontName('Trebuchet MS')).toBe('Ubuntu, sans-serif');
   });
 
   it('returns original for Wingdings (symbol font, no sub)', () => {
