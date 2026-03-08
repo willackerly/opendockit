@@ -20,7 +20,8 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@opendockit/core": "workspace:*"
+    "@opendockit/core": "workspace:*",
+    "@opendockit/elements": "workspace:*"
   },
   "devDependencies": {
     "jszip": "^3.10.0",

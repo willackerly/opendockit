@@ -119,6 +119,9 @@ importers:
       '@opendockit/core':
         specifier: workspace:*
         version: link:../core
+      '@opendockit/elements':
+        specifier: workspace:*
+        version: link:../elements
     devDependencies:
       jszip:
         specifier: ^3.10.0
