@@ -206,10 +206,16 @@ Deep investigation of top-10 RMSE slides confirms:
 - [x] PDF font embedding for PPTX→PDF export (standard font fallback: Helvetica/Times-Roman/Courier) with text rendering in content streams (2026-03-08)
 
 **Still deferred:**
-- [ ] Full ChartML parser and renderer (bar, pie, line, scatter, combo) — cached image fallback already renders chart previews (2026-02-26)
 - [ ] CanvasKit WASM integration (3D effects, reflections, advanced filters)
 - [ ] Slide transitions (fade, push, wipe, etc.)
 - [ ] SVG export
+- [ ] PDF image embedding (XObjects for pictures — currently gray placeholders)
+- [ ] PDF gradient shading patterns (currently uses first stop only)
+- [ ] PDF transparency (ExtGState /ca /CA)
+
+### Permanently Deferred
+
+- ~~Full ChartML parser and renderer~~ — cached image fallback renders chart previews. Not worth the complexity. (2026-03-08)
 
 ### Phase 5: DOCX
 
@@ -227,14 +233,30 @@ Deep investigation of top-10 RMSE slides confirms:
 
 Fonts with no OFL metric-compatible replacement — need server-side extraction or user-supplied metrics:
 
-- [ ] Verdana (no OFL clone — widely available on systems, low priority)
-- [ ] Trebuchet MS (no OFL clone — widely available on systems, low priority)
+- [x] Verdana → `'DejaVu Sans', Arial, sans-serif` substitution (2026-03-08)
+- [x] Trebuchet MS → `Ubuntu, sans-serif` substitution (2026-03-08)
 - [ ] Tahoma (no OFL clone — widely available on systems, low priority)
-- [ ] Aptos (new Office default — no OFL clone yet)
-- [ ] Corbel, Candara, Constantia (C-series Office fonts — no OFL clones)
+- [x] Aptos → `'Noto Sans', sans-serif` substitution (Office 2024 default) (2026-03-08)
+- [x] Corbel → `'Source Sans Pro', sans-serif`, Candara → `Raleway`, Constantia → `'TeX Gyre Pagella'` (2026-03-08)
 - [x] Adopt pdf.js lineHeight/lineGap pattern for vertical metrics accuracy
 - [ ] Server-side font metrics extraction service (for users with licensed fonts)
 - [ ] No kerning pairs in metrics bundle (~1-3% width error on long text runs)
+
+### NativeRenderer (PDF Reading) Improvements (2026-03-08)
+
+- [x] Fix curveTo2 (v operator) — correct bezierCurveTo with current point tracking
+- [x] Shading pattern support — linear (Type 2) and radial (Type 3) gradients
+- [x] JPEG image rendering — sync decode via node-canvas
+- [x] Inline image support (BI/ID/EI operators)
+- [x] CropBox page clipping (fallback to MediaBox)
+- [x] Indexed color space decoding (palette-based images)
+- [x] Shading function decoding (Type 2 exponential, Type 3 stitching)
+
+### pdfbox-ts Integration Items (FYI from prior team)
+
+- [ ] pdf-signer-web integration — browser-compatible signing UI
+- [ ] Publish pdfbox-ts 1.0 to npm
+- [ ] CI parity gate — automated Java vs TS comparison in CI
 
 ## Code Debt
 

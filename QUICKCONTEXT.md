@@ -31,7 +31,7 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer and editor
 
 The full PPTX rendering pipeline is implemented, tested, and visually validated. The editing pipeline (Phase 0-3) is complete. Phase 4 (Waves 0-4) of the PDF/Office unified architecture is complete:
 
-- **3,841 tests** passing (1,570 core + 146 elements + 201 render + 322 pptx + 1,578 pdf-signer + 24 pdf), typecheck clean
+- **4,128 tests** passing (1,716 core + 203 elements + 206 render + 381 pptx + 1,598 pdf-signer + 24 pdf), typecheck clean
 - **Visual regression**: 54-slide real-world PPTX with per-slide RMSE baselines (`pnpm test:visual`) + 10-file corpus (67 slides) with self-referential regression guard (`pnpm test:visual:corpus`) + PDF visual regression with RMSE baselines (`pnpm test:visual:pdf`)
 - **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (42 families, 130 faces) + bundled WOFF2 fonts (42 families, ~5MB, 100% offline), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks, video placeholder detection, field codes, diagram drawing), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation + font-metric-based line height + ascender baseline positioning + text outline + underline fill color, media cache, capability registry, WASM module loader, diagnostics system (DiagnosticEmitter + RenderContext wiring)
 - **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance + table textDefaults), SlideKit viewport API (hyperlinks, notes, element inspector), SmartArt fallback renderer, chart cached image fallback renderer
@@ -90,17 +90,23 @@ Complete (Waves 0-4, 2026-03-07/08):
 - Unified element model: @opendockit/elements
 - Unified render utilities: @opendockit/render
 - PDF rendering package: @opendockit/pdf
-- PDF export pipeline (basic shapes/fills)
+- PDF export pipeline (basic shapes/fills + text with standard font fallback)
 - Cross-format text search
 - Clipboard serialize/deserialize
 - Batch PPTX→PDF conversion script
 - Unified viewer (PPTX + PDF format detection)
+- Font substitutions for Aptos, Verdana, Trebuchet MS, Corbel, Candara, Constantia
+- NativeRenderer improvements: shading patterns, JPEG images, CropBox, indexed colors
+- 5 synthetic stress test PPTX fixtures (gradients, tables, effects, text, connectors)
 
 Still deferred:
-1. **Full ChartML** parser and renderer (bar, pie, line, scatter, combo) — cached image fallback already renders chart previews
-2. **CanvasKit** WASM integration (3D effects, reflections, advanced filters)
-3. **Slide transitions**
-4. **SVG export**
+1. **CanvasKit** WASM integration (3D effects, reflections, advanced filters)
+2. **Slide transitions**
+3. **SVG export**
+4. **PDF image/gradient/transparency** in PPTX→PDF export
+
+Permanently deferred:
+- **ChartML** — cached image fallback renders chart previews. Not worth the complexity.
 
 ### Deferred (not blocking — tackle when needed)
 
