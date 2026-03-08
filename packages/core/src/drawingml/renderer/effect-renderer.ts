@@ -33,7 +33,7 @@ function colorToRgba(color: { r: number; g: number; b: number; a: number }): str
  * - color -> shadowColor
  */
 function applyOuterShadow(effect: OuterShadowIR, rctx: RenderContext): void {
-  const { ctx } = rctx;
+  const { backend } = rctx;
   const blurPx = emuToScaledPx(effect.blurRadius, rctx);
   const distPx = emuToScaledPx(effect.distance, rctx);
 
@@ -41,10 +41,10 @@ function applyOuterShadow(effect: OuterShadowIR, rctx: RenderContext): void {
   // Canvas2D offset: positive X = right, positive Y = down.
   const dirRad = (effect.direction * Math.PI) / 180;
 
-  ctx.shadowColor = colorToRgba(effect.color);
-  ctx.shadowBlur = blurPx;
-  ctx.shadowOffsetX = distPx * Math.cos(dirRad);
-  ctx.shadowOffsetY = distPx * Math.sin(dirRad);
+  backend.shadowColor = colorToRgba(effect.color);
+  backend.shadowBlur = blurPx;
+  backend.shadowOffsetX = distPx * Math.cos(dirRad);
+  backend.shadowOffsetY = distPx * Math.sin(dirRad);
 }
 
 /**
@@ -54,13 +54,13 @@ function applyOuterShadow(effect: OuterShadowIR, rctx: RenderContext): void {
  * as the blur value. This produces a similar visual halo around the shape.
  */
 function applyGlow(effect: GlowIR, rctx: RenderContext): void {
-  const { ctx } = rctx;
+  const { backend } = rctx;
   const radiusPx = emuToScaledPx(effect.radius, rctx);
 
-  ctx.shadowColor = colorToRgba(effect.color);
-  ctx.shadowBlur = radiusPx;
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 0;
+  backend.shadowColor = colorToRgba(effect.color);
+  backend.shadowBlur = radiusPx;
+  backend.shadowOffsetX = 0;
+  backend.shadowOffsetY = 0;
 }
 
 /**
@@ -77,7 +77,7 @@ export function applyEffects(
   rctx: RenderContext,
   _bounds: { x: number; y: number; width: number; height: number }
 ): () => void {
-  const { ctx } = rctx;
+  const { backend } = rctx;
 
   if (effects.length === 0) {
     return () => {};
@@ -147,9 +147,9 @@ export function applyEffects(
   }
 
   return () => {
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
+    backend.shadowColor = 'transparent';
+    backend.shadowBlur = 0;
+    backend.shadowOffsetX = 0;
+    backend.shadowOffsetY = 0;
   };
 }

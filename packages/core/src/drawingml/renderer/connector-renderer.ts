@@ -17,6 +17,7 @@
 import type { ConnectorIR } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
+import type { RenderBackend } from './render-backend.js';
 import { applyLine, drawLineEnds } from './line-renderer.js';
 
 // ---------------------------------------------------------------------------
@@ -43,15 +44,15 @@ function getConnectorType(connector: ConnectorIR): 'straight' | 'bent' | 'curved
  * Draw a straight connector line from start to end.
  */
 function drawStraightConnector(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  backend: RenderBackend,
   x: number,
   y: number,
   w: number,
   h: number
 ): void {
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + w, y + h);
+  backend.beginPath();
+  backend.moveTo(x, y);
+  backend.lineTo(x + w, y + h);
 }
 
 /**
@@ -65,13 +66,13 @@ function drawStraightConnector(
  * This produces an L-shaped or Z-shaped path depending on the geometry.
  */
 function drawBentConnector(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  backend: RenderBackend,
   x: number,
   y: number,
   w: number,
   h: number
 ): void {
-  ctx.beginPath();
+  backend.beginPath();
   const startX = x;
   const startY = y;
   const endX = x + w;
@@ -80,17 +81,17 @@ function drawBentConnector(
   if (Math.abs(w) >= Math.abs(h)) {
     // Horizontal-dominant: go right to midpoint, then turn and go to end.
     const midX = startX + w / 2;
-    ctx.moveTo(startX, startY);
-    ctx.lineTo(midX, startY);
-    ctx.lineTo(midX, endY);
-    ctx.lineTo(endX, endY);
+    backend.moveTo(startX, startY);
+    backend.lineTo(midX, startY);
+    backend.lineTo(midX, endY);
+    backend.lineTo(endX, endY);
   } else {
     // Vertical-dominant: go down to midpoint, then turn and go to end.
     const midY = startY + h / 2;
-    ctx.moveTo(startX, startY);
-    ctx.lineTo(startX, midY);
-    ctx.lineTo(endX, midY);
-    ctx.lineTo(endX, endY);
+    backend.moveTo(startX, startY);
+    backend.lineTo(startX, midY);
+    backend.lineTo(endX, midY);
+    backend.lineTo(endX, endY);
   }
 }
 
@@ -101,13 +102,13 @@ function drawBentConnector(
  * offset horizontally or vertically depending on the connector's aspect ratio.
  */
 function drawCurvedConnector(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  backend: RenderBackend,
   x: number,
   y: number,
   w: number,
   h: number
 ): void {
-  ctx.beginPath();
+  backend.beginPath();
   const startX = x;
   const startY = y;
   const endX = x + w;
@@ -116,13 +117,13 @@ function drawCurvedConnector(
   if (Math.abs(w) >= Math.abs(h)) {
     // Horizontal-dominant: S-curve with horizontal control points.
     const midX = startX + w / 2;
-    ctx.moveTo(startX, startY);
-    ctx.bezierCurveTo(midX, startY, midX, endY, endX, endY);
+    backend.moveTo(startX, startY);
+    backend.bezierCurveTo(midX, startY, midX, endY, endX, endY);
   } else {
     // Vertical-dominant: S-curve with vertical control points.
     const midY = startY + h / 2;
-    ctx.moveTo(startX, startY);
-    ctx.bezierCurveTo(startX, midY, endX, midY, endX, endY);
+    backend.moveTo(startX, startY);
+    backend.bezierCurveTo(startX, midY, endX, midY, endX, endY);
   }
 }
 
@@ -144,7 +145,7 @@ export function renderConnector(connector: ConnectorIR, rctx: RenderContext): vo
   const transform = connector.properties.transform;
   if (!transform) return;
 
-  const { ctx } = rctx;
+  const { backend } = rctx;
   const x = emuToScaledPx(transform.position.x, rctx);
   const y = emuToScaledPx(transform.position.y, rctx);
   const w = emuToScaledPx(transform.size.width, rctx);
@@ -162,34 +163,34 @@ export function renderConnector(connector: ConnectorIR, rctx: RenderContext): vo
     });
   }
 
-  ctx.save();
+  backend.save();
 
   // Apply rotation and flips if present.
   if (transform.rotation || transform.flipH || transform.flipV) {
-    ctx.translate(x + w / 2, y + h / 2);
+    backend.translate(x + w / 2, y + h / 2);
     if (transform.rotation) {
-      ctx.rotate((transform.rotation * Math.PI) / 180);
+      backend.rotate((transform.rotation * Math.PI) / 180);
     }
     if (transform.flipH) {
-      ctx.scale(-1, 1);
+      backend.scale(-1, 1);
     }
     if (transform.flipV) {
-      ctx.scale(1, -1);
+      backend.scale(1, -1);
     }
-    ctx.translate(-(x + w / 2), -(y + h / 2));
+    backend.translate(-(x + w / 2), -(y + h / 2));
   }
 
   // Draw the connector path based on its type.
   const connectorType = getConnectorType(connector);
   switch (connectorType) {
     case 'straight':
-      drawStraightConnector(ctx, x, y, w, h);
+      drawStraightConnector(backend, x, y, w, h);
       break;
     case 'bent':
-      drawBentConnector(ctx, x, y, w, h);
+      drawBentConnector(backend, x, y, w, h);
       break;
     case 'curved':
-      drawCurvedConnector(ctx, x, y, w, h);
+      drawCurvedConnector(backend, x, y, w, h);
       break;
   }
 
@@ -225,5 +226,5 @@ export function renderConnector(connector: ConnectorIR, rctx: RenderContext): vo
     }
   }
 
-  ctx.restore();
+  backend.restore();
 }

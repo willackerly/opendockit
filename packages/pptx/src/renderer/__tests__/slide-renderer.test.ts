@@ -104,8 +104,8 @@ describe('renderSlide', () => {
     renderSlide(data, rctx, 960, 540);
 
     // Should set fill to white and fill the full rectangle.
-    expect(rctx.ctx.fillStyle).toBe('#FFFFFF');
-    const fillRects = rctx.ctx._calls.filter((c) => c.method === 'fillRect');
+    expect(rctx.backend.fillStyle).toBe('#FFFFFF');
+    const fillRects = rctx.backend._calls.filter((c) => c.method === 'fillRect');
     expect(fillRects).toHaveLength(1);
     expect(fillRects[0].args).toEqual([0, 0, 960, 540]);
   });
@@ -128,7 +128,7 @@ describe('renderSlide', () => {
 
     renderSlide(data, rctx, 960, 540);
 
-    const calls = rctx.ctx._calls;
+    const calls = rctx.backend._calls;
 
     // Background fillRect should come before the shape's save/translate.
     const fillRectIdx = calls.findIndex((c) => c.method === 'fillRect');
@@ -156,8 +156,8 @@ describe('renderSlide', () => {
 
     // Both shapes should be rendered: we should see two save/restore pairs
     // (one pair for each shape — the background uses fillRect directly).
-    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
-    const restoreCalls = rctx.ctx._calls.filter((c) => c.method === 'restore');
+    const saveCalls = rctx.backend._calls.filter((c) => c.method === 'save');
+    const restoreCalls = rctx.backend._calls.filter((c) => c.method === 'restore');
     expect(saveCalls).toHaveLength(2);
     expect(restoreCalls).toHaveLength(2);
   });
@@ -169,7 +169,7 @@ describe('renderSlide', () => {
     renderSlide(data, rctx, 960, 540);
 
     // Only background rendering: one fillRect, no save/restore.
-    const calls = rctx.ctx._calls;
+    const calls = rctx.backend._calls;
     const fillRects = calls.filter((c) => c.method === 'fillRect');
     const saves = calls.filter((c) => c.method === 'save');
     expect(fillRects).toHaveLength(1);
@@ -201,7 +201,7 @@ describe('renderSlide', () => {
     renderSlide(data, rctx, 960, 540);
 
     // Background + shape + unsupported placeholder all rendered.
-    const fillRects = rctx.ctx._calls.filter((c) => c.method === 'fillRect');
+    const fillRects = rctx.backend._calls.filter((c) => c.method === 'fillRect');
     expect(fillRects.length).toBeGreaterThanOrEqual(2); // bg + placeholder
   });
 
@@ -211,7 +211,7 @@ describe('renderSlide', () => {
 
     renderSlide(data, rctx, 1920, 1080);
 
-    const fillRects = rctx.ctx._calls.filter((c) => c.method === 'fillRect');
+    const fillRects = rctx.backend._calls.filter((c) => c.method === 'fillRect');
     expect(fillRects[0].args).toEqual([0, 0, 1920, 1080]);
   });
 
@@ -229,7 +229,7 @@ describe('renderSlide', () => {
 
     renderSlide(data, rctx, 960, 540);
 
-    expect(rctx.ctx.fillStyle).toBe('rgba(100, 0, 0, 1)');
+    expect(rctx.backend.fillStyle).toBe('rgba(100, 0, 0, 1)');
   });
 
   it('renders master and layout elements behind slide elements', () => {
@@ -262,7 +262,7 @@ describe('renderSlide', () => {
     renderSlide(data, rctx, 960, 540);
 
     // Three shapes rendered = three save/restore pairs
-    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    const saveCalls = rctx.backend._calls.filter((c) => c.method === 'save');
     expect(saveCalls).toHaveLength(3);
   });
 
@@ -288,7 +288,7 @@ describe('renderSlide', () => {
     renderSlide(data, rctx, 960, 540);
 
     // Only slide title renders — master title is filtered out
-    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    const saveCalls = rctx.backend._calls.filter((c) => c.method === 'save');
     expect(saveCalls).toHaveLength(1);
   });
 
@@ -314,7 +314,7 @@ describe('renderSlide', () => {
     renderSlide(data, rctx, 960, 540);
 
     // Both render — decorative master shape is not a placeholder
-    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    const saveCalls = rctx.backend._calls.filter((c) => c.method === 'save');
     expect(saveCalls).toHaveLength(2);
   });
 
@@ -342,7 +342,7 @@ describe('renderSlide', () => {
     renderSlide(data, rctx, 960, 540);
 
     // Only slide shape renders — master shape is hidden by showMasterSp=false
-    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    const saveCalls = rctx.backend._calls.filter((c) => c.method === 'save');
     expect(saveCalls).toHaveLength(1);
   });
 
@@ -396,7 +396,7 @@ describe('renderSlide', () => {
 
     // textDefaults should have been set during rendering with layout lstStyle merged
     // The slide title should have been rendered (1 save/restore pair)
-    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    const saveCalls = rctx.backend._calls.filter((c) => c.method === 'save');
     expect(saveCalls).toHaveLength(1);
 
     // Verify rctx.textDefaults was restored to undefined after rendering
@@ -431,11 +431,11 @@ describe('renderSlide', () => {
     renderSlide(data, rctx, 960, 540);
 
     // Should render (1 save/restore pair) — inheriting layout's transform
-    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    const saveCalls = rctx.backend._calls.filter((c) => c.method === 'save');
     expect(saveCalls).toHaveLength(1);
 
     // The translate call should use the layout's position
-    const translateCalls = rctx.ctx._calls.filter((c) => c.method === 'translate');
+    const translateCalls = rctx.backend._calls.filter((c) => c.method === 'translate');
     expect(translateCalls.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -480,7 +480,7 @@ describe('renderSlide', () => {
 
     // Should render the shape — fillStyle is set as a property, not a tracked call.
     // The fill renderer sets ctx.fillStyle = 'rgba(100, 50, 25, 1)'.
-    expect(String(rctx.ctx.fillStyle)).toContain('100');
+    expect(String(rctx.backend.fillStyle)).toContain('100');
   });
 
   it('slide fill overrides layout fill for same placeholder', () => {
@@ -509,7 +509,7 @@ describe('renderSlide', () => {
 
     // Should use slide's blue fill, not layout's green.
     // Last fillStyle set should contain blue (0, 0, 255), not green (0, 255, 0).
-    expect(String(rctx.ctx.fillStyle)).toContain('0, 0, 255');
+    expect(String(rctx.backend.fillStyle)).toContain('0, 0, 255');
   });
 
   it('does not apply inheritance to non-placeholder shapes', () => {
@@ -536,7 +536,7 @@ describe('renderSlide', () => {
     renderSlide(data, rctx, 960, 540);
 
     // Both shapes render
-    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    const saveCalls = rctx.backend._calls.filter((c) => c.method === 'save');
     expect(saveCalls).toHaveLength(2);
   });
 
@@ -629,7 +629,7 @@ describe('renderSlide', () => {
     renderSlide(data, rctx, 960, 540);
 
     // Both master and slide shapes render
-    const saveCalls = rctx.ctx._calls.filter((c) => c.method === 'save');
+    const saveCalls = rctx.backend._calls.filter((c) => c.method === 'save');
     expect(saveCalls).toHaveLength(2);
   });
 
@@ -679,7 +679,7 @@ describe('renderSlide', () => {
 
     /** Collect all fillText output into a single trimmed string. */
     function collectFillText(rctx: ReturnType<typeof createMockRenderContext>): string {
-      return rctx.ctx._calls
+      return rctx.backend._calls
         .filter((c) => c.method === 'fillText')
         .map((c) => c.args[0] as string)
         .join('')
@@ -856,7 +856,7 @@ describe('renderSlide', () => {
 
       // The slide's own field code should be rendered, not the layout text.
       // With a field type present, the text body is NOT considered empty.
-      const fillTextCalls = rctx.ctx._calls.filter((c) => c.method === 'fillText');
+      const fillTextCalls = rctx.backend._calls.filter((c) => c.method === 'fillText');
       // The field renders something (likely "1" for slide number, or empty), but
       // the key assertion is that it does NOT render "##" from the layout.
       const layoutTextRendered = fillTextCalls.some((c) => c.args[0] === '##');

@@ -29,7 +29,7 @@ import { renderSlideElement } from './shape-renderer.js';
  * 5. Restore canvas state
  */
 export function renderGroup(group: GroupIR, rctx: RenderContext): void {
-  const { ctx } = rctx;
+  const { backend } = rctx;
   const transform = group.properties.transform;
 
   // A group without a transform has no position or size — skip it.
@@ -41,20 +41,20 @@ export function renderGroup(group: GroupIR, rctx: RenderContext): void {
   const w = emuToScaledPx(size.width, rctx);
   const h = emuToScaledPx(size.height, rctx);
 
-  ctx.save();
+  backend.save();
 
   // -- Group transform: translate to center, rotate, flip, translate back --
-  ctx.translate(x + w / 2, y + h / 2);
+  backend.translate(x + w / 2, y + h / 2);
   if (rotation) {
-    ctx.rotate((rotation * Math.PI) / 180);
+    backend.rotate((rotation * Math.PI) / 180);
   }
   if (flipH) {
-    ctx.scale(-1, 1);
+    backend.scale(-1, 1);
   }
   if (flipV) {
-    ctx.scale(1, -1);
+    backend.scale(1, -1);
   }
-  ctx.translate(-w / 2, -h / 2);
+  backend.translate(-w / 2, -h / 2);
 
   // -- Child coordinate space mapping --
   // Children are positioned in a coordinate space defined by childOffset
@@ -77,8 +77,8 @@ export function renderGroup(group: GroupIR, rctx: RenderContext): void {
     const scaleY = h / childExtentH;
 
     // Shift so that childOffset maps to 0,0.
-    ctx.translate(-childOffsetX * scaleX, -childOffsetY * scaleY);
-    ctx.scale(scaleX, scaleY);
+    backend.translate(-childOffsetX * scaleX, -childOffsetY * scaleY);
+    backend.scale(scaleX, scaleY);
 
     // Accumulate group scale for text counter-scaling.
     childRctx = {
@@ -93,5 +93,5 @@ export function renderGroup(group: GroupIR, rctx: RenderContext): void {
     renderSlideElement(child, childRctx);
   }
 
-  ctx.restore();
+  backend.restore();
 }

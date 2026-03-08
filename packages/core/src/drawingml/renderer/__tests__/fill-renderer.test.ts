@@ -34,8 +34,8 @@ describe('applyFill', () => {
 
       applyFill(fill, rctx, bounds);
 
-      expect(rctx.ctx.fillStyle).toBe('rgba(255, 128, 0, 1)');
-      expect(rctx.ctx._calls).toContainEqual({ method: 'fill', args: [] });
+      expect(rctx.backend.fillStyle).toBe('rgba(255, 128, 0, 1)');
+      expect(rctx.backend._calls).toContainEqual({ method: 'fill', args: [] });
     });
 
     it('handles semi-transparent alpha', () => {
@@ -47,7 +47,7 @@ describe('applyFill', () => {
 
       applyFill(fill, rctx, bounds);
 
-      expect(rctx.ctx.fillStyle).toBe('rgba(0, 0, 255, 0.5)');
+      expect(rctx.backend.fillStyle).toBe('rgba(0, 0, 255, 0.5)');
     });
 
     it('handles fully transparent alpha', () => {
@@ -59,8 +59,8 @@ describe('applyFill', () => {
 
       applyFill(fill, rctx, bounds);
 
-      expect(rctx.ctx.fillStyle).toBe('rgba(0, 0, 0, 0)');
-      expect(rctx.ctx._calls).toContainEqual({ method: 'fill', args: [] });
+      expect(rctx.backend.fillStyle).toBe('rgba(0, 0, 0, 0)');
+      expect(rctx.backend._calls).toContainEqual({ method: 'fill', args: [] });
     });
   });
 
@@ -83,18 +83,18 @@ describe('applyFill', () => {
 
       applyFill(fill, rctx, bounds);
 
-      expect(rctx.ctx._gradients).toHaveLength(1);
-      expect(rctx.ctx._gradients[0].type).toBe('linear');
-      expect(rctx.ctx._gradients[0].stops).toHaveLength(2);
-      expect(rctx.ctx._gradients[0].stops[0]).toEqual({
+      expect(rctx.backend._gradients).toHaveLength(1);
+      expect(rctx.backend._gradients[0].type).toBe('linear');
+      expect(rctx.backend._gradients[0].stops).toHaveLength(2);
+      expect(rctx.backend._gradients[0].stops[0]).toEqual({
         offset: 0,
         color: 'rgba(255, 0, 0, 1)',
       });
-      expect(rctx.ctx._gradients[0].stops[1]).toEqual({
+      expect(rctx.backend._gradients[0].stops[1]).toEqual({
         offset: 1,
         color: 'rgba(0, 0, 255, 1)',
       });
-      expect(rctx.ctx._calls).toContainEqual({ method: 'fill', args: [] });
+      expect(rctx.backend._calls).toContainEqual({ method: 'fill', args: [] });
     });
 
     it('defaults angle to 0 when undefined', () => {
@@ -107,8 +107,8 @@ describe('applyFill', () => {
 
       applyFill(fill, rctx, bounds);
 
-      expect(rctx.ctx._gradients).toHaveLength(1);
-      expect(rctx.ctx._gradients[0].type).toBe('linear');
+      expect(rctx.backend._gradients).toHaveLength(1);
+      expect(rctx.backend._gradients[0].type).toBe('linear');
     });
 
     it('creates a radial gradient centered in bounds', () => {
@@ -124,8 +124,8 @@ describe('applyFill', () => {
 
       applyFill(fill, rctx, bounds);
 
-      expect(rctx.ctx._gradients).toHaveLength(1);
-      const g = rctx.ctx._gradients[0];
+      expect(rctx.backend._gradients).toHaveLength(1);
+      const g = rctx.backend._gradients[0];
       expect(g.type).toBe('radial');
       // Center: (10 + 200/2, 20 + 100/2) = (110, 70)
       expect(g.args[0]).toBe(110); // cx
@@ -147,8 +147,8 @@ describe('applyFill', () => {
 
       applyFill(fill, rctx, bounds);
 
-      expect(rctx.ctx._gradients).toHaveLength(1);
-      expect(rctx.ctx._gradients[0].type).toBe('radial');
+      expect(rctx.backend._gradients).toHaveLength(1);
+      expect(rctx.backend._gradients[0].type).toBe('radial');
     });
 
     it('handles multiple gradient stops', () => {
@@ -166,8 +166,8 @@ describe('applyFill', () => {
 
       applyFill(fill, rctx, bounds);
 
-      expect(rctx.ctx._gradients[0].stops).toHaveLength(3);
-      expect(rctx.ctx._gradients[0].stops[1].offset).toBe(0.5);
+      expect(rctx.backend._gradients[0].stops).toHaveLength(3);
+      expect(rctx.backend._gradients[0].stops[1].offset).toBe(0.5);
     });
   });
 
@@ -187,8 +187,8 @@ describe('applyFill', () => {
 
       applyFill(fill, rctx, bounds);
 
-      expect(rctx.ctx.fillStyle).toBe('rgba(100, 50, 25, 1)');
-      expect(rctx.ctx._calls).toContainEqual({ method: 'fill', args: [] });
+      expect(rctx.backend.fillStyle).toBe('rgba(100, 50, 25, 1)');
+      expect(rctx.backend._calls).toContainEqual({ method: 'fill', args: [] });
     });
   });
 
@@ -208,7 +208,7 @@ describe('applyFill', () => {
       applyFill(fill, rctx, bounds);
 
       // Should not call fill() — picture fills are deferred.
-      const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+      const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
       expect(fillCalls).toHaveLength(0);
     });
   });
@@ -224,7 +224,7 @@ describe('applyFill', () => {
 
       applyFill(fill, rctx, bounds);
 
-      const fillCalls = rctx.ctx._calls.filter((c) => c.method === 'fill');
+      const fillCalls = rctx.backend._calls.filter((c) => c.method === 'fill');
       expect(fillCalls).toHaveLength(0);
     });
   });

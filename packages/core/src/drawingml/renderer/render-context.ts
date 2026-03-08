@@ -11,6 +11,7 @@ import type { MediaCache } from '../../media/index.js';
 import type { FontMetricsDB } from '../../font/font-metrics-db.js';
 import type { DiagnosticEmitter } from '../../diagnostics/index.js';
 import { emuToPx } from '../../units/index.js';
+import type { RenderBackend } from './render-backend.js';
 
 /**
  * A dynamically loaded renderer for a specific element kind.
@@ -25,8 +26,8 @@ export type DynamicRenderer = (element: SlideElementIR, rctx: RenderContext) => 
  * Shared rendering context passed to all renderers.
  */
 export interface RenderContext {
-  /** The Canvas2D rendering context. */
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+  /** The render backend (Canvas2D, PDF, or SVG). */
+  backend: RenderBackend;
   /** DPI scale factor (e.g., 2 for Retina). */
   dpiScale: number;
   /** The presentation theme. */

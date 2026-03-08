@@ -14,6 +14,7 @@ import { calculateCropRect } from '../../media/index.js';
 import { buildPresetPath } from '../geometry/path-builder.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
+import type { RenderBackend } from './render-backend.js';
 
 /**
  * Type guard: checks whether a CachedMedia value is a drawable image source.
@@ -35,21 +36,21 @@ function isDrawableImage(media: CachedMedia): media is ImageBitmap | HTMLImageEl
  * Draw a placeholder rectangle when the image is unavailable.
  */
 function drawPlaceholder(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  backend: RenderBackend,
   dx: number,
   dy: number,
   dw: number,
   dh: number
 ): void {
-  ctx.save();
-  ctx.fillStyle = '#E0E0E0';
-  ctx.fillRect(dx, dy, dw, dh);
-  ctx.fillStyle = '#999';
-  ctx.font = '12px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('Image', dx + dw / 2, dy + dh / 2);
-  ctx.restore();
+  backend.save();
+  backend.fillStyle = '#E0E0E0';
+  backend.fillRect(dx, dy, dw, dh);
+  backend.fillStyle = '#999';
+  backend.font = '12px sans-serif';
+  backend.textAlign = 'center';
+  backend.textBaseline = 'middle';
+  backend.fillText('Image', dx + dw / 2, dy + dh / 2);
+  backend.restore();
 }
 
 /**
@@ -64,7 +65,7 @@ function drawPlaceholder(
  * 6. Draw using the 9-argument form of drawImage.
  */
 export function renderPicture(pictureIR: PictureIR, rctx: RenderContext): void {
-  const { ctx, mediaCache } = rctx;
+  const { backend, mediaCache } = rctx;
   const transform = pictureIR.properties.transform;
 
   if (!transform) return;
@@ -93,7 +94,7 @@ export function renderPicture(pictureIR: PictureIR, rctx: RenderContext): void {
       });
       return;
     }
-    drawPlaceholder(ctx, dx, dy, dw, dh);
+    drawPlaceholder(backend, dx, dy, dw, dh);
     return;
   }
 
@@ -157,43 +158,43 @@ export function renderPicture(pictureIR: PictureIR, rctx: RenderContext): void {
   const needsTransform = hasRotation || hasFlipH || hasFlipV;
 
   if (needsTransform) {
-    ctx.save();
+    backend.save();
 
     // Translate to the center of the destination rect for rotation/flip.
     const cx = dx + dw / 2;
     const cy = dy + dh / 2;
-    ctx.translate(cx, cy);
+    backend.translate(cx, cy);
 
     if (hasRotation) {
       const rotRad = (transform.rotation! * Math.PI) / 180;
-      ctx.rotate(rotRad);
+      backend.rotate(rotRad);
     }
 
     if (hasFlipH || hasFlipV) {
-      ctx.scale(hasFlipH ? -1 : 1, hasFlipV ? -1 : 1);
+      backend.scale(hasFlipH ? -1 : 1, hasFlipV ? -1 : 1);
     }
 
     // Apply geometry clip path (offset to center-relative coordinates).
     if (clipPath) {
       const offsetPath = new Path2D();
       offsetPath.addPath(clipPath, { e: -dw / 2, f: -dh / 2 });
-      ctx.clip(offsetPath);
+      backend.clip(offsetPath);
     }
 
     // Draw relative to the center (translate back by half-size).
-    ctx.drawImage(image, sx, sy, sw, sh, -dw / 2, -dh / 2, dw, dh);
-    ctx.restore();
+    backend.drawImage(image, sx, sy, sw, sh, -dw / 2, -dh / 2, dw, dh);
+    backend.restore();
   } else {
     if (clipPath) {
-      ctx.save();
+      backend.save();
       // Offset clip path to the picture's position.
       const offsetPath = new Path2D();
       offsetPath.addPath(clipPath, { e: dx, f: dy });
-      ctx.clip(offsetPath);
-      ctx.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh);
-      ctx.restore();
+      backend.clip(offsetPath);
+      backend.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh);
+      backend.restore();
     } else {
-      ctx.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh);
+      backend.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh);
     }
   }
 }

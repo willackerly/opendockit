@@ -208,11 +208,11 @@ function createTestMediaCache(): MediaCache {
 export function createMockRenderContext(
   ctxOverride?: MockContext,
   dpiScale = 1
-): RenderContext & { ctx: MockContext } {
+): RenderContext & { backend: MockContext } {
   const ctx = ctxOverride ?? createMockContext();
 
   return {
-    ctx,
+    backend: ctx,
     dpiScale,
     theme: createMinimalTheme(),
     mediaCache: createTestMediaCache(),

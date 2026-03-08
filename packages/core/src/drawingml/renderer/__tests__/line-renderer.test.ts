@@ -25,10 +25,10 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      expect(rctx.ctx.strokeStyle).toBe('rgba(255, 0, 0, 1)');
+      expect(rctx.backend.strokeStyle).toBe('rgba(255, 0, 0, 1)');
       // 12700 EMU at 96 DPI, dpiScale=1: 12700 * 96 / 914400 ~= 1.333
-      expect(rctx.ctx.lineWidth).toBeCloseTo(1.333, 2);
-      expect(rctx.ctx._calls).toContainEqual({ method: 'stroke', args: [] });
+      expect(rctx.backend.lineWidth).toBeCloseTo(1.333, 2);
+      expect(rctx.backend._calls).toContainEqual({ method: 'stroke', args: [] });
     });
 
     it('converts line width from EMU to scaled pixels', () => {
@@ -41,7 +41,7 @@ describe('applyLine', () => {
       applyLine(line, rctx);
 
       // 12700 EMU at 96*2=192 DPI: 12700 * 192 / 914400 ~= 2.667
-      expect(rctx.ctx.lineWidth).toBeCloseTo(2.667, 2);
+      expect(rctx.backend.lineWidth).toBeCloseTo(2.667, 2);
     });
 
     it('uses default width (9525 EMU) when width is undefined', () => {
@@ -53,8 +53,8 @@ describe('applyLine', () => {
       applyLine(line, rctx);
 
       // 9525 EMU at 96 DPI: 9525 * 96 / 914400 = 1.0
-      expect(rctx.ctx.lineWidth).toBeCloseTo(1.0, 2);
-      expect(rctx.ctx._calls).toContainEqual({ method: 'stroke', args: [] });
+      expect(rctx.backend.lineWidth).toBeCloseTo(1.0, 2);
+      expect(rctx.backend._calls).toContainEqual({ method: 'stroke', args: [] });
     });
   });
 
@@ -69,7 +69,7 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      const strokeCalls = rctx.ctx._calls.filter((c) => c.method === 'stroke');
+      const strokeCalls = rctx.backend._calls.filter((c) => c.method === 'stroke');
       expect(strokeCalls).toHaveLength(0);
     });
 
@@ -78,7 +78,7 @@ describe('applyLine', () => {
       const line: LineIR = {};
 
       expect(() => applyLine(line, rctx)).not.toThrow();
-      const strokeCalls = rctx.ctx._calls.filter((c) => c.method === 'stroke');
+      const strokeCalls = rctx.backend._calls.filter((c) => c.method === 'stroke');
       expect(strokeCalls).toHaveLength(0);
     });
   });
@@ -97,7 +97,7 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      expect(rctx.ctx.lineCap).toBe('butt');
+      expect(rctx.backend.lineCap).toBe('butt');
     });
 
     it('maps "round" to "round"', () => {
@@ -109,7 +109,7 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      expect(rctx.ctx.lineCap).toBe('round');
+      expect(rctx.backend.lineCap).toBe('round');
     });
 
     it('maps "square" to "square"', () => {
@@ -121,7 +121,7 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      expect(rctx.ctx.lineCap).toBe('square');
+      expect(rctx.backend.lineCap).toBe('square');
     });
   });
 
@@ -139,7 +139,7 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      expect(rctx.ctx.lineJoin).toBe('round');
+      expect(rctx.backend.lineJoin).toBe('round');
     });
 
     it('maps "bevel" to "bevel"', () => {
@@ -151,7 +151,7 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      expect(rctx.ctx.lineJoin).toBe('bevel');
+      expect(rctx.backend.lineJoin).toBe('bevel');
     });
 
     it('maps "miter" to "miter"', () => {
@@ -163,7 +163,7 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      expect(rctx.ctx.lineJoin).toBe('miter');
+      expect(rctx.backend.lineJoin).toBe('miter');
     });
   });
 
@@ -181,7 +181,7 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      const dashCall = rctx.ctx._calls.find((c) => c.method === 'setLineDash');
+      const dashCall = rctx.backend._calls.find((c) => c.method === 'setLineDash');
       expect(dashCall).toBeDefined();
       expect(dashCall!.args[0]).toEqual([]);
     });
@@ -196,9 +196,9 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      const dashCall = rctx.ctx._calls.find((c) => c.method === 'setLineDash');
+      const dashCall = rctx.backend._calls.find((c) => c.method === 'setLineDash');
       expect(dashCall).toBeDefined();
-      const w = rctx.ctx.lineWidth;
+      const w = rctx.backend.lineWidth;
       expect(dashCall!.args[0]).toEqual([4 * w, 3 * w]);
     });
 
@@ -212,8 +212,8 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      const dashCall = rctx.ctx._calls.find((c) => c.method === 'setLineDash');
-      const w = rctx.ctx.lineWidth;
+      const dashCall = rctx.backend._calls.find((c) => c.method === 'setLineDash');
+      const w = rctx.backend.lineWidth;
       expect(dashCall!.args[0]).toEqual([w, w]);
     });
 
@@ -227,8 +227,8 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      const dashCall = rctx.ctx._calls.find((c) => c.method === 'setLineDash');
-      const w = rctx.ctx.lineWidth;
+      const dashCall = rctx.backend._calls.find((c) => c.method === 'setLineDash');
+      const w = rctx.backend.lineWidth;
       expect(dashCall!.args[0]).toEqual([4 * w, 3 * w, w, 3 * w]);
     });
 
@@ -242,8 +242,8 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      const dashCall = rctx.ctx._calls.find((c) => c.method === 'setLineDash');
-      const w = rctx.ctx.lineWidth;
+      const dashCall = rctx.backend._calls.find((c) => c.method === 'setLineDash');
+      const w = rctx.backend.lineWidth;
       expect(dashCall!.args[0]).toEqual([8 * w, 3 * w]);
     });
 
@@ -257,8 +257,8 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      const dashCall = rctx.ctx._calls.find((c) => c.method === 'setLineDash');
-      const w = rctx.ctx.lineWidth;
+      const dashCall = rctx.backend._calls.find((c) => c.method === 'setLineDash');
+      const w = rctx.backend.lineWidth;
       expect(dashCall!.args[0]).toEqual([8 * w, 3 * w, w, 3 * w]);
     });
 
@@ -272,8 +272,8 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      const dashCall = rctx.ctx._calls.find((c) => c.method === 'setLineDash');
-      const w = rctx.ctx.lineWidth;
+      const dashCall = rctx.backend._calls.find((c) => c.method === 'setLineDash');
+      const w = rctx.backend.lineWidth;
       expect(dashCall!.args[0]).toEqual([8 * w, 3 * w, w, 3 * w, w, 3 * w]);
     });
 
@@ -285,7 +285,7 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      const dashCall = rctx.ctx._calls.find((c) => c.method === 'setLineDash');
+      const dashCall = rctx.backend._calls.find((c) => c.method === 'setLineDash');
       expect(dashCall).toBeDefined();
       expect(dashCall!.args[0]).toEqual([]);
     });
@@ -304,7 +304,7 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      expect(rctx.ctx.strokeStyle).toBe('rgba(100, 150, 200, 0.75)');
+      expect(rctx.backend.strokeStyle).toBe('rgba(100, 150, 200, 0.75)');
     });
   });
 
@@ -325,12 +325,12 @@ describe('applyLine', () => {
 
       applyLine(line, rctx);
 
-      expect(rctx.ctx.strokeStyle).toBe('rgba(0, 0, 0, 1)');
-      expect(rctx.ctx.lineCap).toBe('round');
-      expect(rctx.ctx.lineJoin).toBe('bevel');
-      expect(rctx.ctx._calls).toContainEqual({ method: 'stroke', args: [] });
+      expect(rctx.backend.strokeStyle).toBe('rgba(0, 0, 0, 1)');
+      expect(rctx.backend.lineCap).toBe('round');
+      expect(rctx.backend.lineJoin).toBe('bevel');
+      expect(rctx.backend._calls).toContainEqual({ method: 'stroke', args: [] });
 
-      const dashCall = rctx.ctx._calls.find((c) => c.method === 'setLineDash');
+      const dashCall = rctx.backend._calls.find((c) => c.method === 'setLineDash');
       expect(dashCall).toBeDefined();
       // Dash array should be non-empty for dashDot
       const dashArr = dashCall!.args[0] as number[];

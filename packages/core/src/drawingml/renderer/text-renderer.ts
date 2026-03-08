@@ -36,6 +36,7 @@ import { emuToScaledPx } from './render-context.js';
 import { hundredthsPtToPt } from '../../units/index.js';
 import { resolveThemeFont } from '../../theme/font-resolver.js';
 import type { ThemeIR } from '../../ir/index.js';
+import type { RenderBackend } from './render-backend.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -321,7 +322,7 @@ function resolveLineSpacingPct(spacing: SpacingIR | undefined, lnSpcReduction?: 
  * Falls back to Canvas2D measurement when no precomputed metrics are available.
  */
 function measureFragment(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  backend: RenderBackend,
   text: string,
   fontString: string,
   _rctx?: RenderContext,
@@ -334,8 +335,8 @@ function measureFragment(
   // decisions match actual rendered widths (including kerning and OpenType shaping).
   // The metrics DB linear advance widths caused wrapping divergence where text
   // would wrap at different points than the actual Canvas2D drawing.
-  ctx.font = fontString;
-  const metrics = ctx.measureText(text);
+  backend.font = fontString;
+  const metrics = backend.measureText(text);
   // Use visual width (actualBoundingBoxRight) when available and tighter than
   // advance width. This removes the last character's right-side bearing from
   // wrap decisions, matching PowerPoint's behavior at line break points.
@@ -577,7 +578,7 @@ function wrapParagraph(
   defaultTabSizePx?: number,
   tabStops?: TabStopIR[]
 ): WrappedLine[] {
-  const { ctx, resolveFont } = rctx;
+  const { backend, resolveFont } = rctx;
   const dpiScale = textDpiScale(rctx);
   const lines: WrappedLine[] = [];
   let currentFragments: TextFragment[] = [];
@@ -784,7 +785,7 @@ function wrapParagraph(
             currentAscent = Math.max(currentAscent, ascentPx);
           } else if (part.length > 0) {
             let partWidth = measureFragment(
-              ctx,
+              backend,
               part,
               fontString,
               rctx,
@@ -819,7 +820,7 @@ function wrapParagraph(
       // Measure accumulated text including this word for kerning-aware width.
       const testText = runAccText + word;
       let testWidth = measureFragment(
-        ctx,
+        backend,
         testText,
         fontString,
         rctx,
@@ -846,7 +847,7 @@ function wrapParagraph(
         // Reset run accumulator for new line and re-measure this word standalone.
         runAccText = word;
         runAccWidth = measureFragment(
-          ctx,
+          backend,
           word,
           fontString,
           rctx,
@@ -1097,7 +1098,7 @@ function measureBullet(
 
   const textWithGap = bulletChar + ' ';
   const widthPx = measureFragment(
-    rctx.ctx,
+    rctx.backend,
     textWithGap,
     fontString,
     rctx,
@@ -1118,15 +1119,15 @@ function measureBullet(
  * Draw a wavy line segment using quadratic bezier curves.
  */
 function drawWavyLine(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  backend: RenderBackend,
   x: number,
   y: number,
   width: number,
   amplitude: number,
   wavelength: number
 ): void {
-  ctx.beginPath();
-  ctx.moveTo(x, y);
+  backend.beginPath();
+  backend.moveTo(x, y);
   const halfWave = wavelength / 2;
   let cx = x;
   let direction = 1;
@@ -1134,18 +1135,18 @@ function drawWavyLine(
     const segEnd = Math.min(cx + halfWave, x + width);
     const cpX = (cx + segEnd) / 2;
     const cpY = y + amplitude * direction;
-    ctx.quadraticCurveTo(cpX, cpY, segEnd, y);
+    backend.quadraticCurveTo(cpX, cpY, segEnd, y);
     direction *= -1;
     cx = segEnd;
   }
-  ctx.stroke();
+  backend.stroke();
 }
 
 /**
  * Draw underline decoration beneath text.
  */
 function drawUnderline(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  backend: RenderBackend,
   x: number,
   baselineY: number,
   width: number,
@@ -1167,26 +1168,26 @@ function drawUnderline(
 
   // Wavy variants — use bezier curves.
   if (style === 'wavy' || style === 'wavyHeavy' || style === 'wavyDouble') {
-    ctx.save();
-    ctx.strokeStyle = fillStyle;
-    ctx.lineWidth = thickness;
+    backend.save();
+    backend.strokeStyle = fillStyle;
+    backend.lineWidth = thickness;
     const amplitude = fontSizePx * 0.04;
     const wavelength = fontSizePx * 0.2;
-    drawWavyLine(ctx, x, underlineY, width, amplitude, wavelength);
+    drawWavyLine(backend, x, underlineY, width, amplitude, wavelength);
     if (style === 'wavyDouble') {
       const gap = thickness * 2.5;
-      drawWavyLine(ctx, x, underlineY + gap, width, amplitude, wavelength);
+      drawWavyLine(backend, x, underlineY + gap, width, amplitude, wavelength);
     }
-    ctx.restore();
+    backend.restore();
     return;
   }
 
   // Double variant — two thin parallel lines.
   if (style === 'double') {
     const gap = thinThickness * 2;
-    ctx.fillStyle = fillStyle;
-    ctx.fillRect(x, underlineY, width, thinThickness);
-    ctx.fillRect(x, underlineY + gap, width, thinThickness);
+    backend.fillStyle = fillStyle;
+    backend.fillRect(x, underlineY, width, thinThickness);
+    backend.fillRect(x, underlineY + gap, width, thinThickness);
     return;
   }
 
@@ -1221,30 +1222,30 @@ function drawUnderline(
   }
 
   if (dashPattern) {
-    ctx.save();
-    ctx.strokeStyle = fillStyle;
-    ctx.lineWidth = thickness;
-    ctx.setLineDash(dashPattern);
-    ctx.beginPath();
+    backend.save();
+    backend.strokeStyle = fillStyle;
+    backend.lineWidth = thickness;
+    backend.setLineDash(dashPattern);
+    backend.beginPath();
     const lineY = underlineY + thickness / 2;
-    ctx.moveTo(x, lineY);
-    ctx.lineTo(x + width, lineY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
+    backend.moveTo(x, lineY);
+    backend.lineTo(x + width, lineY);
+    backend.stroke();
+    backend.setLineDash([]);
+    backend.restore();
     return;
   }
 
   // Default: solid single / heavy.
-  ctx.fillStyle = fillStyle;
-  ctx.fillRect(x, underlineY, width, thickness);
+  backend.fillStyle = fillStyle;
+  backend.fillRect(x, underlineY, width, thickness);
 }
 
 /**
  * Draw strikethrough decoration through text.
  */
 function drawStrikethrough(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  backend: RenderBackend,
   x: number,
   baselineY: number,
   width: number,
@@ -1254,14 +1255,14 @@ function drawStrikethrough(
 ): void {
   const strikeY = baselineY - fontSizePx * 0.3;
   const thickness = Math.max(1, fontSizePx * 0.05);
-  ctx.fillStyle = fillStyle;
+  backend.fillStyle = fillStyle;
 
   if (style === 'double') {
     const gap = thickness * 2;
-    ctx.fillRect(x, strikeY - gap / 2, width, thickness);
-    ctx.fillRect(x, strikeY + gap / 2, width, thickness);
+    backend.fillRect(x, strikeY - gap / 2, width, thickness);
+    backend.fillRect(x, strikeY + gap / 2, width, thickness);
   } else {
-    ctx.fillRect(x, strikeY, width, thickness);
+    backend.fillRect(x, strikeY, width, thickness);
   }
 }
 
@@ -1401,7 +1402,7 @@ export function renderTextBody(
   rctx: RenderContext,
   bounds: { x: number; y: number; width: number; height: number }
 ): void {
-  const { ctx } = rctx;
+  const { backend } = rctx;
   const dpiScale = textDpiScale(rctx);
   const body = textBody.bodyProperties;
 
@@ -1630,14 +1631,14 @@ export function renderTextBody(
   }
 
   // Phase 3: Render each paragraph.
-  ctx.save();
+  backend.save();
 
   // Only clip when autoFit is 'shrink' (text already scaled to fit).
   // Default OOXML behavior (autoFit='none') allows text to overflow visually.
   if (body.autoFit === 'shrink') {
-    ctx.beginPath();
-    ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
-    ctx.clip();
+    backend.beginPath();
+    backend.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+    backend.clip();
   }
 
   // Apply vertical text direction transform.
@@ -1649,14 +1650,14 @@ export function renderTextBody(
     const cy = bounds.y + bounds.height / 2;
     if (vertMode === 'vert' || vertMode === 'eaVert' || vertMode === 'wordArtVert') {
       // 90° clockwise: text reads top-to-bottom
-      ctx.translate(cx, cy);
-      ctx.rotate(Math.PI / 2);
-      ctx.translate(-cx, -cy);
+      backend.translate(cx, cy);
+      backend.rotate(Math.PI / 2);
+      backend.translate(-cx, -cy);
     } else if (vertMode === 'vert270') {
       // 90° counter-clockwise: text reads bottom-to-top
-      ctx.translate(cx, cy);
-      ctx.rotate(-Math.PI / 2);
-      ctx.translate(-cx, -cy);
+      backend.translate(cx, cy);
+      backend.rotate(-Math.PI / 2);
+      backend.translate(-cx, -cy);
     }
 
     // Emit diagnostics for approximated complex vertical modes.
@@ -1676,9 +1677,9 @@ export function renderTextBody(
   if (bodyRotation != null && bodyRotation !== 0) {
     const cx = bounds.x + bounds.width / 2;
     const cy = bounds.y + bounds.height / 2;
-    ctx.translate(cx, cy);
-    ctx.rotate((bodyRotation * Math.PI) / 180);
-    ctx.translate(-cx, -cy);
+    backend.translate(cx, cy);
+    backend.rotate((bodyRotation * Math.PI) / 180);
+    backend.translate(-cx, -cy);
   }
 
   let cursorY = textAreaY + verticalOffset;
@@ -1721,8 +1722,8 @@ export function renderTextBody(
     }
 
     // Set canvas direction for RTL text rendering.
-    if (isRtl && 'direction' in ctx) {
-      (ctx as unknown as { direction: string }).direction = 'rtl';
+    if (isRtl && 'direction' in backend) {
+      (backend as unknown as { direction: string }).direction = 'rtl';
     }
 
     for (let li = 0; li < layout.lines.length; li++) {
@@ -1747,13 +1748,13 @@ export function renderTextBody(
         if (frag.text === '\t') {
           renderedLineWidth += frag.widthPx;
         } else {
-          ctx.font = frag.fontString;
-          renderedLineWidth += ctx.measureText(frag.text).width;
+          backend.font = frag.fontString;
+          renderedLineWidth += backend.measureText(frag.text).width;
         }
       }
       if (isFirst && layout.bullet && !hangingIndent) {
-        ctx.font = layout.bullet.fontString;
-        renderedLineWidth += ctx.measureText(layout.bullet.text).width;
+        backend.font = layout.bullet.fontString;
+        renderedLineWidth += backend.measureText(layout.bullet.text).width;
       }
 
       if (effectiveAlignment === 'center') {
@@ -1804,11 +1805,11 @@ export function renderTextBody(
 
       // Draw bullet on the first line of the paragraph.
       if (li === 0 && layout.bullet) {
-        ctx.font = layout.bullet.fontString;
-        ctx.fillStyle = layout.bullet.fillStyle;
+        backend.font = layout.bullet.fontString;
+        backend.fillStyle = layout.bullet.fillStyle;
         if (isRtl) {
           // RTL: bullet appears on the right side (the "start" of the line in RTL).
-          const bulletWidth = ctx.measureText(layout.bullet.text).width;
+          const bulletWidth = backend.measureText(layout.bullet.text).width;
           if (hangingIndent) {
             // Hanging indent RTL: bullet at the right margin area, mirroring
             // the LTR hanging indent position on the left.
@@ -1818,21 +1819,21 @@ export function renderTextBody(
               effectiveMarginRight -
               Math.abs(layout.indentPx) +
               anchorCtrOffset;
-            ctx.fillText(layout.bullet.text, rtlBulletX, baselineY);
+            backend.fillText(layout.bullet.text, rtlBulletX, baselineY);
           } else {
             // Normal RTL inline bullet: bullet at the right end of the rendered content.
             // The renderedLineWidth already includes the bullet width, and the line
             // is right-aligned, so the bullet sits at the far right.
             const rtlBulletX = drawX + renderedLineWidth - bulletWidth;
-            ctx.fillText(layout.bullet.text, rtlBulletX, baselineY);
+            backend.fillText(layout.bullet.text, rtlBulletX, baselineY);
           }
         } else if (hangingIndent) {
           // Hanging indent: bullet draws at bulletX, text stays at lineX.
-          ctx.fillText(layout.bullet.text, bulletX, baselineY);
+          backend.fillText(layout.bullet.text, bulletX, baselineY);
         } else {
           // Normal: bullet drawn inline before text.
-          ctx.fillText(layout.bullet.text, drawX, baselineY);
-          drawX += ctx.measureText(layout.bullet.text).width;
+          backend.fillText(layout.bullet.text, drawX, baselineY);
+          drawX += backend.measureText(layout.bullet.text).width;
         }
       }
 
@@ -1847,16 +1848,16 @@ export function renderTextBody(
           continue;
         }
 
-        ctx.font = frag.fontString;
-        ctx.fillStyle = frag.fillStyle;
+        backend.font = frag.fontString;
+        backend.fillStyle = frag.fillStyle;
 
         const fontSizePx = ptToCanvasPx(frag.fontSizePt, dpiScale);
 
         // Character spacing: apply via Canvas letterSpacing when available.
         const fragSpacing = frag.props.spacing;
-        if (fragSpacing != null && fragSpacing !== 0 && 'letterSpacing' in ctx) {
+        if (fragSpacing != null && fragSpacing !== 0 && 'letterSpacing' in backend) {
           const spacingPx = ptToCanvasPx(hundredthsPtToPt(fragSpacing), dpiScale);
-          (ctx as unknown as { letterSpacing: string }).letterSpacing = `${spacingPx}px`;
+          (backend as unknown as { letterSpacing: string }).letterSpacing = `${spacingPx}px`;
         }
 
         // Baseline shift for superscript/subscript.
@@ -1868,37 +1869,37 @@ export function renderTextBody(
         // Draw highlight background behind text.
         if (frag.props.highlight) {
           const hlColor = colorToRgba(frag.props.highlight);
-          const textMetrics = ctx.measureText(frag.text);
+          const textMetrics = backend.measureText(frag.text);
           const hlHeight = line.heightPx;
           const hlY = cursorY;
-          ctx.fillStyle = hlColor;
-          ctx.fillRect(drawX, hlY, textMetrics.width, hlHeight);
-          ctx.fillStyle = frag.fillStyle;
+          backend.fillStyle = hlColor;
+          backend.fillRect(drawX, hlY, textMetrics.width, hlHeight);
+          backend.fillStyle = frag.fillStyle;
         }
 
         // Draw text outline (stroke) behind fill for correct visual stacking.
         if (frag.props.outline && frag.props.outline.width != null) {
-          const savedStrokeStyle = ctx.strokeStyle;
-          const savedLineWidth = ctx.lineWidth;
-          ctx.lineWidth = emuToScaledPx(frag.props.outline.width, rctx);
-          ctx.strokeStyle = frag.props.outline.color
+          const savedStrokeStyle = backend.strokeStyle;
+          const savedLineWidth = backend.lineWidth;
+          backend.lineWidth = emuToScaledPx(frag.props.outline.width, rctx);
+          backend.strokeStyle = frag.props.outline.color
             ? colorToRgba(frag.props.outline.color)
             : frag.fillStyle;
-          ctx.strokeText(frag.text, drawX, baselineY + baselineShift);
-          ctx.strokeStyle = savedStrokeStyle;
-          ctx.lineWidth = savedLineWidth;
+          backend.strokeText(frag.text, drawX, baselineY + baselineShift);
+          backend.strokeStyle = savedStrokeStyle;
+          backend.lineWidth = savedLineWidth;
         }
 
-        ctx.fillText(frag.text, drawX, baselineY + baselineShift);
+        backend.fillText(frag.text, drawX, baselineY + baselineShift);
 
         // Measure the ACTUAL rendered width using Canvas2D for draw advancement.
         // Must be done BEFORE resetting letterSpacing so the measurement includes
         // the same spacing that was used during fillText.
-        const renderedWidth = ctx.measureText(frag.text).width;
+        const renderedWidth = backend.measureText(frag.text).width;
 
         // Reset letterSpacing after drawing AND measuring.
-        if (fragSpacing != null && fragSpacing !== 0 && 'letterSpacing' in ctx) {
-          (ctx as unknown as { letterSpacing: string }).letterSpacing = '0px';
+        if (fragSpacing != null && fragSpacing !== 0 && 'letterSpacing' in backend) {
+          (backend as unknown as { letterSpacing: string }).letterSpacing = '0px';
         }
 
         // Draw underline.
@@ -1906,7 +1907,7 @@ export function renderTextBody(
           const ulColor =
             resolveUnderlineFillColor(frag.props.underlineFill) ?? frag.fillStyle;
           drawUnderline(
-            ctx,
+            backend,
             drawX,
             baselineY + baselineShift,
             renderedWidth,
@@ -1919,7 +1920,7 @@ export function renderTextBody(
         // Draw strikethrough.
         if (frag.props.strikethrough && frag.props.strikethrough !== 'none') {
           drawStrikethrough(
-            ctx,
+            backend,
             drawX,
             baselineY + baselineShift,
             renderedWidth,
@@ -1946,8 +1947,8 @@ export function renderTextBody(
     }
 
     // Reset canvas direction after rendering RTL paragraph.
-    if (isRtl && 'direction' in ctx) {
-      (ctx as unknown as { direction: string }).direction = 'ltr';
+    if (isRtl && 'direction' in backend) {
+      (backend as unknown as { direction: string }).direction = 'ltr';
     }
 
     // Skip space-after on the last paragraph unless spcFirstLastPara is set,
@@ -1958,6 +1959,6 @@ export function renderTextBody(
     }
   }
 
-  ctx.restore();
+  backend.restore();
 }
 

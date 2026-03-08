@@ -93,7 +93,7 @@ function renderChart(chart: ChartIR, rctx: RenderContext): void {
     },
   });
   renderGreyBox(
-    rctx.ctx as CanvasRenderingContext2D,
+    rctx.backend as unknown as CanvasRenderingContext2D,
     { x: px.x, y: px.y, width: px.w, height: px.h },
     label,
     rctx.dpiScale
@@ -119,7 +119,7 @@ function renderUnsupported(element: UnsupportedIR, rctx: RenderContext): void {
   const w = emuToScaledPx(element.bounds.width, rctx);
   const h = emuToScaledPx(element.bounds.height, rctx);
   renderGreyBox(
-    rctx.ctx as CanvasRenderingContext2D,
+    rctx.backend as unknown as CanvasRenderingContext2D,
     { x, y, width: w, height: h },
     element.elementType,
     rctx.dpiScale
@@ -301,7 +301,7 @@ function resolveEffectiveEffects(shape: DrawingMLShapeIR, rctx: RenderContext): 
  * 10. Restore canvas state
  */
 export function renderShape(shape: DrawingMLShapeIR, rctx: RenderContext): void {
-  const { ctx } = rctx;
+  const { backend } = rctx;
   const transform = shape.properties.transform;
 
   // No transform means nothing to render — the shape has no position or size.
@@ -313,20 +313,20 @@ export function renderShape(shape: DrawingMLShapeIR, rctx: RenderContext): void 
   const w = emuToScaledPx(size.width, rctx);
   const h = emuToScaledPx(size.height, rctx);
 
-  ctx.save();
+  backend.save();
 
   // -- Transform: translate to center, rotate, flip, translate back --
-  ctx.translate(x + w / 2, y + h / 2);
+  backend.translate(x + w / 2, y + h / 2);
   if (rotation) {
-    ctx.rotate((rotation * Math.PI) / 180);
+    backend.rotate((rotation * Math.PI) / 180);
   }
   if (flipH) {
-    ctx.scale(-1, 1);
+    backend.scale(-1, 1);
   }
   if (flipV) {
-    ctx.scale(1, -1);
+    backend.scale(1, -1);
   }
-  ctx.translate(-w / 2, -h / 2);
+  backend.translate(-w / 2, -h / 2);
 
   // Bounds in the local coordinate space (post-transform origin is at 0,0).
   // Use `let` so spAutoFit can expand height below.
@@ -388,8 +388,8 @@ export function renderShape(shape: DrawingMLShapeIR, rctx: RenderContext): void 
   } else {
     // Single path or fallback rectangle
     if (!singlePath) {
-      ctx.beginPath();
-      ctx.rect(0, 0, geoW, geoH);
+      backend.beginPath();
+      backend.rect(0, 0, geoW, geoH);
     }
 
     if (effectiveFill) {
@@ -408,7 +408,7 @@ export function renderShape(shape: DrawingMLShapeIR, rctx: RenderContext): void 
     renderTextBody(shape.textBody, rctx, bounds);
   }
 
-  ctx.restore();
+  backend.restore();
 }
 
 /**

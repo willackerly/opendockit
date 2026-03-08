@@ -77,12 +77,12 @@ export function applyFill(
   bounds: { x: number; y: number; width: number; height: number },
   path?: Path2D
 ): void {
-  const { ctx } = rctx;
+  const { backend } = rctx;
 
   switch (fillIR.type) {
     case 'solid': {
-      ctx.fillStyle = colorToRgba(fillIR.color);
-      path ? ctx.fill(path) : ctx.fill();
+      backend.fillStyle = colorToRgba(fillIR.color);
+      path ? backend.fill(path) : backend.fill();
       break;
     }
 
@@ -92,21 +92,21 @@ export function applyFill(
       if (fillIR.kind === 'linear') {
         const angle = fillIR.angle ?? 0;
         const [x0, y0, x1, y1] = linearGradientEndpoints(angle, bounds);
-        gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+        gradient = backend.createLinearGradient(x0, y0, x1, y1);
       } else {
         // Radial and path gradients: create a radial gradient centered in bounds.
         const cx = bounds.x + bounds.width / 2;
         const cy = bounds.y + bounds.height / 2;
         const radius = Math.max(bounds.width, bounds.height) / 2;
-        gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        gradient = backend.createRadialGradient(cx, cy, 0, cx, cy, radius);
       }
 
       for (const stop of fillIR.stops) {
         gradient.addColorStop(stop.position, colorToRgba(stop.color));
       }
 
-      ctx.fillStyle = gradient;
-      path ? ctx.fill(path) : ctx.fill();
+      backend.fillStyle = gradient;
+      path ? backend.fill(path) : backend.fill();
       break;
     }
 
@@ -119,8 +119,8 @@ export function applyFill(
         message: `Pattern fill "${fillIR.preset}" rendered as solid foreground color`,
         context: { slideNumber: rctx.slideNumber, elementType: 'fill' },
       });
-      ctx.fillStyle = colorToRgba(fillIR.foreground);
-      path ? ctx.fill(path) : ctx.fill();
+      backend.fillStyle = colorToRgba(fillIR.foreground);
+      path ? backend.fill(path) : backend.fill();
       break;
     }
 

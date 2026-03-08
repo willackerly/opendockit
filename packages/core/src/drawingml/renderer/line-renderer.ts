@@ -11,6 +11,7 @@
 import type { DashStyle, LineEnd, LineIR, ResolvedColor } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
+import type { RenderBackend } from './render-backend.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -107,7 +108,7 @@ function endSizeMultiplier(size: 'sm' | 'med' | 'lg' | undefined): number {
  * @param color - Stroke color string.
  */
 function drawLineEnd(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  backend: RenderBackend,
   end: LineEnd,
   x: number,
   y: number,
@@ -122,40 +123,40 @@ function drawLineEnd(
   const halfW = (wMul * lineWidth) / 2;
   const len = lMul * lineWidth;
 
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
+  backend.save();
+  backend.translate(x, y);
+  backend.rotate(angle);
 
-  ctx.beginPath();
+  backend.beginPath();
 
   switch (end.type) {
     case 'triangle':
     case 'stealth':
     case 'arrow': {
-      ctx.moveTo(0, 0);
-      ctx.lineTo(-len, -halfW);
-      ctx.lineTo(-len, halfW);
-      ctx.closePath();
+      backend.moveTo(0, 0);
+      backend.lineTo(-len, -halfW);
+      backend.lineTo(-len, halfW);
+      backend.closePath();
       break;
     }
     case 'diamond': {
       const halfLen = len / 2;
-      ctx.moveTo(0, 0);
-      ctx.lineTo(-halfLen, -halfW);
-      ctx.lineTo(-len, 0);
-      ctx.lineTo(-halfLen, halfW);
-      ctx.closePath();
+      backend.moveTo(0, 0);
+      backend.lineTo(-halfLen, -halfW);
+      backend.lineTo(-len, 0);
+      backend.lineTo(-halfLen, halfW);
+      backend.closePath();
       break;
     }
     case 'oval': {
-      ctx.ellipse(-len / 2, 0, len / 2, halfW, 0, 0, 2 * Math.PI);
+      backend.ellipse(-len / 2, 0, len / 2, halfW, 0, 0, 2 * Math.PI);
       break;
     }
   }
 
-  ctx.fillStyle = color;
-  ctx.fill();
-  ctx.restore();
+  backend.fillStyle = color;
+  backend.fill();
+  backend.restore();
 }
 
 // ---------------------------------------------------------------------------
@@ -180,35 +181,35 @@ const DEFAULT_LINE_WIDTH_EMU = 9525;
  * @param path   - Optional Path2D to stroke instead of the current context path.
  */
 export function applyLine(lineIR: LineIR, rctx: RenderContext, path?: Path2D): void {
-  const { ctx } = rctx;
+  const { backend } = rctx;
 
   // No color means no visible line.
   if (!lineIR.color) return;
 
   const strokeColor = colorToRgba(lineIR.color);
-  ctx.strokeStyle = strokeColor;
+  backend.strokeStyle = strokeColor;
 
   // Convert width from EMU to scaled pixels.
   const widthEmu = lineIR.width ?? DEFAULT_LINE_WIDTH_EMU;
   const widthPx = emuToScaledPx(widthEmu, rctx);
-  ctx.lineWidth = widthPx;
+  backend.lineWidth = widthPx;
 
   // Line cap.
   if (lineIR.cap) {
-    ctx.lineCap = mapLineCap(lineIR.cap);
+    backend.lineCap = mapLineCap(lineIR.cap);
   }
 
   // Line join.
   if (lineIR.join) {
-    ctx.lineJoin = mapLineJoin(lineIR.join);
+    backend.lineJoin = mapLineJoin(lineIR.join);
   }
 
   // Dash pattern.
   const dash = lineIR.dashStyle ?? 'solid';
-  ctx.setLineDash(dashArray(dash, widthPx));
+  backend.setLineDash(dashArray(dash, widthPx));
 
   // Stroke the path.
-  path ? ctx.stroke(path) : ctx.stroke();
+  path ? backend.stroke(path) : backend.stroke();
 }
 
 /**
@@ -231,16 +232,16 @@ export function drawLineEnds(
 ): void {
   if (!lineIR.color) return;
 
-  const { ctx } = rctx;
+  const { backend } = rctx;
   const strokeColor = colorToRgba(lineIR.color);
   const widthEmu = lineIR.width ?? DEFAULT_LINE_WIDTH_EMU;
   const widthPx = emuToScaledPx(widthEmu, rctx);
 
   if (lineIR.headEnd && lineIR.headEnd.type !== 'none') {
-    drawLineEnd(ctx, lineIR.headEnd, head.x, head.y, head.angle, widthPx, strokeColor);
+    drawLineEnd(backend, lineIR.headEnd, head.x, head.y, head.angle, widthPx, strokeColor);
   }
 
   if (lineIR.tailEnd && lineIR.tailEnd.type !== 'none') {
-    drawLineEnd(ctx, lineIR.tailEnd, tail.x, tail.y, tail.angle, widthPx, strokeColor);
+    drawLineEnd(backend, lineIR.tailEnd, tail.x, tail.y, tail.angle, widthPx, strokeColor);
   }
 }

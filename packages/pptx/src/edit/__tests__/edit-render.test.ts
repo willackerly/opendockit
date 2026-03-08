@@ -170,8 +170,8 @@ describe('edit → derive → render pipeline', () => {
     // The renderer translates to (x + w/2, y + h/2) for center-based transform.
     // Compare the first element translate to verify the position shifted by
     // (914400 EMU = 96px at 96 DPI).
-    const movedTranslates = rctxMoved.ctx._calls.filter((c) => c.method === 'translate');
-    const origTranslates = rctxOrig.ctx._calls.filter((c) => c.method === 'translate');
+    const movedTranslates = rctxMoved.backend._calls.filter((c) => c.method === 'translate');
+    const origTranslates = rctxOrig.backend._calls.filter((c) => c.method === 'translate');
     expect(movedTranslates.length).toBeGreaterThanOrEqual(1);
     expect(origTranslates.length).toBeGreaterThanOrEqual(1);
 
@@ -205,7 +205,7 @@ describe('edit → derive → render pipeline', () => {
     const rctx = createMockRenderContext();
     renderSlide(makeEnriched([derived]), rctx, 960, 540);
 
-    const fillTexts = rctx.ctx._calls
+    const fillTexts = rctx.backend._calls
       .filter((c) => c.method === 'fillText')
       .map((c) => c.args[0] as string);
 
@@ -259,8 +259,8 @@ describe('edit → derive → render pipeline', () => {
     renderSlide(makeEnriched(renderableElements), rctx, 960, 540);
 
     // Should have exactly 1 element's save/restore pair (background + 1 shape)
-    const saves = rctx.ctx._calls.filter((c) => c.method === 'save');
-    const restores = rctx.ctx._calls.filter((c) => c.method === 'restore');
+    const saves = rctx.backend._calls.filter((c) => c.method === 'save');
+    const restores = rctx.backend._calls.filter((c) => c.method === 'restore');
     // 1 save/restore for the surviving shape
     expect(saves).toHaveLength(1);
     expect(restores).toHaveLength(1);
@@ -302,12 +302,12 @@ describe('edit → derive → render pipeline', () => {
     renderSlide(makeEnriched([ir]), rctxOrig, 960, 540);
 
     // Both should render (produce translate calls for element)
-    expect(rctxResized.ctx._calls.filter((c) => c.method === 'translate').length).toBeGreaterThan(0);
-    expect(rctxOrig.ctx._calls.filter((c) => c.method === 'translate').length).toBeGreaterThan(0);
+    expect(rctxResized.backend._calls.filter((c) => c.method === 'translate').length).toBeGreaterThan(0);
+    expect(rctxOrig.backend._calls.filter((c) => c.method === 'translate').length).toBeGreaterThan(0);
 
     // The translate calls should differ because w/2 changed
-    const resizedTranslates = rctxResized.ctx._calls.filter((c) => c.method === 'translate');
-    const origTranslates = rctxOrig.ctx._calls.filter((c) => c.method === 'translate');
+    const resizedTranslates = rctxResized.backend._calls.filter((c) => c.method === 'translate');
+    const origTranslates = rctxOrig.backend._calls.filter((c) => c.method === 'translate');
     const [rtx] = resizedTranslates[0].args as [number, number];
     const [otx] = origTranslates[0].args as [number, number];
     // The first translate encodes (x + w/2), so resized should differ
@@ -336,7 +336,7 @@ describe('edit → derive → render pipeline', () => {
     renderSlide(makeEnriched([derived]), rctx2, 960, 540);
 
     // Call sequences should be identical
-    expect(JSON.stringify(rctx1.ctx._calls)).toBe(JSON.stringify(rctx2.ctx._calls));
+    expect(JSON.stringify(rctx1.backend._calls)).toBe(JSON.stringify(rctx2.backend._calls));
   });
 
   it('combined move + text edit: both changes visible', () => {
@@ -378,8 +378,8 @@ describe('edit → derive → render pipeline', () => {
     renderSlide(makeEnriched([ir]), rctxOrig, 960, 540);
 
     // Position shifted by 96px (914400 EMU)
-    const editedTranslates = rctxEdited.ctx._calls.filter((c) => c.method === 'translate');
-    const origTranslates = rctxOrig.ctx._calls.filter((c) => c.method === 'translate');
+    const editedTranslates = rctxEdited.backend._calls.filter((c) => c.method === 'translate');
+    const origTranslates = rctxOrig.backend._calls.filter((c) => c.method === 'translate');
     expect(editedTranslates.length).toBeGreaterThanOrEqual(1);
     expect(origTranslates.length).toBeGreaterThanOrEqual(1);
 
@@ -389,7 +389,7 @@ describe('edit → derive → render pipeline', () => {
     expect(ety - oty).toBeCloseTo(96, 0);
 
     // Text changed
-    const fillTexts = rctxEdited.ctx._calls
+    const fillTexts = rctxEdited.backend._calls
       .filter((c) => c.method === 'fillText')
       .map((c) => c.args[0] as string);
     expect(fillTexts).toContain('After');
