@@ -15,3 +15,10 @@ export type { EmbeddedFontResult } from './pdf-font-embedder.js';
 
 export { buildFontLookup } from './pdf-slide-renderer.js';
 export type { FontLookupContext } from './pdf-slide-renderer.js';
+
+export {
+  collectImagesFromSlide,
+  collectImagesFromPresentation,
+  detectImageMimeType,
+} from './pdf-image-collector.js';
+export type { CollectedImage } from './pdf-image-collector.js';

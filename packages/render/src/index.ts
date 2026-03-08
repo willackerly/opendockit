@@ -56,4 +56,9 @@ export type { Matrix2D, Vec2, MatrixDecomposition } from './matrix.js';
 
 // PDF backend
 export { PDFBackend, PDFGradient, parseCssColor } from './pdf-backend.js';
-export type { TextMeasurer, RegisteredPdfFont } from './pdf-backend.js';
+export type {
+  TextMeasurer,
+  RegisteredPdfFont,
+  RegisteredPdfImage,
+  GradientShadingRecord,
+} from './pdf-backend.js';

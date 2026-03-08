@@ -403,7 +403,7 @@ describe('fillStyle / strokeStyle', () => {
     expect(b.fillStyle).not.toBeNull();
   });
 
-  it('resolves gradient to first stop color when filling', () => {
+  it('emits pattern reference for gradient fill with 2+ stops', () => {
     const b = createBackend();
     const grad = b.createLinearGradient(0, 0, 100, 0);
     grad.addColorStop(0, '#FF0000');
@@ -411,7 +411,24 @@ describe('fillStyle / strokeStyle', () => {
     b.fillStyle = grad;
     b.fillRect(0, 0, 100, 50);
     const ops = getOps(b);
-    // First stop is red (#FF0000) = rgb(1, 0, 0)
+    // Should emit pattern color space and pattern name
+    expect(ops).toContain('/Pattern cs /P1 scn');
+    // Gradient shading should be recorded
+    const shadings = b.getGradientShadings();
+    expect(shadings).toHaveLength(1);
+    expect(shadings[0].patternName).toBe('P1');
+    expect(shadings[0].type).toBe('linear');
+    expect(shadings[0].stops).toHaveLength(2);
+  });
+
+  it('falls back to first stop color for gradient with single stop', () => {
+    const b = createBackend();
+    const grad = b.createLinearGradient(0, 0, 100, 0);
+    grad.addColorStop(0, '#FF0000');
+    b.fillStyle = grad;
+    b.fillRect(0, 0, 100, 50);
+    const ops = getOps(b);
+    // Single stop = fallback to solid color approximation
     expect(ops).toContain('1 0 0 rg');
   });
 });

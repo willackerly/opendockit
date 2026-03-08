@@ -331,7 +331,7 @@ function renderTextBodyToPdf(
   y: number,
   w: number,
   h: number,
-  pageHeightPt: number,
+  _pageHeightPt: number,
   fontCtx: FontLookupContext | undefined
 ): void {
   if (!fontCtx) return;
@@ -363,14 +363,7 @@ function renderTextBodyToPdf(
   let cursorY = textAreaTop;
 
   for (const para of textBody.paragraphs) {
-    const paraResult = renderParagraphToPdf(
-      builder,
-      para,
-      textX,
-      cursorY,
-      textW,
-      fontCtx
-    );
+    const paraResult = renderParagraphToPdf(builder, para, textX, cursorY, textW, fontCtx);
     cursorY -= paraResult.heightPt;
   }
 
@@ -578,7 +571,8 @@ function renderGroupToPdf(
   builder: ContentStreamBuilder,
   group: GroupIR,
   pageHeightPt: number,
-  fontCtx?: FontLookupContext
+  fontCtx?: FontLookupContext,
+  imageResourceNames?: Map<string, string>
 ): void {
   const transform = group.properties.transform;
   if (!transform) return;
@@ -603,7 +597,13 @@ function renderGroupToPdf(
   // Render children in the group's coordinate space (using full page height
   // since we've already adjusted the transform matrix)
   for (const child of group.children) {
-    renderElementToPdf(builder, child, pageHeightPt / scaleY + emuToPt(cy), fontCtx);
+    renderElementToPdf(
+      builder,
+      child,
+      pageHeightPt / scaleY + emuToPt(cy),
+      fontCtx,
+      imageResourceNames
+    );
   }
 
   builder.popGraphicsState();
@@ -617,14 +617,22 @@ function renderGroupToPdf(
  * Render a single slide element to PDF operators.
  *
  * Dispatches by element kind. Supports shapes (fills, outlines, text),
- * groups (with transform), and placeholders for pictures/tables.
+ * groups (with transform), pictures (with embedded images), and
+ * placeholders for tables.
  * Connectors, charts, and unsupported elements are skipped.
+ *
+ * @param builder - PDF content stream builder
+ * @param element - The slide element to render
+ * @param pageHeightPt - Page height in PDF points (for Y-flip)
+ * @param fontCtx - Font lookup context for text rendering
+ * @param imageResourceNames - Map of image part URI -> PDF resource name (e.g. "Im1")
  */
 export function renderElementToPdf(
   builder: ContentStreamBuilder,
   element: SlideElementIR,
   pageHeightPt: number,
-  fontCtx?: FontLookupContext
+  fontCtx?: FontLookupContext,
+  imageResourceNames?: Map<string, string>
 ): void {
   switch (element.kind) {
     case 'shape':
@@ -632,13 +640,11 @@ export function renderElementToPdf(
       break;
 
     case 'group':
-      renderGroupToPdf(builder, element as GroupIR, pageHeightPt, fontCtx);
+      renderGroupToPdf(builder, element as GroupIR, pageHeightPt, fontCtx, imageResourceNames);
       break;
 
     case 'picture':
-      // TRACKED-TASK: PDF image XObject rendering for pictures - see TODO.md
-      // Render a placeholder rectangle for now
-      renderPicturePlaceholder(builder, element as PictureIR, pageHeightPt);
+      renderPictureToPdf(builder, element as PictureIR, pageHeightPt, imageResourceNames);
       break;
 
     case 'connector':
@@ -658,22 +664,40 @@ export function renderElementToPdf(
 }
 
 /**
- * Render a placeholder for picture elements (light gray rectangle).
+ * Render a picture element to PDF operators.
+ *
+ * If the image has a registered resource name, emits `Do` operator
+ * to render the XObject. Otherwise falls back to a gray placeholder.
  */
-function renderPicturePlaceholder(
+function renderPictureToPdf(
   builder: ContentStreamBuilder,
   element: PictureIR,
-  pageHeightPt: number
+  pageHeightPt: number,
+  imageResourceNames?: Map<string, string>
 ): void {
   const transform = element.properties.transform;
   if (!transform) return;
 
   const { x, y, w, h } = transformToPdf(transform, pageHeightPt);
-  builder.pushGraphicsState();
-  builder.setFillingRgbColor(0.9, 0.9, 0.9);
-  builder.rectangle(x, y, w, h);
-  builder.fill();
-  builder.popGraphicsState();
+  const resourceName = imageResourceNames?.get(element.imagePartUri);
+
+  if (resourceName) {
+    // Render the actual image XObject
+    builder.pushGraphicsState();
+    // Position and scale the image:
+    // PDF images are 1x1 unit by default; we need to scale to the destination size
+    // and translate to the correct position.
+    builder.concatMatrix(w, 0, 0, h, x, y);
+    builder.drawXObject(resourceName);
+    builder.popGraphicsState();
+  } else {
+    // Fallback: gray placeholder
+    builder.pushGraphicsState();
+    builder.setFillingRgbColor(0.9, 0.9, 0.9);
+    builder.rectangle(x, y, w, h);
+    builder.fill();
+    builder.popGraphicsState();
+  }
 }
 
 /**
@@ -713,13 +737,15 @@ function renderTablePlaceholder(
  * @param pageWidthPt - Page width in PDF points
  * @param pageHeightPt - Page height in PDF points
  * @param fontCtx - Optional font lookup context for text rendering
+ * @param imageResourceNames - Optional map of image part URI -> PDF resource name
  * @returns ContentStreamBuilder with all operators
  */
 export function renderSlideToPdf(
   data: EnrichedSlideData,
   pageWidthPt: number,
   pageHeightPt: number,
-  fontCtx?: FontLookupContext
+  fontCtx?: FontLookupContext,
+  imageResourceNames?: Map<string, string>
 ): ContentStreamBuilder {
   const builder = new ContentStreamBuilder();
   const { slide, layout, master } = data;
@@ -732,18 +758,18 @@ export function renderSlideToPdf(
   const showMaster = layout.showMasterSp !== false;
   if (showMaster) {
     for (const element of master.elements) {
-      renderElementToPdf(builder, element, pageHeightPt, fontCtx);
+      renderElementToPdf(builder, element, pageHeightPt, fontCtx, imageResourceNames);
     }
   }
 
   // 3. Layout elements
   for (const element of layout.elements) {
-    renderElementToPdf(builder, element, pageHeightPt, fontCtx);
+    renderElementToPdf(builder, element, pageHeightPt, fontCtx, imageResourceNames);
   }
 
   // 4. Slide elements (front-most layer)
   for (const element of slide.elements) {
-    renderElementToPdf(builder, element, pageHeightPt, fontCtx);
+    renderElementToPdf(builder, element, pageHeightPt, fontCtx, imageResourceNames);
   }
 
   return builder;

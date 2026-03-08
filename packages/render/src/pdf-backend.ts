@@ -240,8 +240,9 @@ interface GradientStop {
  * PDFGradient — proxy object returned by createLinearGradient / createRadialGradient.
  *
  * Records color stops. When assigned to fillStyle/strokeStyle, the PDFBackend
- * uses the first color stop as an approximation (full PDF shading patterns
- * are a Wave 3 enhancement).
+ * emits PDF shading pattern operators for proper gradient rendering.
+ * Falls back to first stop color approximation if gradient patterns are not
+ * wired up in the resource dictionary.
  */
 export class PDFGradient {
   readonly stops: GradientStop[] = [];
@@ -262,6 +263,45 @@ export class PDFGradient {
   getApproximateColor(): string {
     return this.stops.length > 0 ? this.stops[0].color : '#000000';
   }
+}
+
+// ---------------------------------------------------------------------------
+// Registered image interface (for PDF image XObject embedding)
+// ---------------------------------------------------------------------------
+
+/**
+ * An image registered with PDFBackend for PDF image rendering.
+ *
+ * Callers (e.g. the PDF export pipeline) create these after embedding
+ * images as XObjects into the PDF document, then register them so that
+ * drawImage() can emit correct `Do` operators with the right resource name.
+ */
+export interface RegisteredPdfImage {
+  /** PDF resource name, e.g. "Im1" (without leading slash). */
+  resourceName: string;
+  /** Image width in pixels. */
+  width: number;
+  /** Image height in pixels. */
+  height: number;
+}
+
+// ---------------------------------------------------------------------------
+// Gradient shading record (for PDF gradient pattern resources)
+// ---------------------------------------------------------------------------
+
+/**
+ * Recorded gradient shading used during rendering.
+ * Collected so the caller can build PDF Shading/Pattern objects.
+ */
+export interface GradientShadingRecord {
+  /** Unique pattern name, e.g. "P1". */
+  patternName: string;
+  /** Gradient type. */
+  type: 'linear' | 'radial';
+  /** Gradient coordinates (linear: [x0,y0,x1,y1], radial: [x0,y0,r0,x1,y1,r1]). */
+  coords: number[];
+  /** Color stops with parsed RGB (0-1) components. */
+  stops: Array<{ offset: number; r: number; g: number; b: number }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -336,7 +376,14 @@ function arcToBeziers(
     }
   }
 
-  const segments: { cp1x: number; cp1y: number; cp2x: number; cp2y: number; x: number; y: number }[] = [];
+  const segments: {
+    cp1x: number;
+    cp1y: number;
+    cp2x: number;
+    cp2y: number;
+    x: number;
+    y: number;
+  }[] = [];
   const totalAngle = end - start;
   const numSegments = Math.max(1, Math.ceil(Math.abs(totalAngle) / (Math.PI / 2)));
   const segmentAngle = totalAngle / numSegments;
@@ -441,6 +488,30 @@ export class PDFBackend {
   /** Resource declarations accumulated during rendering (e.g. "/F1 12 0 R"). */
   private _fontResourceDeclarations: string[] = [];
 
+  /** Map of imageId -> RegisteredPdfImage for PDF image rendering. */
+  private _imageRegistry = new Map<string, RegisteredPdfImage>();
+
+  /** Image resource declarations accumulated during rendering. */
+  private _imageResourceDeclarations: string[] = [];
+
+  /** Counter for assigning gradient pattern names. */
+  private _gradientCounter = 0;
+
+  /** Recorded gradient shadings used during rendering. */
+  private _gradientShadings: GradientShadingRecord[] = [];
+
+  /** Map of alpha value -> ExtGState name for transparency. */
+  private _extGStateRegistry = new Map<string, string>();
+
+  /** Counter for assigning ExtGState names. */
+  private _extGStateCounter = 0;
+
+  /** ExtGState resource declarations. */
+  private _extGStateDeclarations: string[] = [];
+
+  /** Track last emitted alpha to avoid redundant gs operators. */
+  private _lastEmittedAlpha = 1;
+
   /**
    * @param pageHeight - Page height in PDF points, used for Y-axis flipping.
    *   PDF uses bottom-left origin; Canvas2D uses top-left. The constructor
@@ -448,10 +519,7 @@ export class PDFBackend {
    *   top-left-origin space.
    * @param textMeasurer - Optional callback for accurate text measurement.
    */
-  constructor(
-    pageHeight: number,
-    textMeasurer?: TextMeasurer
-  ) {
+  constructor(pageHeight: number, textMeasurer?: TextMeasurer) {
     this._currentState = createDefaultState();
     this._textMeasurer = textMeasurer;
 
@@ -476,12 +544,7 @@ export class PDFBackend {
    * @param italic - Whether this is an italic variant
    * @param font - The registered font object
    */
-  registerFont(
-    cssFamily: string,
-    bold: boolean,
-    italic: boolean,
-    font: RegisteredPdfFont
-  ): void {
+  registerFont(cssFamily: string, bold: boolean, italic: boolean, font: RegisteredPdfFont): void {
     const key = `${cssFamily.toLowerCase()}|${bold}|${italic}`;
     this._fontRegistry.set(key, font);
   }
@@ -528,6 +591,95 @@ export class PDFBackend {
    */
   addFontResourceDeclaration(declaration: string): void {
     this._fontResourceDeclarations.push(declaration);
+  }
+
+  // -------------------------------------------------------------------------
+  // Image registration
+  // -------------------------------------------------------------------------
+
+  /**
+   * Register an image for PDF rendering.
+   *
+   * Once registered, drawImage() will look up the image by its imageId
+   * (the OPC part URI or equivalent) and emit proper `Do` operators.
+   *
+   * @param imageId - Unique image identifier (e.g. OPC part URI)
+   * @param resourceName - PDF resource name (e.g. "Im1")
+   * @param width - Image width in pixels
+   * @param height - Image height in pixels
+   */
+  registerImage(imageId: string, resourceName: string, width: number, height: number): void {
+    this._imageRegistry.set(imageId, { resourceName, width, height });
+  }
+
+  /**
+   * Look up a registered image by its ID.
+   */
+  getRegisteredImage(imageId: string): RegisteredPdfImage | undefined {
+    return this._imageRegistry.get(imageId);
+  }
+
+  /**
+   * Get the image resource declarations accumulated during rendering.
+   *
+   * These are strings like "/Im1 15 0 R" that should be placed in the
+   * page's /Resources /XObject dictionary.
+   */
+  getImageResourceDeclarations(): string[] {
+    return [...this._imageResourceDeclarations];
+  }
+
+  /**
+   * Add an image resource declaration.
+   */
+  addImageResourceDeclaration(declaration: string): void {
+    this._imageResourceDeclarations.push(declaration);
+  }
+
+  // -------------------------------------------------------------------------
+  // ExtGState (transparency) tracking
+  // -------------------------------------------------------------------------
+
+  /**
+   * Get the ExtGState resource declarations accumulated during rendering.
+   *
+   * Returns unique alpha ExtGState entries used. The caller should
+   * create corresponding ExtGState dictionary objects in the PDF.
+   */
+  getExtGStateDeclarations(): string[] {
+    return [...this._extGStateDeclarations];
+  }
+
+  /**
+   * Add an ExtGState resource declaration.
+   */
+  addExtGStateDeclaration(declaration: string): void {
+    this._extGStateDeclarations.push(declaration);
+  }
+
+  /**
+   * Get all unique ExtGState entries (name -> alpha value) used during rendering.
+   * The caller creates PDF ExtGState dictionary objects for each.
+   */
+  getExtGStateEntries(): Array<{ name: string; fillAlpha: number; strokeAlpha: number }> {
+    const entries: Array<{ name: string; fillAlpha: number; strokeAlpha: number }> = [];
+    for (const [key, name] of this._extGStateRegistry) {
+      const alpha = parseFloat(key);
+      entries.push({ name, fillAlpha: alpha, strokeAlpha: alpha });
+    }
+    return entries;
+  }
+
+  // -------------------------------------------------------------------------
+  // Gradient shading records
+  // -------------------------------------------------------------------------
+
+  /**
+   * Get all gradient shadings recorded during rendering.
+   * The caller creates PDF Shading/Pattern objects for each.
+   */
+  getGradientShadings(): GradientShadingRecord[] {
+    return [...this._gradientShadings];
   }
 
   // -------------------------------------------------------------------------
@@ -584,25 +736,11 @@ export class PDFBackend {
     this._emit(`${n(cos)} ${n(sin)} ${n(-sin)} ${n(cos)} 0 0 cm`);
   }
 
-  transform(
-    a: number,
-    b: number,
-    c: number,
-    d: number,
-    e: number,
-    f: number
-  ): void {
+  transform(a: number, b: number, c: number, d: number, e: number, f: number): void {
     this._emit(`${n(a)} ${n(b)} ${n(c)} ${n(d)} ${n(e)} ${n(f)} cm`);
   }
 
-  setTransform(
-    a: number,
-    b: number,
-    c: number,
-    d: number,
-    e: number,
-    f: number
-  ): void {
+  setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void {
     // PDF does not support absolute transform setting (only concatenation).
     // The best we can do is warn; the caller should use save/restore + transform
     // instead. For now, emit a cm operator (which concatenates, not replaces).
@@ -615,18 +753,15 @@ export class PDFBackend {
   // -------------------------------------------------------------------------
 
   beginPath(): void {
-
     // PDF does not have an explicit "begin path" operator.
     // Paths are constructed inline before painting operators.
   }
 
   moveTo(x: number, y: number): void {
-
     this._emit(`${n(x)} ${n(y)} m`);
   }
 
   lineTo(x: number, y: number): void {
-
     this._emit(`${n(x)} ${n(y)} l`);
   }
 
@@ -638,7 +773,6 @@ export class PDFBackend {
     x: number,
     y: number
   ): void {
-
     this._emit(`${n(cp1x)} ${n(cp1y)} ${n(cp2x)} ${n(cp2y)} ${n(x)} ${n(y)} c`);
   }
 
@@ -664,8 +798,6 @@ export class PDFBackend {
     endAngle: number,
     counterclockwise?: boolean
   ): void {
-
-
     // Move to start point
     const sx = x + radius * Math.cos(startAngle);
     const sy = y + radius * Math.sin(startAngle);
@@ -680,13 +812,7 @@ export class PDFBackend {
     }
   }
 
-  arcTo(
-    x1: number,
-    y1: number,
-    _x2: number,
-    _y2: number,
-    _radius: number
-  ): void {
+  arcTo(x1: number, y1: number, _x2: number, _y2: number, _radius: number): void {
     // TRACKED-TASK: Implement arcTo via tangent circle computation — see TODO.md
     // For now, approximate with a line to (x1, y1)
 
@@ -703,8 +829,6 @@ export class PDFBackend {
     endAngle: number,
     counterclockwise?: boolean
   ): void {
-
-
     // Use save/restore to apply the ellipse transform
     this._emit('q');
     // Translate to center
@@ -738,7 +862,6 @@ export class PDFBackend {
   }
 
   rect(x: number, y: number, w: number, h: number): void {
-
     this._emit(`${n(x)} ${n(y)} ${n(w)} ${n(h)} re`);
   }
 
@@ -890,8 +1013,12 @@ export class PDFBackend {
 
   set globalAlpha(value: number) {
     this._currentState.globalAlpha = value;
-    // PDF transparency requires ExtGState resources; tracked for Wave 3.
-    // For now, the alpha is stored but not emitted to the content stream.
+    // Emit ExtGState operator for transparency
+    if (value !== this._lastEmittedAlpha) {
+      const gsName = this._getOrCreateExtGState(value);
+      this._emit(`/${gsName} gs`);
+      this._lastEmittedAlpha = value;
+    }
   }
 
   get globalCompositeOperation(): GlobalCompositeOperation {
@@ -1090,6 +1217,11 @@ export class PDFBackend {
   // Image operations
   // -------------------------------------------------------------------------
 
+  /**
+   * Draw an image. If the image source carries an `_pdfImageId` property
+   * matching a registered image, emits the proper XObject `Do` operator.
+   * Otherwise emits a gray placeholder.
+   */
   drawImage(
     _image: CanvasImageSource,
     sxOrDx: number,
@@ -1101,11 +1233,6 @@ export class PDFBackend {
     dw?: number,
     dh?: number
   ): void {
-    // PDF image rendering requires the image to be embedded as an XObject
-    // with a resource name. For the initial implementation, emit a placeholder
-    // that records the position and dimensions.
-    // TRACKED-TASK: Wire image XObject embedding for drawImage — see TODO.md
-
     let destX: number, destY: number, destW: number, destH: number;
 
     if (dx !== undefined && dy !== undefined && dw !== undefined && dh !== undefined) {
@@ -1125,13 +1252,58 @@ export class PDFBackend {
       destH = 0;
     }
 
-    // Emit a placeholder: save state, position, scale, draw XObject, restore
+    // Try to find a registered image by checking the image source for _pdfImageId
+    const imageId = (_image as unknown as { _pdfImageId?: string })?._pdfImageId;
+    const registeredImage = imageId ? this._imageRegistry.get(imageId) : undefined;
+
     this._emit('q');
     this._emit(`1 0 0 1 ${n(destX)} ${n(destY)} cm`);
     if (destW > 0 && destH > 0) {
       this._emit(`${n(destW)} 0 0 ${n(destH)} 0 0 cm`);
     }
-    this._emit('/ImgPlaceholder Do');
+
+    if (registeredImage) {
+      this._emit(`/${registeredImage.resourceName} Do`);
+    } else {
+      // Fallback: emit placeholder
+      this._emit('/ImgPlaceholder Do');
+    }
+    this._emit('Q');
+  }
+
+  /**
+   * Draw a registered image by its imageId at the given destination rectangle.
+   *
+   * This is a convenience method for the PDF export pipeline that bypasses
+   * the CanvasImageSource parameter (which is not available in server-side
+   * PDF generation).
+   *
+   * @param imageId - The registered image ID
+   * @param destX - Destination X in user coordinates
+   * @param destY - Destination Y in user coordinates
+   * @param destW - Destination width
+   * @param destH - Destination height
+   */
+  drawRegisteredImage(
+    imageId: string,
+    destX: number,
+    destY: number,
+    destW: number,
+    destH: number
+  ): void {
+    const registeredImage = this._imageRegistry.get(imageId);
+
+    this._emit('q');
+    this._emit(`1 0 0 1 ${n(destX)} ${n(destY)} cm`);
+    if (destW > 0 && destH > 0) {
+      this._emit(`${n(destW)} 0 0 ${n(destH)} 0 0 cm`);
+    }
+
+    if (registeredImage) {
+      this._emit(`/${registeredImage.resourceName} Do`);
+    } else {
+      this._emit('/ImgPlaceholder Do');
+    }
     this._emit('Q');
   }
 
@@ -1139,12 +1311,7 @@ export class PDFBackend {
   // Gradient and pattern factories
   // -------------------------------------------------------------------------
 
-  createLinearGradient(
-    x0: number,
-    y0: number,
-    x1: number,
-    y1: number
-  ): CanvasGradient {
+  createLinearGradient(x0: number, y0: number, x1: number, y1: number): CanvasGradient {
     return new PDFGradient('linear', [x0, y0, x1, y1]) as unknown as CanvasGradient;
   }
 
@@ -1159,10 +1326,7 @@ export class PDFBackend {
     return new PDFGradient('radial', [x0, y0, r0, x1, y1, r1]) as unknown as CanvasGradient;
   }
 
-  createPattern(
-    _image: CanvasImageSource,
-    _repetition: string | null
-  ): CanvasPattern | null {
+  createPattern(_image: CanvasImageSource, _repetition: string | null): CanvasPattern | null {
     // TRACKED-TASK: Implement PDF tiling patterns for createPattern — see TODO.md
     return null;
   }
@@ -1196,6 +1360,13 @@ export class PDFBackend {
 
   /** Emit the fill color operator based on current fillStyle. */
   private _flushFillColor(): void {
+    const style = this._currentState.fillStyle;
+    if (style instanceof PDFGradient && style.stops.length >= 2) {
+      // Record gradient shading for resource creation and emit pattern reference
+      const record = this._recordGradient(style);
+      this._emit(`/Pattern cs /${record.patternName} scn`);
+      return;
+    }
     const color = this._resolveFillColor();
     this._emit(`${n(color.r)} ${n(color.g)} ${n(color.b)} rg`);
   }
@@ -1255,6 +1426,46 @@ export class PDFBackend {
       bold: weight === 'bold' || weight === 'bolder' || parseInt(weight) >= 700,
       italic: style === 'italic' || style === 'oblique',
     };
+  }
+
+  /**
+   * Record a gradient shading for later resource creation.
+   * Returns the shading record with a unique pattern name.
+   */
+  private _recordGradient(gradient: PDFGradient): GradientShadingRecord {
+    this._gradientCounter++;
+    const patternName = `P${this._gradientCounter}`;
+
+    const stops = gradient.stops.map((stop) => {
+      const parsed = parseCssColor(stop.color);
+      return { offset: stop.offset, r: parsed.r, g: parsed.g, b: parsed.b };
+    });
+
+    const record: GradientShadingRecord = {
+      patternName,
+      type: gradient.type,
+      coords: [...gradient.params],
+      stops,
+    };
+
+    this._gradientShadings.push(record);
+    return record;
+  }
+
+  /**
+   * Get or create an ExtGState entry for the given alpha value.
+   * Returns the ExtGState resource name.
+   */
+  private _getOrCreateExtGState(alpha: number): string {
+    // Round to 3 decimal places to deduplicate near-identical alphas
+    const key = alpha.toFixed(3);
+    const existing = this._extGStateRegistry.get(key);
+    if (existing) return existing;
+
+    this._extGStateCounter++;
+    const name = `GS${this._extGStateCounter}`;
+    this._extGStateRegistry.set(key, name);
+    return name;
   }
 }
 

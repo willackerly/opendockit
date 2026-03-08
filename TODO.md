@@ -266,3 +266,4 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [ ] Media LRU cache size limits (currently unbounded)
 - [x] Text direction `vert` attribute parsed + rendered (2026-02-25)
 - [ ] WOFF2->TTF decoding for custom font embedding in PDF export (currently using PDF standard font fallback; bundled fonts are WOFF2 and TrueTypeParser rejects them — need woff2 decoder or raw TTF access)
+- [ ] Full PNG decode for PDF image export (IDAT extraction + alpha SMask) — currently embeds raw PNG with FlateDecode; proper decode would extract RGB pixels and create separate SMask for transparency
