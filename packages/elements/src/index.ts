@@ -80,3 +80,14 @@ export type { SearchResult, SearchOptions } from './text-search.js';
 
 export { serializeToClipboard, deserializeFromClipboard } from './clipboard.js';
 export type { ClipboardData } from './clipboard.js';
+
+// ─── Debug utilities ───────────────────────────────────
+
+export { traceToElements, parseCssColor, parseCssFont } from './debug/index.js';
+export type { RenderTrace, TraceEvent } from './debug/index.js';
+
+export { matchElements, extractText, centroidDistance, computeIoU, longestCommonSubstring } from './debug/index.js';
+export type { MatchedPair, MatchResult } from './debug/index.js';
+
+export { diffElements, generateDiffReport } from './debug/index.js';
+export type { PropertyDelta, ElementDiff, DiffReport } from './debug/index.js';

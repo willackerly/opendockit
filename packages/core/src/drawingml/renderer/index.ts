@@ -40,3 +40,7 @@ export { renderGroup } from './group-renderer.js';
 
 // Table renderer
 export { renderTable } from './table-renderer.js';
+
+// Tracing backend — wraps any RenderBackend to capture structured render traces
+export { TracingBackend } from './tracing-backend.js';
+export type { RenderTrace, TraceEvent, TraceConfig, TextTraceEvent, ShapeTraceEvent, ImageTraceEvent, ShapeContext } from './trace-types.js';

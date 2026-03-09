@@ -4,6 +4,15 @@ Progressive-fidelity, 100% client-side OOXML document renderer.
 
 Renders PPTX presentations (and eventually DOCX/XLSX) directly in the browser using Canvas2D, with on-demand WASM modules for advanced features. No server dependencies. No paid SDKs.
 
+## Highlights
+
+- **Full PPTX rendering** — 187 preset geometries, tables, SmartArt, connectors, text auto-fit, gradients, effects
+- **Cross-format element tracing** — per-element PPTX↔PDF comparison with property-level diffs (font, position, color, size)
+- **PDF export** — PPTX→PDF with custom TrueType font embedding, font subsetting, per-glyph advance widths
+- **Interactive editing** — move, resize, text edit, delete elements with surgical XML patching for lossless save
+- **42 bundled font families** — 100% offline rendering, no CDN required (~5MB WOFF2)
+- **Visual regression pipeline** — 54-slide PPTX + 67-slide corpus baselines with per-slide RMSE guards
+
 ## Status
 
 **Alpha** — Phase 4 (PDF/Office unified architecture) complete. PPTX rendering, editing, and PDF export operational.
@@ -26,14 +35,41 @@ pnpm test
 | `@opendockit/render`       | Shared render utilities: font metrics, color resolution, matrix math          | Complete |
 | `@opendockit/pdf`          | PDF rendering (PDFBackend), PDF export pipeline, batch PPTX→PDF conversion    | Alpha    |
 | `@opendockit/pdf-signer`   | PDF signing primitives (COS objects, xref generation, signature dict)         | Complete |
-| `@opendockit/docx`         | DOCX renderer (future)                                                        | Planned  |
+| `@opendockit/docx`         | DOCX renderer (WordprocessingML parser + block layout)                         | Alpha    |
 | `@opendockit/xlsx`         | XLSX renderer (future)                                                        | Planned  |
+
+### Dev Tools
+
+| Tool | Description |
+|------|-------------|
+| `tools/element-debug/` | Side-by-side PPTX↔PDF element diff viewer with click-to-inspect |
+| `tools/viewer/` | Unified PPTX + PDF viewer with element inspector and edit mode |
+| `tools/test-harness/` | Enhanced test harness with toolbar, slide panel, canvas editor |
+| `scripts/per-element-regression.mjs` | CI per-element regression guard (headless Playwright) |
+| `scripts/visual-compare.mjs` | Visual regression pipeline (RMSE comparison) |
 
 ## Architecture
 
 The key insight: **DrawingML is shared across all three OOXML formats.** Shapes, fills, effects, pictures, charts, and themes use identical markup regardless of whether they appear in a PPTX, DOCX, or XLSX.
 
-The RenderBackend abstraction decouples renderers from their output target: `CanvasBackend` writes to Canvas2D, `PDFBackend` produces PDF content streams. All 10 DrawingML renderers use `rctx.backend: RenderBackend`.
+The RenderBackend abstraction decouples renderers from their output target: `CanvasBackend` writes to Canvas2D, `PDFBackend` produces PDF content streams, and `TracingBackend` captures a structured render trace with world-space coordinates for per-element debugging and cross-format comparison. All 10 DrawingML renderers use `rctx.backend: RenderBackend`.
+
+### Cross-Format Element Tracing & Diff
+
+The deepest document rendering debug infrastructure available in any open-source OOXML renderer:
+
+**TracingBackend** wraps any `RenderBackend` and captures a structured trace of every visual operation — text draws, shape fills/strokes, images — with world-space coordinates in points, shape attribution, and paragraph/run indices. Zero cost when disabled.
+
+**Element Matching** (`@opendockit/elements`) matches PPTX trace elements against PDF-extracted elements using a three-pass algorithm: exact text match → fuzzy text similarity (LCS > 0.7) → spatial IoU (> 0.3).
+
+**Property Diff** compares matched pairs property-by-property — position, size, font family, font size, bold/italic, color (Euclidean RGB distance) — with severity thresholds: match (<1pt), minor (1-3pt), major (3-8pt), critical (>8pt).
+
+```
+TracingBackend → traceToElements() → matchElements() → generateDiffReport()
+     ↑                                      ↑
+  PPTX render                         PDF extraction
+  (Canvas2D)                       (NativeRenderer)
+```
 
 ```
                     @opendockit/core
