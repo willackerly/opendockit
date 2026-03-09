@@ -80,6 +80,15 @@ export function buildFontDecoder(
     ? buildCIDWidthMap(fontDict, resolve)
     : buildSimpleWidthMap(fontDict, resolve);
 
+  // Read /FontDescriptor → /MissingWidth for simple fonts
+  let missingWidth = 0;
+  if (!isComposite) {
+    const fd = resolveItem(fontDict, 'FontDescriptor', resolve);
+    if (fd instanceof COSDictionary) {
+      missingWidth = getIntFromDict(fd, 'MissingWidth', resolve, 0);
+    }
+  }
+
   return {
     fontName,
     isComposite,
@@ -90,12 +99,12 @@ export function buildFontDecoder(
         // 2-byte codes
         for (let i = 0; i + 1 < bytes.length; i += 2) {
           const code = (bytes[i] << 8) | bytes[i + 1];
-          result += codeToChar(code, toUnicodeMap, encodingMap);
+          result += codeToChar(code, toUnicodeMap, encodingMap, isComposite);
         }
       } else {
         // 1-byte codes
         for (let i = 0; i < bytes.length; i++) {
-          result += codeToChar(bytes[i], toUnicodeMap, encodingMap);
+          result += codeToChar(bytes[i], toUnicodeMap, encodingMap, false);
         }
       }
       return result;
@@ -106,19 +115,21 @@ export function buildFontDecoder(
       if (isComposite) {
         for (let i = 0; i + 3 < hex.length; i += 4) {
           const code = parseInt(hex.substring(i, i + 4), 16);
-          result += codeToChar(code, toUnicodeMap, encodingMap);
+          result += codeToChar(code, toUnicodeMap, encodingMap, isComposite);
         }
       } else {
         for (let i = 0; i + 1 < hex.length; i += 2) {
           const code = parseInt(hex.substring(i, i + 2), 16);
-          result += codeToChar(code, toUnicodeMap, encodingMap);
+          result += codeToChar(code, toUnicodeMap, encodingMap, false);
         }
       }
       return result;
     },
 
     getCharWidth(code: number): number {
-      return widthMap.get(code) ?? (isComposite ? 1000 : 0);
+      // Composite: use /DW stored at sentinel -1 (from buildCIDWidthMap), fallback 1000
+      // Simple: use /MissingWidth from FontDescriptor, fallback 500 (reasonable average)
+      return widthMap.get(code) ?? (isComposite ? (widthMap.get(-1) ?? 1000) : (missingWidth || 500));
     },
   };
 }
@@ -131,6 +142,7 @@ function codeToChar(
   code: number,
   toUnicodeMap?: Map<number, string>,
   encodingMap?: Map<number, string>,
+  isComposite?: boolean,
 ): string {
   // 1. ToUnicode (highest priority)
   if (toUnicodeMap) {
@@ -144,12 +156,21 @@ function codeToChar(
     if (mapped !== undefined) return mapped;
   }
 
-  // 3. Fallback: treat as Latin-1
+  // 3. For composite fonts: try Identity-H (code = Unicode code point)
+  //    This handles ligature codes and other mapped glyphs where ToUnicode
+  //    is incomplete. Only accept printable, non-PUA characters.
+  if (isComposite && code > 0 && code <= 0xFFFF) {
+    if (code >= 0x20 && (code < 0xE000 || code > 0xF8FF)) {
+      return String.fromCodePoint(code);
+    }
+  }
+
+  // 4. Fallback: treat as ASCII
   if (code >= 32 && code <= 126) {
     return String.fromCharCode(code);
   }
 
-  // 4. Last resort: replacement character for control chars, raw byte otherwise
+  // 5. Last resort: empty for control chars, raw byte otherwise
   if (code < 32) return '';
   return String.fromCharCode(code);
 }

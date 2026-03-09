@@ -286,6 +286,15 @@ export class NativeRenderer {
         image.width = imgData.width;
         image.height = imgData.height;
         (image as any).isJpeg = false;
+
+        // Apply SMask if stored during evaluation (JPEG images defer SMask to after decode)
+        if (image.smaskData) {
+          const pixelCount = image.width * image.height;
+          for (let i = 0; i < pixelCount; i++) {
+            image.data[i * 4 + 3] = image.smaskData[i];
+          }
+          image.smaskData = undefined;
+        }
       }
     }
   }

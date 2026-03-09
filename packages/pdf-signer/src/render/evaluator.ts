@@ -1326,7 +1326,14 @@ function decodeImageXObject(
   const filters = getStreamFilters(dict);
   const lastFilter = filters[filters.length - 1] ?? '';
   if (lastFilter === 'DCTDecode' || lastFilter === 'JPXDecode') {
-    return { width, height, data: stream.getData(), isJpeg: true };
+    const image: NativeImage = { width, height, data: stream.getData(), isJpeg: true };
+    // Store SMask data for JPEG images — will be applied after browser pre-decode
+    // converts the JPEG to RGBA pixels in preDecodeJpegs()
+    const smaskData = extractSMask(dict, resolve, width, height);
+    if (smaskData) {
+      image.smaskData = smaskData;
+    }
+    return image;
   }
 
   // Decompress the stream
@@ -1467,10 +1474,17 @@ function extractSMask(
     alpha[i] = Math.round((smaskData[i] / maxVal) * 255);
   }
 
-  // If SMask dimensions differ from image, we'd need to resample.
-  // For now, only apply if dimensions match (common case).
+  // If SMask dimensions differ from image, resample using nearest-neighbor
   if (smaskWidth !== imgWidth || smaskHeight !== imgHeight) {
-    return undefined;
+    const resampled = new Uint8Array(imgWidth * imgHeight);
+    for (let dy = 0; dy < imgHeight; dy++) {
+      for (let dx = 0; dx < imgWidth; dx++) {
+        const sx = Math.min(Math.floor((dx / imgWidth) * smaskWidth), smaskWidth - 1);
+        const sy = Math.min(Math.floor((dy / imgHeight) * smaskHeight), smaskHeight - 1);
+        resampled[dy * imgWidth + dx] = alpha[sy * smaskWidth + sx];
+      }
+    }
+    return resampled;
   }
 
   return alpha;
@@ -1827,6 +1841,7 @@ function hexToAscii(hex: string): string {
 // ================================================================
 
 const STANDARD_FONT_CSS: Record<string, NativeFont> = {
+  // Standard 14 PDF fonts
   Helvetica: { family: 'Helvetica, Arial, sans-serif', weight: 'normal', style: 'normal' },
   'Helvetica-Bold': { family: 'Helvetica, Arial, sans-serif', weight: 'bold', style: 'normal' },
   'Helvetica-Oblique': {
@@ -1861,20 +1876,72 @@ const STANDARD_FONT_CSS: Record<string, NativeFont> = {
   },
   Symbol: { family: 'Symbol, serif', weight: 'normal', style: 'normal' },
   ZapfDingbats: { family: 'ZapfDingbats, serif', weight: 'normal', style: 'normal' },
+
+  // Common PostScript / PDF producer font names
+  ArialMT: { family: 'Arial, Helvetica, sans-serif', weight: 'normal', style: 'normal' },
+  'Arial-BoldMT': { family: 'Arial, Helvetica, sans-serif', weight: 'bold', style: 'normal' },
+  'Arial-ItalicMT': { family: 'Arial, Helvetica, sans-serif', weight: 'normal', style: 'italic' },
+  'Arial-BoldItalicMT': { family: 'Arial, Helvetica, sans-serif', weight: 'bold', style: 'italic' },
+  TimesNewRomanPSMT: { family: '"Times New Roman", Times, serif', weight: 'normal', style: 'normal' },
+  'TimesNewRomanPS-BoldMT': { family: '"Times New Roman", Times, serif', weight: 'bold', style: 'normal' },
+  'TimesNewRomanPS-ItalicMT': { family: '"Times New Roman", Times, serif', weight: 'normal', style: 'italic' },
+  'TimesNewRomanPS-BoldItalicMT': { family: '"Times New Roman", Times, serif', weight: 'bold', style: 'italic' },
+  CourierNewPSMT: { family: '"Courier New", Courier, monospace', weight: 'normal', style: 'normal' },
+  'CourierNewPS-BoldMT': { family: '"Courier New", Courier, monospace', weight: 'bold', style: 'normal' },
+  'CourierNewPS-ItalicMT': { family: '"Courier New", Courier, monospace', weight: 'normal', style: 'italic' },
+  'CourierNewPS-BoldItalicMT': { family: '"Courier New", Courier, monospace', weight: 'bold', style: 'italic' },
+
+  // Microsoft Office fonts
+  Calibri: { family: 'Calibri, "Segoe UI", sans-serif', weight: 'normal', style: 'normal' },
+  'Calibri-Bold': { family: 'Calibri, "Segoe UI", sans-serif', weight: 'bold', style: 'normal' },
+  'Calibri-Italic': { family: 'Calibri, "Segoe UI", sans-serif', weight: 'normal', style: 'italic' },
+  'Calibri-BoldItalic': { family: 'Calibri, "Segoe UI", sans-serif', weight: 'bold', style: 'italic' },
+  'Calibri-Light': { family: 'Calibri, "Segoe UI", sans-serif', weight: '300', style: 'normal' },
+  CambriaMath: { family: '"Cambria Math", Cambria, serif', weight: 'normal', style: 'normal' },
+  Cambria: { family: 'Cambria, "Times New Roman", serif', weight: 'normal', style: 'normal' },
+  'Cambria-Bold': { family: 'Cambria, "Times New Roman", serif', weight: 'bold', style: 'normal' },
+  Verdana: { family: 'Verdana, Geneva, sans-serif', weight: 'normal', style: 'normal' },
+  'Verdana-Bold': { family: 'Verdana, Geneva, sans-serif', weight: 'bold', style: 'normal' },
+  'Verdana-Italic': { family: 'Verdana, Geneva, sans-serif', weight: 'normal', style: 'italic' },
+  'Verdana-BoldItalic': { family: 'Verdana, Geneva, sans-serif', weight: 'bold', style: 'italic' },
+  Tahoma: { family: 'Tahoma, Geneva, sans-serif', weight: 'normal', style: 'normal' },
+  'Tahoma-Bold': { family: 'Tahoma, Geneva, sans-serif', weight: 'bold', style: 'normal' },
+  Georgia: { family: 'Georgia, "Times New Roman", serif', weight: 'normal', style: 'normal' },
+  'Georgia-Bold': { family: 'Georgia, "Times New Roman", serif', weight: 'bold', style: 'normal' },
+  'Georgia-Italic': { family: 'Georgia, "Times New Roman", serif', weight: 'normal', style: 'italic' },
+  'Georgia-BoldItalic': { family: 'Georgia, "Times New Roman", serif', weight: 'bold', style: 'italic' },
 };
 
 function cssForPdfFont(baseFontName: string): NativeFont {
-  if (baseFontName in STANDARD_FONT_CSS) return STANDARD_FONT_CSS[baseFontName];
+  // Strip subset prefix: "ABCDEF+Helvetica-Bold" → "Helvetica-Bold"
+  const name = baseFontName.replace(/^[A-Z]{6}\+/, '');
+
+  if (name in STANDARD_FONT_CSS) return STANDARD_FONT_CSS[name];
 
   // Heuristic: parse weight/style from font name
-  const name = baseFontName.replace(/[,+]/g, '-');
-  const isBold = /Bold/i.test(name);
-  const isItalic = /Italic|Oblique/i.test(name);
-  const baseName = name.split('-')[0].replace(/[^a-zA-Z0-9\s]/g, '') || 'sans-serif';
+  const normalized = name.replace(/[,+]/g, '-');
+  const isBold = /Bold/i.test(normalized);
+  const isItalic = /Italic|Oblique/i.test(normalized);
+  const isLight = /Light/i.test(normalized);
+
+  // Extract base name: remove style suffixes and non-alpha chars
+  const baseName = normalized.split('-')[0].replace(/[^a-zA-Z0-9\s]/g, '') || 'sans-serif';
+
+  // Try common name variants that aren't in the table
+  const lower = baseName.toLowerCase();
+  if (lower === 'arial' || lower === 'arialmt') {
+    return { family: 'Arial, Helvetica, sans-serif', weight: isBold ? 'bold' : 'normal', style: isItalic ? 'italic' : 'normal' };
+  }
+  if (lower.startsWith('timesnewroman') || lower === 'timesnewromanpsmt') {
+    return { family: '"Times New Roman", Times, serif', weight: isBold ? 'bold' : 'normal', style: isItalic ? 'italic' : 'normal' };
+  }
+  if (lower.startsWith('couriernew') || lower === 'couriernewpsmt') {
+    return { family: '"Courier New", Courier, monospace', weight: isBold ? 'bold' : 'normal', style: isItalic ? 'italic' : 'normal' };
+  }
 
   return {
     family: `"${baseName}", sans-serif`,
-    weight: isBold ? 'bold' : 'normal',
+    weight: isBold ? 'bold' : (isLight ? '300' : 'normal'),
     style: isItalic ? 'italic' : 'normal',
   };
 }

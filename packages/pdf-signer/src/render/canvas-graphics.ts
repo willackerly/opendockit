@@ -689,6 +689,9 @@ export class NativeCanvasGraphics {
     try {
       ctx.save();
 
+      // Apply graphics state alpha (matches text/shape behavior)
+      ctx.globalAlpha = this.state.fillAlpha;
+
       // PDF images are drawn in a 1×1 unit square that the CTM scales.
       // Flip Y because pixel data is top-down but PDF image space is bottom-up.
       ctx.transform(1, 0, 0, -1, 0, 1);
