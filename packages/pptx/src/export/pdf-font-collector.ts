@@ -32,6 +32,14 @@ export interface FontKey {
   italic: boolean;
 }
 
+/** Result of font collection including used codepoints per font. */
+export interface FontCollectionResult {
+  /** Unique font variants discovered. */
+  fontKeys: FontKey[];
+  /** Set of Unicode codepoints used per font key (key: "family|bold|italic"). */
+  usedCodepoints: Map<string, Set<number>>;
+}
+
 // ---------------------------------------------------------------------------
 // Theme font resolution
 // ---------------------------------------------------------------------------
@@ -79,39 +87,78 @@ export function collectFontsFromPresentation(
   slides: EnrichedSlideData[],
   theme?: ThemeIR
 ): FontKey[] {
+  return collectFontsWithCodepoints(slides, theme).fontKeys;
+}
+
+/**
+ * Collect all unique fonts AND codepoints used per font.
+ *
+ * Same IR walk as collectFontsFromPresentation but also tracks which
+ * Unicode codepoints appear in text runs for each (family, bold, italic)
+ * combination. This enables font subsetting — only include glyphs that
+ * are actually used in the document.
+ */
+export function collectFontsWithCodepoints(
+  slides: EnrichedSlideData[],
+  theme?: ThemeIR
+): FontCollectionResult {
   const seen = new Set<string>();
   const result: FontKey[] = [];
+  const usedCodepoints = new Map<string, Set<number>>();
 
-  function addFont(family: string, bold: boolean, italic: boolean): void {
-    const key = `${family.toLowerCase()}|${bold}|${italic}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    result.push({ family, bold, italic });
+  function fontKeyStr(family: string, bold: boolean, italic: boolean): string {
+    return `${family.toLowerCase()}|${bold}|${italic}`;
   }
 
-  function processCharProps(props: CharacterPropertiesIR | undefined): void {
+  function addFont(family: string, bold: boolean, italic: boolean): string {
+    const key = fontKeyStr(family, bold, italic);
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push({ family, bold, italic });
+      usedCodepoints.set(key, new Set<number>());
+    }
+    return key;
+  }
+
+  function addCodepoints(key: string, text: string): void {
+    const cpSet = usedCodepoints.get(key);
+    if (!cpSet) return;
+    for (let i = 0; i < text.length; i++) {
+      const cp = text.codePointAt(i)!;
+      cpSet.add(cp);
+      if (cp > 0xffff) i++; // skip low surrogate
+    }
+  }
+
+  function processRun(
+    props: CharacterPropertiesIR | undefined,
+    text?: string
+  ): void {
     if (!props) return;
 
-    // Try fontFamily first, then latin typeface
     const rawFamily = props.fontFamily ?? props.latin;
     const resolvedFamily = resolveThemeFont(rawFamily, theme);
     if (!resolvedFamily) return;
 
     const bold = !!props.bold;
     const italic = !!props.italic;
-    addFont(resolvedFamily, bold, italic);
+    const key = addFont(resolvedFamily, bold, italic);
+
+    if (text) {
+      addCodepoints(key, text);
+    }
   }
 
   function processParagraph(para: ParagraphIR): void {
     for (const run of para.runs) {
       if (run.kind === 'run') {
-        processCharProps(run.properties);
+        processRun(run.properties, run.text);
       } else if (run.kind === 'lineBreak') {
-        processCharProps(run.properties);
+        processRun(run.properties);
       }
     }
     // endParaProperties may specify a font for empty paragraphs
-    processCharProps(para.endParaProperties);
+    processRun(para.endParaProperties);
   }
 
   function processTextBody(textBody: TextBodyIR | undefined): void {
@@ -144,7 +191,6 @@ export function collectFontsFromPresentation(
         }
         break;
       }
-      // picture, connector, chart, unsupported: no text bodies
       default:
         break;
     }
@@ -162,5 +208,5 @@ export function collectFontsFromPresentation(
     processElements(slideData.slide.elements);
   }
 
-  return result;
+  return { fontKeys: result, usedCodepoints };
 }

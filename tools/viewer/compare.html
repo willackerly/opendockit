@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenDocKit Compare</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        background: #1a1a2e;
+        color: #e0e0e0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      header {
+        padding: 10px 24px;
+        background: #16213e;
+        border-bottom: 1px solid #0f3460;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-shrink: 0;
+      }
+
+      header h1 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #e94560;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        border: 1px solid #0f3460;
+        border-radius: 6px;
+        background: #16213e;
+        color: #e0e0e0;
+        font-size: 13px;
+        cursor: pointer;
+        transition:
+          background 0.15s,
+          border-color 0.15s;
+        user-select: none;
+        white-space: nowrap;
+      }
+
+      .btn:hover {
+        background: #0f3460;
+        border-color: #e94560;
+      }
+
+      .btn-primary {
+        background: #e94560;
+        border-color: #e94560;
+        color: #fff;
+      }
+
+      .btn-primary:hover {
+        background: #c73550;
+      }
+
+      .btn.active {
+        background: #e94560;
+        border-color: #e94560;
+        color: #fff;
+      }
+
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      #file-input {
+        display: none;
+      }
+
+      .header-controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-left: auto;
+      }
+
+      #file-name {
+        font-size: 13px;
+        color: #999;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* Drop zone (empty state) */
+      #drop-zone {
+        flex: 1;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+
+      #drop-zone.visible {
+        display: flex;
+      }
+
+      .empty-state {
+        text-align: center;
+        color: #888;
+      }
+
+      .empty-state p {
+        margin-top: 8px;
+        font-size: 14px;
+      }
+
+      .empty-state .hint {
+        font-size: 13px;
+        color: #666;
+        margin-top: 16px;
+      }
+
+      /* Drop overlay */
+      #drop-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(233, 69, 96, 0.15);
+        border: 3px dashed #e94560;
+        border-radius: 12px;
+        z-index: 10;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        color: #e94560;
+        font-weight: 600;
+        pointer-events: none;
+      }
+
+      body.drag-over #drop-overlay {
+        display: flex;
+      }
+
+      /* Compare container (3-pane layout) */
+      #compare-container {
+        flex: 1;
+        display: none;
+        overflow: hidden;
+      }
+
+      #compare-container.visible {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .pane-labels {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 0;
+        padding: 8px 16px 4px;
+        flex-shrink: 0;
+      }
+
+      .pane-labels.no-diff {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .pane-label {
+        text-align: center;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #888;
+      }
+
+      .pane-label.canvas-label {
+        color: #3b82f6;
+      }
+
+      .pane-label.diff-label {
+        color: #f59e0b;
+        min-width: 120px;
+      }
+
+      .pane-label.pdf-label {
+        color: #e94560;
+      }
+
+      .panes {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 8px;
+        padding: 0 16px 8px;
+        overflow: hidden;
+        align-items: start;
+      }
+
+      .panes.no-diff {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .pane {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        overflow: hidden;
+        height: 100%;
+      }
+
+      .pane img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        background: #fff;
+        border-radius: 4px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+      }
+
+      .diff-pane img {
+        background: #000;
+      }
+
+      /* RMSE badge */
+      .rmse-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 700;
+        font-family: 'SF Mono', 'Fira Code', monospace;
+        margin-top: 4px;
+      }
+
+      .rmse-badge.good {
+        background: #064e3b;
+        color: #6ee7b7;
+      }
+
+      .rmse-badge.warn {
+        background: #78350f;
+        color: #fbbf24;
+      }
+
+      .rmse-badge.bad {
+        background: #7f1d1d;
+        color: #fca5a5;
+      }
+
+      /* Footer */
+      footer {
+        padding: 8px 24px;
+        background: #16213e;
+        border-top: 1px solid #0f3460;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-shrink: 0;
+      }
+
+      .nav-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .slide-counter {
+        font-size: 13px;
+        color: #bbb;
+        min-width: 100px;
+        text-align: center;
+        font-family: 'SF Mono', 'Fira Code', monospace;
+      }
+
+      .stats {
+        margin-left: auto;
+        font-size: 12px;
+        color: #777;
+        display: flex;
+        gap: 16px;
+      }
+
+      .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .stat-value {
+        color: #bbb;
+        font-family: 'SF Mono', 'Fira Code', monospace;
+      }
+
+      /* Progress bar */
+      #progress-container {
+        display: none;
+        flex: 1;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+      }
+
+      #progress-container.visible {
+        display: flex;
+      }
+
+      .progress-bar-outer {
+        width: 400px;
+        max-width: 80%;
+        height: 6px;
+        background: #0f3460;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+
+      .progress-bar-inner {
+        height: 100%;
+        background: #e94560;
+        border-radius: 3px;
+        transition: width 0.2s ease;
+        width: 0%;
+      }
+
+      #progress-label {
+        font-size: 14px;
+        color: #999;
+      }
+
+      /* Loading spinner in footer */
+      .loading-indicator {
+        display: none;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #bbb;
+      }
+
+      .loading-indicator.visible {
+        display: inline-flex;
+      }
+
+      .spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid #333;
+        border-top-color: #e94560;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      kbd {
+        display: inline-block;
+        padding: 1px 5px;
+        font-size: 11px;
+        font-family: 'SF Mono', 'Fira Code', monospace;
+        background: #0f3460;
+        border: 1px solid #1a4a7a;
+        border-radius: 3px;
+        color: #aaa;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="drop-overlay">Drop PPTX file here</div>
+
+    <header>
+      <h1>OpenDocKit Compare</h1>
+      <button id="btn-diff" class="btn active" title="Toggle diff pane">Diff</button>
+      <div class="header-controls">
+        <span id="file-name"></span>
+        <button id="btn-open" class="btn btn-primary">Open PPTX</button>
+        <input id="file-input" type="file" accept=".pptx" />
+      </div>
+    </header>
+
+    <!-- Empty state / drop zone -->
+    <div id="drop-zone" class="visible">
+      <div class="empty-state">
+        <p>PPTX Round-Trip Comparison</p>
+        <p>Drop a PPTX file to compare Canvas2D rendering vs PDF export</p>
+        <p class="hint">Left: Canvas2D (SlideKit) &mdash; Center: Pixel Diff &mdash; Right: PDF Export (NativeRenderer)</p>
+      </div>
+    </div>
+
+    <!-- Progress indicator -->
+    <div id="progress-container">
+      <div class="progress-bar-outer">
+        <div class="progress-bar-inner" id="progress-bar"></div>
+      </div>
+      <span id="progress-label">Loading...</span>
+    </div>
+
+    <!-- 3-pane comparison -->
+    <div id="compare-container">
+      <div class="pane-labels" id="pane-labels">
+        <span class="pane-label canvas-label">Canvas2D (SlideKit)</span>
+        <span class="pane-label diff-label" id="diff-label">Diff</span>
+        <span class="pane-label pdf-label">PDF Export (NativeRenderer)</span>
+      </div>
+      <div class="panes" id="panes">
+        <div class="pane">
+          <img id="canvas-img" alt="Canvas2D render" />
+        </div>
+        <div class="pane diff-pane" id="diff-pane">
+          <img id="diff-img" alt="Pixel diff" />
+          <span class="rmse-badge" id="rmse-badge"></span>
+        </div>
+        <div class="pane">
+          <img id="pdf-img" alt="PDF export render" />
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="nav-controls">
+        <button class="btn" id="btn-prev" disabled>&laquo; Prev</button>
+        <span class="slide-counter" id="slide-counter"></span>
+        <button class="btn" id="btn-next" disabled>Next &raquo;</button>
+      </div>
+
+      <span id="loading" class="loading-indicator">
+        <span class="spinner"></span>
+        <span id="loading-msg">Loading...</span>
+      </span>
+
+      <div class="stats" id="stats" style="display: none">
+        <span class="stat-item">Fonts: <span class="stat-value" id="stat-fonts">-</span></span>
+        <span class="stat-item">Images: <span class="stat-value" id="stat-images">-</span></span>
+        <span class="stat-item">PDF: <span class="stat-value" id="stat-size">-</span></span>
+        <span class="stat-item">Avg RMSE: <span class="stat-value" id="stat-rmse">-</span></span>
+      </div>
+    </footer>
+
+    <script type="module" src="./compare.ts"></script>
+  </body>
+</html>

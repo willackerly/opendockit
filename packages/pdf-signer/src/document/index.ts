@@ -91,6 +91,8 @@ export {
   layoutMultilineText,
   parseCFFFont,
   subsetTrueTypeFont,
+  parseTrueType,
+  computeFontFlags,
 } from './fonts/index.js';
 export { TextAlignment as NativeTextAlignment } from './fonts/index.js';
 export type {
@@ -102,6 +104,7 @@ export type {
   LayoutOptions,
   CFFParseResult,
   SubsetResult,
+  TrueTypeFontInfo,
 } from './fonts/index.js';
 
 // --- Annotations ---

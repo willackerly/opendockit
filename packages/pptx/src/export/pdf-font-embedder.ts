@@ -3,13 +3,16 @@
  *
  * Takes font keys discovered by the font collector and embeds them into
  * the PDF document via the pdf-signer's font embedding infrastructure.
- * Currently uses PDF standard fonts (Helvetica, Times-Roman, Courier) as
- * fallback since the bundled fonts are WOFF2 format and require decoding
- * to raw TTF before they can be embedded.
+ *
+ * For bundled fonts (42 families), loads TTF bytes and embeds them as
+ * Type0/CIDFontType2 with Identity-H encoding. Falls back to PDF standard
+ * fonts (Helvetica, Times-Roman, Courier) when no TTF is available.
  *
  * Architecture:
- *   FontKey[] -> resolve to standard font mapping
- *     -> embed via NativeDocumentContext.embedStandardFont()
+ *   FontKey[] -> for each:
+ *     -> loadTTF(family, bold, italic)
+ *     -> if TTF: parseTrueType() -> computeFontFlags() -> embedCustomFont()
+ *     -> else: embedStandardFont() (Helvetica/Times/Courier fallback)
  *     -> create RegisteredPdfFont for PDFBackend
  *     -> wire font refs into page /Resources /Font dictionary
  *
@@ -18,21 +21,19 @@
 
 import type { RegisteredPdfFont } from '@opendockit/render';
 import type { PDFDocument } from '@opendockit/pdf-signer';
+import {
+  parseTrueType,
+  computeFontFlags,
+  subsetTrueTypeFont,
+} from '@opendockit/pdf-signer';
+import type { TrueTypeFontInfo } from '@opendockit/pdf-signer';
+import { loadTTF } from '@opendockit/core/font';
 import type { FontKey } from './pdf-font-collector.js';
 
 // ---------------------------------------------------------------------------
-// Standard font mapping
+// Standard font mapping (fallback when no TTF bundle available)
 // ---------------------------------------------------------------------------
 
-/**
- * Map of CSS font family names (lowercase) to PDF standard font base names.
- *
- * PDF defines 14 standard fonts that do not require embedding:
- * - Helvetica (regular, bold, oblique, bold-oblique)
- * - Times-Roman (regular, bold, italic, bold-italic)
- * - Courier (regular, bold, oblique, bold-oblique)
- * - Symbol, ZapfDingbats
- */
 const STANDARD_FONT_MAP: Record<string, string> = {
   // Sans-serif families -> Helvetica
   'arial': 'Helvetica',
@@ -142,13 +143,10 @@ export function getStandardFontName(
 }
 
 // ---------------------------------------------------------------------------
-// WinAnsi encoding for standard fonts
+// Encoding helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Standard font average character widths (in PDF units per 1000).
- * Courier is fixed-width at 600.
- */
+/** Standard font average widths (PDF units per 1000). */
 const STANDARD_FONT_AVG_WIDTH: Record<string, number> = {
   'Helvetica': 530,
   'Helvetica-Bold': 560,
@@ -165,8 +163,7 @@ const STANDARD_FONT_AVG_WIDTH: Record<string, number> = {
 };
 
 /**
- * Encode a text string as hex using WinAnsiEncoding for standard fonts.
- * Characters outside the WinAnsi range are replaced with bullet (0x95).
+ * Encode text as hex using WinAnsiEncoding (1 byte per char, 2 hex chars).
  */
 function encodeWinAnsiHex(text: string): string {
   const parts: string[] = [];
@@ -176,6 +173,48 @@ function encodeWinAnsiHex(text: string): string {
     parts.push(byte.toString(16).padStart(2, '0').toUpperCase());
   }
   return parts.join('');
+}
+
+/**
+ * Create a CID text encoder using TrueType cmap.
+ *
+ * Maps Unicode codepoints to glyph IDs via the font's cmap table,
+ * then encodes each glyph ID as 2 bytes (4 hex chars) for Identity-H encoding.
+ */
+function createCIDEncoder(info: TrueTypeFontInfo): (text: string) => string {
+  return (text: string): string => {
+    const parts: string[] = [];
+    for (let i = 0; i < text.length; i++) {
+      const cp = text.codePointAt(i)!;
+      const glyphId = info.cmap.get(cp) ?? 0;
+      parts.push(glyphId.toString(16).padStart(4, '0').toUpperCase());
+      if (cp > 0xffff) i++; // skip low surrogate
+    }
+    return parts.join('');
+  };
+}
+
+/**
+ * Create a width measurer using TrueType advance widths.
+ *
+ * Uses per-glyph advance widths from the parsed font for accurate
+ * text measurement instead of average-width heuristics.
+ */
+function createCIDMeasurer(
+  info: TrueTypeFontInfo
+): (text: string, sizePt: number) => number {
+  return (text: string, sizePt: number): number => {
+    let totalWidth = 0;
+    for (let i = 0; i < text.length; i++) {
+      const cp = text.codePointAt(i)!;
+      const glyphId = info.cmap.get(cp) ?? 0;
+      const advance = info.advanceWidths[glyphId] ?? 0;
+      totalWidth += advance;
+      if (cp > 0xffff) i++;
+    }
+    // Convert from font units to points
+    return (totalWidth / info.unitsPerEm) * sizePt;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -203,45 +242,99 @@ export interface EmbeddedFontResult {
 /**
  * Embed all collected fonts into a PDF document.
  *
- * For each FontKey, maps to the nearest PDF standard font and embeds it.
- * Returns RegisteredPdfFont objects for PDFBackend.registerFont() and
- * stored font references for wiring into page /Resources.
- *
- * Deduplicates: if multiple FontKeys map to the same standard font name,
- * they share the same PDF font object but get unique resource names.
+ * For each FontKey, attempts to load TTF bytes from the bundled font
+ * modules. If available, parses the TrueType data, subsets to only
+ * used glyphs, and embeds as a Type0/CIDFontType2 composite font
+ * with Identity-H encoding.
+ * Falls back to standard PDF fonts if no TTF is available.
  *
  * @param fontKeys - Unique font variants to embed
  * @param pdfDoc - The PDFDocument to embed fonts into
+ * @param usedCodepoints - Optional codepoint sets per font key (for subsetting)
  * @returns Array of EmbeddedFontResult (one per font key)
  */
-export function embedFontsForPdf(
+export async function embedFontsForPdf(
   fontKeys: FontKey[],
-  pdfDoc: PDFDocument
-): EmbeddedFontResult[] {
+  pdfDoc: PDFDocument,
+  usedCodepoints?: Map<string, Set<number>>
+): Promise<EmbeddedFontResult[]> {
   const ctx = pdfDoc._nativeCtx;
   const results: EmbeddedFontResult[] = [];
-
-  // Cache: standard font name -> COSObjectReference (opaque)
-  const standardFontRefCache = new Map<string, unknown>();
 
   let fontCounter = 1;
 
   for (const fontKey of fontKeys) {
     const resourceName = `F${fontCounter++}`;
 
-    // TRACKED-TASK: WOFF2->TTF decoding for custom font embedding — see TODO.md "Code Debt"
+    // Try to load TTF bytes for custom font embedding
+    const ttfBytes = await loadTTF(fontKey.family, fontKey.bold, fontKey.italic);
+
+    if (ttfBytes) {
+      // Custom font embedding via Type0/CIDFontType2
+      try {
+        // Parse full font first to get cmap for codepoint→glyphId mapping
+        const fullInfo = parseTrueType(ttfBytes);
+
+        // Determine which bytes to embed: subset if we have codepoint data
+        let embedBytes = ttfBytes;
+        const cpKey = `${fontKey.family.toLowerCase()}|${fontKey.bold}|${fontKey.italic}`;
+        const codepoints = usedCodepoints?.get(cpKey);
+
+        if (codepoints && codepoints.size > 0) {
+          // Map codepoints to glyph IDs via font's cmap
+          const usedGlyphIds = new Set<number>();
+          for (const cp of codepoints) {
+            const gid = fullInfo.cmap.get(cp);
+            if (gid !== undefined) usedGlyphIds.add(gid);
+          }
+
+          if (usedGlyphIds.size > 0) {
+            try {
+              const subsetResult = subsetTrueTypeFont(ttfBytes, usedGlyphIds);
+              embedBytes = subsetResult.bytes;
+            } catch {
+              // Fall back to full font if subsetting fails
+            }
+          }
+        }
+
+        // Parse the (possibly subsetted) bytes for embedding
+        const info = parseTrueType(embedBytes);
+        info.flags = computeFontFlags(
+          info as TrueTypeFontInfo & { _isItalic?: boolean; _isSerif?: boolean }
+        );
+        const fontRef = ctx.embedCustomFont(info);
+
+        // Always use full font's cmap for encoding (maps Unicode→original glyph IDs)
+        // but if subsetted, the glyph IDs are remapped. For Identity-H encoding,
+        // we need to use the subsetted font's cmap.
+        const registeredFont: RegisteredPdfFont = {
+          resourceName,
+          encodeText: createCIDEncoder(info),
+          measureWidth: createCIDMeasurer(info),
+        };
+
+        results.push({
+          fontKey,
+          registeredFont,
+          resourceName,
+          isStandard: false,
+          _fontRef: fontRef,
+        });
+        continue;
+      } catch {
+        // Fall through to standard font if parsing fails
+      }
+    }
+
+    // Fallback: standard PDF font
     const standardName = getStandardFontName(
       fontKey.family,
       fontKey.bold,
       fontKey.italic
     );
 
-    let fontRef = standardFontRefCache.get(standardName);
-    if (!fontRef) {
-      fontRef = ctx.embedStandardFont(standardName);
-      standardFontRefCache.set(standardName, fontRef);
-    }
-
+    const fontRef = ctx.embedStandardFont(standardName);
     const avgWidth = STANDARD_FONT_AVG_WIDTH[standardName] ?? 530;
 
     const registeredFont: RegisteredPdfFont = {
@@ -266,19 +359,6 @@ export function embedFontsForPdf(
 
 /**
  * Wire embedded font resources into a page's /Resources /Font dictionary.
- *
- * Directly manipulates the COS dictionary objects via duck-typing to add
- * font references to the page's /Resources /Font dictionary. This avoids
- * depending on specific NativeDocumentContext methods that may not be in
- * the compiled dist/ yet.
- *
- * The COS objects (COSDictionary) support:
- * - getItem(key: string): COSBase | undefined
- * - setItem(key: string, value: COSBase): void
- * - setDirect(direct: boolean): void
- *
- * @param pageDict - The page's COSDictionary (from pdfDoc.addPage()._nativePageDict)
- * @param embeddedFonts - Pre-embedded font results from embedFontsForPdf()
  */
 export function wireFontsToPage(
   pageDict: unknown,
@@ -287,19 +367,12 @@ export function wireFontsToPage(
 ): void {
   if (embeddedFonts.length === 0) return;
 
-  // Access the /Resources dictionary (addPage() always creates one)
   const pd = pageDict as { getItem(k: string): any; setItem(k: string, v: any): void };
   const resources = pd.getItem('Resources');
   if (!resources || typeof resources.getItem !== 'function') return;
 
-  // Get or create the /Font sub-dictionary
   let fontDict = resources.getItem('Font');
   if (!fontDict || typeof fontDict.setItem !== 'function') {
-    // Need to create a new COSDictionary for /Font.
-    // We can't import COSDictionary directly, but we can create one
-    // by cloning the pattern from an existing empty dict.
-    // The resources dict itself is a COSDictionary -- let's access
-    // its constructor to create a new instance.
     const FontDictCtor = resources.constructor;
     fontDict = new FontDictCtor();
     if (typeof fontDict.setDirect === 'function') {
@@ -308,7 +381,6 @@ export function wireFontsToPage(
     resources.setItem('Font', fontDict);
   }
 
-  // Add each font reference
   for (const ef of embeddedFonts) {
     fontDict.setItem(ef.resourceName, ef._fontRef);
   }

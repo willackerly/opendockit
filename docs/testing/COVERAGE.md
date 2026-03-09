@@ -6,13 +6,14 @@
 
 | Package                  | Test Files       | Tests              | Status     |
 | ------------------------ | ---------------- | ------------------ | ---------- |
-| @opendockit/core         | 63               | 1,570              | Pass       |
-| @opendockit/elements     | 5                | 146                | Pass       |
-| @opendockit/render       | 4                | 201                | Pass       |
-| @opendockit/pptx         | 18               | 322                | Pass       |
-| @opendockit/pdf-signer   | 73 (+8 skipped)  | 1,578 (+46 skipped)| Pass       |
+| @opendockit/core         | 67               | 1,733              | Pass       |
+| @opendockit/elements     | 6                | 203                | Pass       |
+| @opendockit/render       | 5                | 208                | Pass       |
+| @opendockit/pptx         | 22               | 433                | Pass       |
+| @opendockit/pdf-signer   | 74 (+8 skipped)  | 1,598 (+46 skipped)| Pass       |
+| @opendockit/docx         | 9                | 129                | Pass       |
 | @opendockit/pdf          | 1                | 24                 | Pass       |
-| **Total**                | **164**          | **3,841**          | **Pass**   |
+| **Total**                | **184**          | **4,328**          | **Pass**   |
 
 Typecheck clean. Prettier clean. Zero untracked TODOs.
 
@@ -27,7 +28,7 @@ Typecheck clean. Prettier clean. Zero untracked TODOs.
 | Unit conversions    | 184   | EMU, DXA, half-points (exhaustive)                                         |
 | OPC layer           | 69    | Package reader, content types, rels, part URIs                             |
 | Theme engine        | 94    | Color resolver (50), theme parser (30), font resolver (14)                 |
-| Font system         | 80    | Metrics (23), substitution (50), loader (7)                                |
+| Font system         | 97    | Metrics (23), substitution (50), loader (7), TTF loader (10), consistency (7) |
 | Media cache         | 44    | Cache (16), image loader (18), transforms (10)                             |
 | DrawingML parsers   | 167   | Fill, line, effect, transform, text, picture, group, table, paragraph, run |
 | DrawingML renderers | 149   | Shape, fill, line, effect, text, picture, group, table, connector          |
@@ -86,6 +87,9 @@ Typecheck clean. Prettier clean. Zero untracked TODOs.
 | Chart fallback          | 11    | Grey-box rendering                                               |
 | PPTX-to-elements bridge | 28    | SlideElementIR → PageElement with PptxSource                     |
 | PDF exporter            | 13    | PPTX → PDFBackend → ContentStreamBuilder integration             |
+| PDF font embedding      | 45    | Font collection, custom font embedding, standard fallback, CID encoding |
+| PDF font subsetting     | 13    | Codepoint tracking, subsetting integration, size reduction, encoding    |
+| PDF image export        | 38    | JPEG/PNG embedding, dimensions, resource wiring                  |
 
 ---
 
@@ -121,9 +125,16 @@ The font pipeline is the #1 fragility risk. Tests are distributed across multipl
 | `pptx/viewport/__tests__/font-regression.test.ts` | pptx | Per-slide font family census against hardcoded baselines (3 PPTX fixtures, 77 slides) | 99 |
 | `pptx/viewport/__tests__/font-discovery.test.ts` | pptx | XML typeface attribute extraction (unit) + PPTX integration census | 18 |
 | `pptx/renderer/__tests__/font-inheritance.test.ts` | pptx | master→layout→shape lstStyle cascade, mergeListStyles, buildTextDefaults | 18 |
+| `pptx/export/__tests__/pdf-font-embedding.test.ts` | pptx | Font collection, custom font embedding, CID encoding, standard fallback | 45 |
+| `pptx/export/__tests__/pdf-font-subsetting.test.ts` | pptx | Codepoint tracking, font subsetting integration, size reduction | 13 |
 | `core/font/__tests__/font-metrics.test.ts` | core | Width estimation, line height calculation, category classification | ~15 |
 | `core/font/__tests__/font-metrics-db.test.ts` | core | Codepoint→advance-width lookup, bundle loading, variant matching | ~15 |
 | `core/font/__tests__/font-substitution.test.ts` | core | Substitution table lookup, web-safe passthrough, fallback chain | ~20 |
+| `core/font/__tests__/ttf-loader.test.ts` | core | TTF loading, caching, variant fallback, TrueType magic byte validation | 10 |
+| `core/font/__tests__/font-consistency.test.ts` | core | Substitution→metrics→TTF→WOFF2 pipeline consistency | 7 |
+| `core/font/__tests__/woff2-integrity.test.ts` | core | WOFF2 module validation, base64 decoding, magic bytes | 104 |
+| `core/font/__tests__/font-pipeline-contracts.test.ts` | core | Three-way substitution→metrics→WOFF2 consistency | 28 |
+| `render/src/__tests__/metrics-sync.test.ts` | render | Render bundle re-exports from core, structural equality | 5 |
 
 ---
 

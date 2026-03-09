@@ -33,3 +33,9 @@ export {
   loadBundledFont,
   loadBundledFonts,
 } from './bundled-font-loader.js';
+
+export {
+  hasTTFBundle,
+  loadTTF,
+  clearTTFCache,
+} from './ttf-loader.js';

@@ -31,7 +31,7 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer and editor
 
 The full PPTX rendering pipeline is implemented, tested, and visually validated. The editing pipeline (Phase 0-3) is complete. Phase 4 (Waves 0-4) of the PDF/Office unified architecture is complete:
 
-- **4,296 tests** passing (1,716 core + 203 elements + 207 render + 419 pptx + 1,598 pdf-signer + 129 docx + 24 pdf), typecheck clean
+- **4,328 tests** passing (1,733 core + 203 elements + 208 render + 433 pptx + 1,598 pdf-signer + 129 docx + 24 pdf), typecheck clean
 - **Visual regression**: 54-slide real-world PPTX with per-slide RMSE baselines (`pnpm test:visual`) + 10-file corpus (67 slides) with self-referential regression guard (`pnpm test:visual:corpus`) + PDF visual regression with RMSE baselines (`pnpm test:visual:pdf`)
 - **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (42 families, 130 faces) + bundled WOFF2 fonts (42 families, ~5MB, 100% offline), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks, video placeholder detection, field codes, diagram drawing), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation + font-metric-based line height + ascender baseline positioning + text outline + underline fill color, media cache, capability registry, WASM module loader, diagnostics system (DiagnosticEmitter + RenderContext wiring)
 - **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance + table textDefaults), SlideKit viewport API (hyperlinks, notes, element inspector), SmartArt fallback renderer, chart cached image fallback renderer
@@ -64,6 +64,8 @@ Precomputed font metrics for accurate text layout without actual fonts installed
 - Extraction: `scripts/extract-font-metrics.mjs` | Bundling: `scripts/bundle-woff2-fonts.py`
 - Theme font placeholders (`+mj-lt`, `+mn-lt`, `+mn-cs`) resolved to actual font names via theme
 - The metrics bundle in `@opendockit/core` is the authoritative source; `@opendockit/render` imports from core, not a copy
+- **TTF bundles**: 42 families available as raw TTF for PDF embedding (`packages/core/src/font/data/ttf/`), with `ttf-loader.ts` for dynamic loading + caching
+- **PDF custom font embedding**: Text in PDF exports uses custom TrueType fonts (Type0/CIDFontType2 with Identity-H encoding) instead of standard font fallback. Fonts are subsetted to include only used glyphs, reducing PDF size
 
 ### Visual Regression Pipeline
 
@@ -91,7 +93,7 @@ Complete (Waves 0-4, 2026-03-07/08):
 - Unified element model: @opendockit/elements
 - Unified render utilities: @opendockit/render
 - PDF rendering package: @opendockit/pdf
-- PDF export pipeline (shapes/fills + text with standard font fallback + JPEG/PNG image XObjects + gradient shading + transparency)
+- PDF export pipeline (shapes/fills + text with custom TrueType font embedding + font subsetting + JPEG/PNG image XObjects + gradient shading + transparency)
 - Cross-format text search
 - Clipboard serialize/deserialize
 - Batch PPTX→PDF conversion script
@@ -108,7 +110,7 @@ Still deferred:
 1. **CanvasKit** WASM integration (3D effects, reflections, advanced filters)
 2. **Slide transitions**
 3. **SVG export**
-4. **PDF custom font embedding** (currently uses standard font fallback — WOFF2→TTF decode needed)
+4. ~~**PDF custom font embedding**~~ ✅ Complete — 42 bundled font families embedded as subsetted TrueType, per-glyph advance widths for accurate text measurement
 
 Permanently deferred:
 - **ChartML** — cached image fallback renders chart previews. Not worth the complexity.

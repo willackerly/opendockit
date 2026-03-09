@@ -46,6 +46,10 @@
       "types": "./dist/font/data/metrics-bundle.d.ts",
       "import": "./dist/font/data/metrics-bundle.js"
     },
+    "./font/data/ttf/manifest": {
+      "types": "./dist/font/data/ttf/manifest.d.ts",
+      "import": "./dist/font/data/ttf/manifest.js"
+    },
     "./media": {
       "types": "./dist/media/index.d.ts",
       "import": "./dist/media/index.js"

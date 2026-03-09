@@ -140,6 +140,9 @@ export {
   copyPages,
   // CFF/OpenType parser
   parseCFFFont,
+  // TrueType font parsing and embedding
+  parseTrueType,
+  computeFontFlags,
   // Font subsetting
   subsetTrueTypeFont,
   // PDF/A compliance
@@ -185,6 +188,8 @@ export type {
   CSOperation,
   // CFF/OpenType types
   CFFParseResult,
+  // TrueType font types
+  TrueTypeFontInfo,
   // Font subsetting types
   SubsetResult,
   // PDF/A types

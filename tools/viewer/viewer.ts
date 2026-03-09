@@ -1353,6 +1353,7 @@ document.addEventListener('keydown', (e) => {
 
 // File picker
 btnOpen.addEventListener('click', () => {
+  fileInput.value = ''; // Reset so re-selecting same file fires change
   fileInput.click();
 });
 
@@ -1400,6 +1401,7 @@ dropZone.addEventListener('drop', (e) => {
 // Click on empty drop zone to open file picker
 dropZone.addEventListener('click', (e) => {
   if ((dropZone.classList.contains('empty') && e.target === dropZone) || e.target === emptyState) {
+    fileInput.value = '';
     fileInput.click();
   }
 });

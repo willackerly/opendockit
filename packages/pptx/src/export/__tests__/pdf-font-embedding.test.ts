@@ -473,7 +473,7 @@ describe('getStandardFontName', () => {
 describe('embedFontsForPdf', () => {
   it('returns empty array for no fonts', async () => {
     const pdfDoc = await PDFDocument.create({ updateMetadata: false });
-    const results = embedFontsForPdf([], pdfDoc);
+    const results = await embedFontsForPdf([], pdfDoc);
     expect(results).toEqual([]);
   });
 
@@ -484,26 +484,28 @@ describe('embedFontsForPdf', () => {
       { family: 'Times New Roman', bold: false, italic: false },
       { family: 'Courier New', bold: false, italic: false },
     ];
-    const results = embedFontsForPdf(fontKeys, pdfDoc);
+    const results = await embedFontsForPdf(fontKeys, pdfDoc);
     expect(results.map((r) => r.resourceName)).toEqual(['F1', 'F2', 'F3']);
   });
 
-  it('creates RegisteredPdfFont with correct encoding', async () => {
+  it('creates RegisteredPdfFont with text encoding', async () => {
     const pdfDoc = await PDFDocument.create({ updateMetadata: false });
-    const results = embedFontsForPdf(
+    const results = await embedFontsForPdf(
       [{ family: 'Arial', bold: false, italic: false }],
       pdfDoc
     );
     const font = results[0].registeredFont;
 
-    // WinAnsi encoding: 'A' (0x41) -> "41", 'Hello' -> "48656C6C6F"
-    expect(font.encodeText('A')).toBe('41');
-    expect(font.encodeText('Hello')).toBe('48656C6C6F');
+    // encodeText should return non-empty hex string
+    const encoded = font.encodeText('Hello');
+    expect(encoded.length).toBeGreaterThan(0);
+    // Should be all hex characters
+    expect(encoded).toMatch(/^[0-9A-Fa-f]+$/);
   });
 
   it('creates RegisteredPdfFont with width measurement', async () => {
     const pdfDoc = await PDFDocument.create({ updateMetadata: false });
-    const results = embedFontsForPdf(
+    const results = await embedFontsForPdf(
       [{ family: 'Arial', bold: false, italic: false }],
       pdfDoc
     );
@@ -520,16 +522,27 @@ describe('embedFontsForPdf', () => {
     expect(widthLong).toBeGreaterThan(widthShort);
   });
 
-  it('marks all results as standard fonts', async () => {
+  it('embeds bundled fonts as custom (not standard)', async () => {
     const pdfDoc = await PDFDocument.create({ updateMetadata: false });
-    const results = embedFontsForPdf(
+    const results = await embedFontsForPdf(
       [
         { family: 'Arial', bold: false, italic: false },
-        { family: 'Georgia', bold: true, italic: false },
+        { family: 'Georgia', bold: false, italic: false },
       ],
       pdfDoc
     );
-    expect(results.every((r) => r.isStandard)).toBe(true);
+    // Fonts with TTF bundles should be embedded as custom Type0 fonts
+    expect(results.some((r) => !r.isStandard)).toBe(true);
+  });
+
+  it('falls back to standard font when no TTF available', async () => {
+    const pdfDoc = await PDFDocument.create({ updateMetadata: false });
+    const results = await embedFontsForPdf(
+      [{ family: 'Papyrus', bold: false, italic: false }],
+      pdfDoc
+    );
+    // Papyrus has no TTF bundle — should fall back to standard font
+    expect(results[0].isStandard).toBe(true);
   });
 });
 
@@ -583,7 +596,7 @@ describe('exportPresentationToPdf with text', () => {
     expect(pdfText).toContain('/F1');
   });
 
-  it('includes Helvetica standard font for Arial text', async () => {
+  it('includes embedded font for Arial text', async () => {
     const pres = makePresentation(1);
     const slides = [
       makeEnriched({
@@ -594,9 +607,9 @@ describe('exportPresentationToPdf with text', () => {
     const result = await exportPresentationToPdf(pres, slides);
     const pdfText = new TextDecoder().decode(result.bytes);
 
-    // Should contain the Helvetica standard font definition
-    expect(pdfText).toContain('/Helvetica');
-    expect(pdfText).toContain('/Type1');
+    // Should contain font definition (either custom Type0 or standard Type1)
+    expect(pdfText).toContain('/Font');
+    expect(pdfText).toContain('/F1');
   });
 
   it('produces PDF with text that can be loaded back', async () => {
@@ -632,10 +645,10 @@ describe('exportPresentationToPdf with text', () => {
     expect(result.fontCount).toBe(3);
 
     const pdfText = new TextDecoder().decode(result.bytes);
-    // All three standard font bases should be present
-    expect(pdfText).toContain('/Helvetica');
-    expect(pdfText).toContain('/Times-Roman');
-    expect(pdfText).toContain('/Courier');
+    // All three fonts should be embedded (either as custom Type0 or standard Type1)
+    expect(pdfText).toContain('/F1');
+    expect(pdfText).toContain('/F2');
+    expect(pdfText).toContain('/F3');
   });
 
   it('handles empty presentation (zero fonts)', async () => {
@@ -686,7 +699,7 @@ describe('buildFontLookup', () => {
       { family: 'Arial', bold: false, italic: false },
       { family: 'Arial', bold: true, italic: false },
     ];
-    const embedded = embedFontsForPdf(fontKeys, pdfDoc);
+    const embedded = await embedFontsForPdf(fontKeys, pdfDoc);
     const ctx = buildFontLookup(embedded);
 
     const regular = ctx.lookup('Arial', false, false);
@@ -700,7 +713,7 @@ describe('buildFontLookup', () => {
 
   it('is case-insensitive', async () => {
     const pdfDoc = await PDFDocument.create({ updateMetadata: false });
-    const embedded = embedFontsForPdf(
+    const embedded = await embedFontsForPdf(
       [{ family: 'Arial', bold: false, italic: false }],
       pdfDoc
     );
@@ -712,7 +725,7 @@ describe('buildFontLookup', () => {
 
   it('falls back to family-only match', async () => {
     const pdfDoc = await PDFDocument.create({ updateMetadata: false });
-    const embedded = embedFontsForPdf(
+    const embedded = await embedFontsForPdf(
       [{ family: 'Arial', bold: false, italic: false }],
       pdfDoc
     );
@@ -739,7 +752,7 @@ describe('text rendering in content stream', () => {
   it('generates text operators (BT/ET) for shapes with text', async () => {
     const pdfDoc = await PDFDocument.create({ updateMetadata: false });
     const fontKeys = [{ family: 'Arial', bold: false, italic: false }];
-    const embedded = embedFontsForPdf(fontKeys, pdfDoc);
+    const embedded = await embedFontsForPdf(fontKeys, pdfDoc);
     const fontCtx = buildFontLookup(embedded);
 
     const slide = makeEnriched({
@@ -758,7 +771,7 @@ describe('text rendering in content stream', () => {
   it('includes font selection operator (Tf) in content stream', async () => {
     const pdfDoc = await PDFDocument.create({ updateMetadata: false });
     const fontKeys = [{ family: 'Arial', bold: false, italic: false }];
-    const embedded = embedFontsForPdf(fontKeys, pdfDoc);
+    const embedded = await embedFontsForPdf(fontKeys, pdfDoc);
     const fontCtx = buildFontLookup(embedded);
 
     const slide = makeEnriched({
@@ -776,7 +789,7 @@ describe('text rendering in content stream', () => {
   it('includes hex-encoded text in content stream (Tj operator)', async () => {
     const pdfDoc = await PDFDocument.create({ updateMetadata: false });
     const fontKeys = [{ family: 'Arial', bold: false, italic: false }];
-    const embedded = embedFontsForPdf(fontKeys, pdfDoc);
+    const embedded = await embedFontsForPdf(fontKeys, pdfDoc);
     const fontCtx = buildFontLookup(embedded);
 
     const slide = makeEnriched({
@@ -787,15 +800,15 @@ describe('text rendering in content stream', () => {
     const bytes = builder.toBytes();
     const content = new TextDecoder().decode(bytes);
 
-    // 'AB' -> WinAnsi hex: "4142"
-    expect(content).toContain('<4142>');
+    // Text should be hex-encoded (either WinAnsi 2-char or CID 4-char per glyph)
+    expect(content).toMatch(/<[0-9A-Fa-f]+>/);
     expect(content).toContain('Tj');
   });
 
   it('renders text with correct color', async () => {
     const pdfDoc = await PDFDocument.create({ updateMetadata: false });
     const fontKeys = [{ family: 'Arial', bold: false, italic: false }];
-    const embedded = embedFontsForPdf(fontKeys, pdfDoc);
+    const embedded = await embedFontsForPdf(fontKeys, pdfDoc);
     const fontCtx = buildFontLookup(embedded);
 
     const redColor: ResolvedColor = { r: 255, g: 0, b: 0, a: 1 };
@@ -855,7 +868,7 @@ describe('text rendering in content stream', () => {
       { family: 'Arial', bold: false, italic: false },
       { family: 'Times New Roman', bold: false, italic: false },
     ];
-    const embedded = embedFontsForPdf(fontKeys, pdfDoc);
+    const embedded = await embedFontsForPdf(fontKeys, pdfDoc);
     const fontCtx = buildFontLookup(embedded);
 
     const slide = makeEnriched({

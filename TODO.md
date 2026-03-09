@@ -204,14 +204,14 @@ Deep investigation of top-10 RMSE slides confirms:
 - [x] Batch PPTX→PDF conversion script (2026-03-08)
 - [x] Unified viewer (PPTX + PDF format detection) (2026-03-08)
 - [x] PDF font embedding for PPTX→PDF export (standard font fallback: Helvetica/Times-Roman/Courier) with text rendering in content streams (2026-03-08)
+- [x] PDF custom TrueType font embedding — 42 bundled font families embedded as Type0/CIDFontType2 with Identity-H encoding, font subsetting (only used glyphs), per-glyph advance widths for accurate text measurement (2026-03-08)
+- [x] FontMetricsDB deduplication — render package re-exports from core (no diverged copy) (2026-03-08)
+- [x] TTF font bundle pipeline — `pnpm fonts:ttf` generates raw TTF modules for PDF embedding (2026-03-08)
 
 **Still deferred:**
 - [ ] CanvasKit WASM integration (3D effects, reflections, advanced filters)
 - [ ] Slide transitions (fade, push, wipe, etc.)
 - [ ] SVG export
-- [ ] PDF image embedding (XObjects for pictures — currently gray placeholders)
-- [ ] PDF gradient shading patterns (currently uses first stop only)
-- [ ] PDF transparency (ExtGState /ca /CA)
 
 ### Permanently Deferred
 
@@ -265,5 +265,5 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [x] Table row auto-height (rows expand to fit content text — 2026-02-25)
 - [ ] Media LRU cache size limits (currently unbounded)
 - [x] Text direction `vert` attribute parsed + rendered (2026-02-25)
-- [ ] WOFF2->TTF decoding for custom font embedding in PDF export (currently using PDF standard font fallback; bundled fonts are WOFF2 and TrueTypeParser rejects them — need woff2 decoder or raw TTF access)
+- [x] WOFF2->TTF decoding for custom font embedding in PDF export — FIXED: TTF bundles generated alongside WOFF2 bundles, loaded via ttf-loader.ts for PDF embedding (2026-03-08)
 - [ ] Full PNG decode for PDF image export (IDAT extraction + alpha SMask) — currently embeds raw PNG with FlateDecode; proper decode would extract RGB pixels and create separate SMask for transparency

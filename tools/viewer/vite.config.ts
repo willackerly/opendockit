@@ -69,6 +69,14 @@ export default defineConfig({
       { find: '@opendockit/pdf-signer', replacement: resolve(pdfSignerBase, 'index.ts') },
     ],
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        compare: resolve(__dirname, 'compare.html'),
+      },
+    },
+  },
   server: {
     port: 5174,
     open: true,

@@ -17,6 +17,7 @@ Central registry for all project scripts in the `scripts/` directory. These scri
 | `extract-font-metrics.mjs` | Generate metrics-bundle.ts | `pnpm fonts:metrics` (via `regenerate-metrics.sh`) | fonts/ directory with TTF/OTF files |
 | `regenerate-metrics.sh` | Wrapper for extract-font-metrics | `pnpm fonts:metrics` | fonts/ directory |
 | `bundle-woff2-fonts.py` | Generate WOFF2 TypeScript bundles | `pnpm fonts:woff2` | python3, fontTools |
+| `bundle-ttf-fonts.py` | Generate TTF bundles for PDF embedding | `pnpm fonts:ttf` | python3, fontTools |
 | `download-google-fonts.sh` | Download Google Fonts TTFs | `pnpm fonts:download` | python3, fontTools, internet |
 | `generate-font-stress-test.py` | Create font stress-test PPTX | `python3 scripts/generate-font-stress-test.py` | python3, python-pptx |
 | `generate-test-pptx.mjs` | Create basic-shapes test fixture | `node scripts/generate-test-pptx.mjs` | JSZip (from core package) |
@@ -169,6 +170,18 @@ pnpm fonts:woff2
 - **Output:** `packages/core/src/font/data/woff2/` (TypeScript modules, ~5MB total)
 - **Requires:** python3 with fontTools
 
+### `bundle-ttf-fonts.py` -- Generate TTF Bundles for PDF Embedding
+
+Subsets TTF fonts to Latin + symbols codepoints (same ranges as WOFF2), base64-encodes the raw bytes, and writes TypeScript modules for PDF font embedding. Also generates a `manifest.ts` mapping family names to module paths + variant info.
+
+```bash
+pnpm fonts:ttf
+```
+
+- **Output:** `packages/core/src/font/data/ttf/` (TypeScript modules, ~12MB total, 46 modules)
+- **Requires:** python3 with fontTools
+- **Use case:** PDF export embeds custom TrueType fonts instead of standard font fallback. The TTF modules are loaded by `ttf-loader.ts` at export time and subsetted to only used glyphs before embedding.
+
 ### `generate-font-stress-test.py` -- Font Stress Test PPTX
 
 Creates a PPTX file that exercises all 42 bundled font families with bold/italic variants, different sizes, and mixed-font paragraphs.
@@ -185,13 +198,15 @@ python3 scripts/generate-font-stress-test.py
 ```
 When do I run font pipeline scripts?
 |-- New clone / missing fonts/ dir
-|   +-- pnpm fonts:rebuild          (download + metrics + woff2)
+|   +-- pnpm fonts:rebuild          (download + metrics + woff2 + ttf)
 |-- Adding a new Google Font
-|   +-- pnpm fonts:rebuild          (download + metrics + woff2)
+|   +-- pnpm fonts:rebuild          (download + metrics + woff2 + ttf)
 |-- Changed font metrics extraction logic
 |   +-- pnpm fonts:metrics          (regenerate metrics-bundle.ts)
 |-- Changed WOFF2 generation logic
 |   +-- pnpm fonts:woff2            (regenerate WOFF2 modules)
+|-- Changed TTF generation logic
+|   +-- pnpm fonts:ttf              (regenerate TTF modules for PDF embedding)
 |-- Changed font stress test
 |   +-- python3 scripts/generate-font-stress-test.py
 +-- Routine development

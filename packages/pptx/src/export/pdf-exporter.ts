@@ -37,7 +37,7 @@ import { PDFDocument } from '@opendockit/pdf-signer';
 import { emuToPt } from '@opendockit/core';
 import type { PresentationIR, EnrichedSlideData } from '../model/index.js';
 import { renderSlideToPdf, buildFontLookup } from './pdf-slide-renderer.js';
-import { collectFontsFromPresentation } from './pdf-font-collector.js';
+import { collectFontsWithCodepoints } from './pdf-font-collector.js';
 import { embedFontsForPdf, wireFontsToPage } from './pdf-font-embedder.js';
 import { collectImagesFromPresentation, detectImageMimeType } from './pdf-image-collector.js';
 import type { CollectedImage } from './pdf-image-collector.js';
@@ -127,11 +127,11 @@ export async function exportPresentationToPdf(
   const pageWidthPt = emuToPt(presentation.slideWidth);
   const pageHeightPt = emuToPt(presentation.slideHeight);
 
-  // 3. Collect all fonts used across the presentation
-  const fontKeys = collectFontsFromPresentation(slides, presentation.theme);
+  // 3. Collect all fonts and used codepoints across the presentation
+  const { fontKeys, usedCodepoints } = collectFontsWithCodepoints(slides, presentation.theme);
 
-  // 4. Embed fonts into the PDF document
-  const embeddedFonts = embedFontsForPdf(fontKeys, pdfDoc);
+  // 4. Embed fonts into the PDF document (async: loads TTF bundles, subsets to used glyphs)
+  const embeddedFonts = await embedFontsForPdf(fontKeys, pdfDoc, usedCodepoints);
 
   // 5. Build font lookup context for text rendering
   const fontCtx = buildFontLookup(embeddedFonts, presentation.theme);

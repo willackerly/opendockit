@@ -1,17 +1,20 @@
 /**
- * Metrics bundle sync test.
+ * Metrics sync test.
  *
- * Ensures that @opendockit/render's metricsBundle is always in sync with
- * @opendockit/core's authoritative copy. The render package re-exports from
- * core, so these tests verify the re-export works and the data is identical.
+ * Verifies that @opendockit/render's font-metrics-db and metricsBundle are
+ * proper re-exports from @opendockit/core. Since both are now re-exports
+ * (not copies), these tests verify the re-export wiring is correct and
+ * the same data/functionality is available through render.
  */
 
 import { describe, expect, it } from 'vitest';
 import { metricsBundle as coreBundle } from '../../../core/src/font/data/metrics-bundle.js';
 import { metricsBundle as renderBundle } from '../metrics-bundle.js';
+import { FontMetricsDB } from '../font-metrics-db.js';
+import type { FontFaceMetrics } from '../font-metrics-db.js';
 
 describe('metrics bundle sync', () => {
-  it('render bundle references same data as core bundle', () => {
+  it('render bundle has same font families as core bundle', () => {
     expect(Object.keys(renderBundle.fonts).sort()).toEqual(
       Object.keys(coreBundle.fonts).sort()
     );
@@ -49,5 +52,15 @@ describe('metrics bundle sync', () => {
     expect(renderRegular!.unitsPerEm).toBe(coreRegular!.unitsPerEm);
     expect(renderRegular!.ascender).toBe(coreRegular!.ascender);
     expect(renderRegular!.descender).toBe(coreRegular!.descender);
+  });
+
+  it('FontMetricsDB from render re-export works correctly', () => {
+    const db = new FontMetricsDB();
+    db.loadBundle(renderBundle);
+    expect(db.hasMetrics('Calibri')).toBe(true);
+    const w = db.measureText('Hello', 'Calibri', 12, false, false);
+    expect(w).toBeDefined();
+    expect(w!).toBeGreaterThan(15);
+    expect(w!).toBeLessThan(50);
   });
 });
