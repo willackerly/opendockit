@@ -35,5 +35,6 @@ export { evaluatePageWithElements } from './evaluator.js';
 export { getPageElements } from './NativeRenderer.js';
 
 // Types
-export type { RenderOptions, RenderResult } from './types.js';
+export type { RenderOptions, RenderResult, RenderDiagnostic } from './types.js';
+export { RenderDiagnosticsCollector } from './types.js';
 export type { NativeFont, Glyph, NativeImage } from './evaluator.js';

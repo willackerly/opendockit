@@ -10,7 +10,14 @@
  * edit→render workflows.
  */
 
+// Browser API declarations (lib: "dom" is not included in this package's tsconfig)
+/* eslint-disable @typescript-eslint/no-redeclare */
+declare function createImageBitmap(image: Blob): Promise<ImageBitmap>;
+declare interface ImageBitmap { readonly width: number; readonly height: number; close(): void; }
+declare class ImageData { constructor(data: Uint8ClampedArray, sw: number, sh: number); readonly data: Uint8ClampedArray; readonly width: number; readonly height: number; }
+
 import type { RenderOptions, RenderResult } from './types.js';
+import { RenderDiagnosticsCollector } from './types.js';
 import { evaluatePage, evaluatePageWithElements } from './evaluator.js';
 import type { PageElement } from '../elements/types.js';
 import { NativeCanvasGraphics } from './canvas-graphics.js';
@@ -18,6 +25,9 @@ import { canvasToPng, isNodeEnvironment } from './canvas-factory.js';
 import type { COSDictionary } from '../pdfbox/cos/COSTypes.js';
 import { COSArray, COSFloat, COSInteger, COSObjectReference } from '../pdfbox/cos/COSTypes.js';
 import type { ObjectResolver } from '../document/extraction/FontDecoder.js';
+import type { NativeImage } from './evaluator.js';
+import type { OperatorList } from './operator-list.js';
+import { OPS } from './ops.js';
 
 const DEFAULT_SCALE = 1.5;
 
@@ -98,6 +108,7 @@ export class NativeRenderer {
     const scale = options?.scale ?? DEFAULT_SCALE;
     const background = options?.background ?? 'white';
     const pageDict = this.pages[pageIndex].pageDict;
+    const diagnostics = new RenderDiagnosticsCollector();
 
     // Use CropBox for visible dimensions (falls back to MediaBox)
     const visibleBox = getVisibleBox(pageDict, this.resolve);
@@ -119,8 +130,12 @@ export class NativeRenderer {
     // Transform: scale + flip Y, offset by visible box origin
     context.transform(scale, 0, 0, -scale, -visibleBox[0] * scale, visibleBox[3] * scale);
 
-    const opList = evaluatePage(pageDict, this.resolve);
-    const graphics = new NativeCanvasGraphics(context);
+    const opList = evaluatePage(pageDict, this.resolve, diagnostics);
+
+    // Pre-decode JPEG images in browser (createImageBitmap is async)
+    await this.preDecodeJpegs(opList, diagnostics);
+
+    const graphics = new NativeCanvasGraphics(context, diagnostics);
     graphics.execute(opList);
 
     const t1 = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -142,6 +157,7 @@ export class NativeRenderer {
     const scale = options?.scale ?? DEFAULT_SCALE;
     const background = options?.background ?? 'white';
     const pageDict = this.pages[pageIndex].pageDict;
+    const diagnostics = new RenderDiagnosticsCollector();
 
     // Use CropBox for visible dimensions (falls back to MediaBox)
     const visibleBox = getVisibleBox(pageDict, this.resolve);
@@ -167,16 +183,25 @@ export class NativeRenderer {
     context.transform(scale, 0, 0, -scale, -visibleBox[0] * scale, visibleBox[3] * scale);
 
     // Evaluate page content stream → OperatorList
-    const opList = evaluatePage(pageDict, this.resolve);
+    const opList = evaluatePage(pageDict, this.resolve, diagnostics);
+
+    // Pre-decode JPEG images in browser (createImageBitmap is async)
+    await this.preDecodeJpegs(opList, diagnostics);
 
     // Render OperatorList to canvas
-    const graphics = new NativeCanvasGraphics(context);
+    const graphics = new NativeCanvasGraphics(context, diagnostics);
     graphics.execute(opList);
 
     // Convert to PNG
     const png = await canvasToPng(canvas);
 
-    return { png, width: canvasWidth, height: canvasHeight, pageIndex };
+    return {
+      png,
+      width: canvasWidth,
+      height: canvasHeight,
+      pageIndex,
+      diagnostics: diagnostics.length > 0 ? diagnostics.items : undefined,
+    };
   }
 
   /**
@@ -206,6 +231,85 @@ export class NativeRenderer {
     const pageDict = this.pages[pageIndex].pageDict;
     const { elements } = evaluatePageWithElements(pageDict, this.resolve);
     return elements;
+  }
+
+  // -----------------------------------------------------------------------
+  // JPEG pre-decode (browser only)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Pre-decode JPEG images in the OperatorList for browser environments.
+   *
+   * In Node.js, node-canvas's Image decodes JPEG synchronously via `img.src = Buffer`.
+   * In browsers, there's no sync JPEG→RGBA path. We use `createImageBitmap()` + OffscreenCanvas
+   * to async-decode JPEGs before the synchronous `execute()` loop.
+   *
+   * After pre-decode, the NativeImage's `data` contains RGBA pixels and `isJpeg` is set to false,
+   * so the sync path in canvas-graphics can handle it like any other image.
+   */
+  private async preDecodeJpegs(
+    opList: OperatorList,
+    diagnostics: RenderDiagnosticsCollector,
+  ): Promise<void> {
+    // Only needed in browser — Node.js has sync JPEG decode
+    if (isNodeEnvironment) return;
+    if (typeof createImageBitmap === 'undefined') return;
+
+    const { fnArray, argsArray } = opList;
+    const promises: Array<{ index: number; promise: Promise<ImageData | null> }> = [];
+
+    for (let i = 0; i < fnArray.length; i++) {
+      if (
+        (fnArray[i] === OPS.paintImageXObject || fnArray[i] === OPS.paintInlineImageXObject) &&
+        argsArray[i]
+      ) {
+        const image = argsArray[i]![0] as NativeImage | null;
+        if (image?.isJpeg && image.data) {
+          promises.push({
+            index: i,
+            promise: this.decodeJpegAsync(image.data, image.width, image.height, diagnostics),
+          });
+        }
+      }
+    }
+
+    if (promises.length === 0) return;
+
+    const results = await Promise.allSettled(promises.map((p) => p.promise));
+
+    for (let j = 0; j < promises.length; j++) {
+      const result = results[j];
+      if (result.status === 'fulfilled' && result.value) {
+        const image = argsArray[promises[j].index]![0] as NativeImage;
+        const imgData = result.value;
+        image.data = new Uint8Array(imgData.data.buffer, imgData.data.byteOffset, imgData.data.byteLength);
+        image.width = imgData.width;
+        image.height = imgData.height;
+        (image as any).isJpeg = false;
+      }
+    }
+  }
+
+  private async decodeJpegAsync(
+    jpegData: Uint8Array,
+    width: number,
+    height: number,
+    diagnostics: RenderDiagnosticsCollector,
+  ): Promise<ImageData | null> {
+    try {
+      const blob = new Blob([jpegData], { type: 'image/jpeg' });
+      const bitmap = await createImageBitmap(blob);
+      const oc = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const ctx = oc.getContext('2d')!;
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      return ctx.getImageData(0, 0, oc.width, oc.height);
+    } catch (err) {
+      diagnostics.warn('image', `Failed to async-decode JPEG (${width}x${height})`, {
+        error: String(err),
+      });
+      return null;
+    }
   }
 }
 

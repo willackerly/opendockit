@@ -48,6 +48,7 @@ import type {
   ImageElement,
   Color,
 } from '../elements/types.js';
+import type { RenderDiagnosticsCollector } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -72,6 +73,8 @@ export interface NativeImage {
   height: number;
   data: Uint8Array; // RGBA pixel data (always RGBA, even for JPEG which is pre-decoded)
   isJpeg: boolean;
+  /** Soft mask alpha data (grayscale, same dimensions as image). */
+  smaskData?: Uint8Array;
 }
 
 /** A gradient stop for shading patterns. */
@@ -130,7 +133,11 @@ function cmykToRgb(c: number, m: number, y: number, k: number): Color {
  * @param resolve   Function to dereference COSObjectReference values
  * @returns OperatorList ready for NativeCanvasGraphics
  */
-export function evaluatePage(pageDict: COSDictionary, resolve: ObjectResolver): OperatorList {
+export function evaluatePage(
+  pageDict: COSDictionary,
+  resolve: ObjectResolver,
+  diagnostics?: RenderDiagnosticsCollector,
+): OperatorList {
   const opList = new OperatorList();
   const contentData = getPageContentData(pageDict, resolve);
   if (!contentData || contentData.length === 0) return opList;
@@ -139,7 +146,7 @@ export function evaluatePage(pageDict: COSDictionary, resolve: ObjectResolver): 
   const tokens = tokenizeContentStream(contentData);
   const operations = parseOperations(tokens);
 
-  const ctx = new EvalContext(resourcesDict, resolve, opList);
+  const ctx = new EvalContext(resourcesDict, resolve, opList, diagnostics);
   ctx.processOperations(operations);
 
   return opList;
@@ -151,7 +158,8 @@ export function evaluatePage(pageDict: COSDictionary, resolve: ObjectResolver): 
  */
 export function evaluatePageWithElements(
   pageDict: COSDictionary,
-  resolve: ObjectResolver
+  resolve: ObjectResolver,
+  diagnostics?: RenderDiagnosticsCollector,
 ): { opList: OperatorList; elements: PageElement[] } {
   const opList = new OperatorList();
   const contentData = getPageContentData(pageDict, resolve);
@@ -161,7 +169,7 @@ export function evaluatePageWithElements(
   const tokens = tokenizeContentStream(contentData);
   const operations = parseOperations(tokens);
 
-  const ctx = new EvalContext(resourcesDict, resolve, opList);
+  const ctx = new EvalContext(resourcesDict, resolve, opList, diagnostics);
   ctx.processOperations(operations);
 
   return { opList, elements: ctx.getElements() };
@@ -211,10 +219,18 @@ class EvalContext {
   private pathMaxX = -Infinity;
   private pathMaxY = -Infinity;
 
-  constructor(resources: COSDictionary | undefined, resolve: ObjectResolver, opList: OperatorList) {
+  private diagnostics?: RenderDiagnosticsCollector;
+
+  constructor(
+    resources: COSDictionary | undefined,
+    resolve: ObjectResolver,
+    opList: OperatorList,
+    diagnostics?: RenderDiagnosticsCollector,
+  ) {
     this.resources = resources;
     this.resolve = resolve;
     this.opList = opList;
+    this.diagnostics = diagnostics;
   }
 
   getElements(): PageElement[] {
@@ -902,7 +918,10 @@ class EvalContext {
       const css = cssForPdfFont(decoder.fontName);
       const stdWidthFn = buildStdWidthFn(decoder.fontName);
       return { decoder, css, stdWidthFn };
-    } catch {
+    } catch (err) {
+      this.diagnostics?.warn('font', `Failed to build font decoder for "${fontName}"`, {
+        error: String(err),
+      });
       return null;
     }
   }
@@ -1280,8 +1299,12 @@ class EvalContext {
         };
         this.elements.push(imgElement);
       }
-    } catch {
-      // Skip images that can't be decoded
+    } catch (err) {
+      this.diagnostics?.warn('image', `Failed to decode image XObject "${xobjName ?? 'unknown'}"`, {
+        error: String(err),
+        width,
+        height,
+      });
     }
   }
 }
@@ -1323,27 +1346,44 @@ function decodeImageXObject(
     return decodeImageMask(data, width, height);
   }
 
+  let image: NativeImage | null;
   switch (cs) {
     case 'DeviceGray':
     case 'CalGray':
-      return decodeGrayImage(data, width, height, bpc);
+      image = decodeGrayImage(data, width, height, bpc);
+      break;
     case 'DeviceRGB':
     case 'CalRGB':
-      return decodeRGBImage(data, width, height);
+      image = decodeRGBImage(data, width, height);
+      break;
     case 'DeviceCMYK':
-      return decodeCMYKImage(data, width, height);
+      image = decodeCMYKImage(data, width, height);
+      break;
     case 'Indexed':
-      return decodeIndexedImage(data, width, height, bpc, dict, resolve);
+      image = decodeIndexedImage(data, width, height, bpc, dict, resolve);
+      break;
     case 'Separation':
     case 'DeviceN':
-      // Approximate: treat as grayscale
-      return decodeGrayImage(data, width, height, bpc);
+      image = decodeGrayImage(data, width, height, bpc);
+      break;
     default:
-      // Heuristic: guess from data length
-      if (data.length >= width * height * 3) return decodeRGBImage(data, width, height);
-      if (data.length >= width * height) return decodeGrayImage(data, width, height, 8);
-      return null;
+      if (data.length >= width * height * 3) image = decodeRGBImage(data, width, height);
+      else if (data.length >= width * height) image = decodeGrayImage(data, width, height, 8);
+      else image = null;
   }
+
+  // Extract SMask (soft mask) if present — applies transparency
+  if (image && !image.isJpeg) {
+    const smaskData = extractSMask(dict, resolve, image.width, image.height);
+    if (smaskData) {
+      // Apply SMask as alpha channel directly to the RGBA data
+      for (let i = 0; i < image.width * image.height; i++) {
+        image.data[i * 4 + 3] = smaskData[i];
+      }
+    }
+  }
+
+  return image;
 }
 
 function getStreamFilters(dict: COSDictionary): string[] {
@@ -1393,6 +1433,47 @@ function resolveColorSpace(dict: COSDictionary, resolve: ObjectResolver): string
   }
 
   return 'DeviceGray';
+}
+
+/**
+ * Extract and decode the /SMask (soft mask) stream from an image dictionary.
+ * Returns a grayscale alpha array (one byte per pixel), or undefined if no SMask.
+ */
+function extractSMask(
+  dict: COSDictionary,
+  resolve: ObjectResolver,
+  imgWidth: number,
+  imgHeight: number,
+): Uint8Array | undefined {
+  let smaskRef: COSBase | undefined = dict.getItem('SMask');
+  if (!smaskRef) return undefined;
+  if (smaskRef instanceof COSObjectReference) smaskRef = resolve(smaskRef);
+  if (!(smaskRef instanceof COSStream)) return undefined;
+
+  const smaskDict = smaskRef.getDictionary();
+  const smaskWidth = smaskDict.getInt('Width', imgWidth);
+  const smaskHeight = smaskDict.getInt('Height', imgHeight);
+  const smaskBpc = smaskDict.getInt('BitsPerComponent', 8);
+
+  const smaskData = getDecompressedStreamData(smaskRef);
+  if (!smaskData || smaskData.length === 0) return undefined;
+
+  // The SMask is a grayscale image — extract one alpha value per pixel
+  const pixelCount = smaskWidth * smaskHeight;
+  const alpha = new Uint8Array(pixelCount);
+  const maxVal = (1 << smaskBpc) - 1;
+
+  for (let i = 0; i < pixelCount && i < smaskData.length; i++) {
+    alpha[i] = Math.round((smaskData[i] / maxVal) * 255);
+  }
+
+  // If SMask dimensions differ from image, we'd need to resample.
+  // For now, only apply if dimensions match (common case).
+  if (smaskWidth !== imgWidth || smaskHeight !== imgHeight) {
+    return undefined;
+  }
+
+  return alpha;
 }
 
 function decodeImageMask(data: Uint8Array, width: number, height: number): NativeImage {

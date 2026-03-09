@@ -149,6 +149,15 @@ const REFERENCE_PDFS = [
     description: 'Pre-signed version of wire-instructions (has signature widget)',
     tags: ['signed', 'signature-widget'],
   },
+
+  // --- Complex real-world: presentation with images + custom fonts ---
+  {
+    id: 'ic-ciso-visit',
+    file: 'test-pdfs/working/ic-ciso-visit.pdf',
+    description: 'IC CISO Visit presentation (54 pages, JPEG images, custom Type0 fonts)',
+    tags: ['presentation', 'multi-page', 'images', 'custom-fonts', 'complex'],
+    maxPages: 10,
+  },
 ];
 
 // ---------------------------------------------------------------------------

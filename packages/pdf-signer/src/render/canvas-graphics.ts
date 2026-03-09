@@ -15,6 +15,7 @@
 import { OPS } from './ops.js';
 import type { OperatorList } from './operator-list.js';
 import type { NativeFont, Glyph, NativeImage, NativeShading } from './evaluator.js';
+import type { RenderDiagnosticsCollector } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Graphics state
@@ -98,8 +99,11 @@ export class NativeCanvasGraphics {
   // Track current point for curveTo2 (v operator)
   private currentPoint: [number, number] = [0, 0];
 
-  constructor(ctx: CanvasRenderingContext2D) {
+  private diagnostics?: RenderDiagnosticsCollector;
+
+  constructor(ctx: CanvasRenderingContext2D, diagnostics?: RenderDiagnosticsCollector) {
     this.ctx = ctx;
+    this.diagnostics = diagnostics;
   }
 
   /**
@@ -361,7 +365,8 @@ export class NativeCanvasGraphics {
         break;
 
       default:
-        break; // Unknown op — skip
+        this.diagnostics?.warn('operator', `Unknown PDF operator: ${fn}`);
+        break;
     }
   }
 
@@ -661,8 +666,11 @@ export class NativeCanvasGraphics {
       // Fill the entire page area (shading fills are unbounded by default)
       // Use a very large rect to cover the visible area
       ctx.fillRect(-10000, -10000, 20000, 20000);
-    } catch {
-      // Skip unsupported shadings
+    } catch (err) {
+      this.diagnostics?.warn('shading', 'Failed to paint shading fill', {
+        shadingType: shading.type,
+        error: String(err),
+      });
     }
 
     ctx.restore();
@@ -716,8 +724,13 @@ export class NativeCanvasGraphics {
       }
 
       ctx.restore();
-    } catch {
-      // Skip images that fail to render
+    } catch (err) {
+      this.diagnostics?.warn('image', `Failed to paint image (${width}x${height}, jpeg=${isJpeg})`, {
+        error: String(err),
+        width,
+        height,
+        isJpeg,
+      });
       try {
         ctx.restore();
       } catch {

@@ -20,4 +20,34 @@ export interface RenderResult {
   height: number;
   /** The page index that was rendered (0-based). */
   pageIndex: number;
+  /** Diagnostics collected during rendering (warnings/errors that were handled gracefully). */
+  diagnostics?: RenderDiagnostic[];
+}
+
+// ---------------------------------------------------------------------------
+// Render diagnostics — surfaces silent failures instead of swallowing them
+// ---------------------------------------------------------------------------
+
+export interface RenderDiagnostic {
+  type: 'warning' | 'error';
+  category: 'font' | 'image' | 'shading' | 'operator' | 'color';
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+/** Mutable collector threaded through the rendering pipeline. */
+export class RenderDiagnosticsCollector {
+  readonly items: RenderDiagnostic[] = [];
+
+  warn(category: RenderDiagnostic['category'], message: string, details?: Record<string, unknown>): void {
+    this.items.push({ type: 'warning', category, message, details });
+  }
+
+  error(category: RenderDiagnostic['category'], message: string, details?: Record<string, unknown>): void {
+    this.items.push({ type: 'error', category, message, details });
+  }
+
+  get length(): number {
+    return this.items.length;
+  }
 }
