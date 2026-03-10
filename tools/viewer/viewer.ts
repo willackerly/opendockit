@@ -67,6 +67,12 @@ const editNudgeLeft = document.getElementById('edit-nudge-left') as HTMLButtonEl
 const editNudgeRight = document.getElementById('edit-nudge-right') as HTMLButtonElement;
 const editNudgeCenter = document.getElementById('edit-nudge-center') as HTMLButtonElement;
 
+// Thumbnail sidebar and perf overlay DOM
+const btnThumbs = document.getElementById('btn-thumbs') as HTMLButtonElement;
+const btnPerf = document.getElementById('btn-perf') as HTMLButtonElement;
+const thumbnailSidebar = document.getElementById('thumbnail-sidebar') as HTMLDivElement;
+const perfOverlay = document.getElementById('perf-overlay') as HTMLDivElement;
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -92,6 +98,15 @@ let offscreenCanvas: HTMLCanvasElement | null = null;
 
 /** Rendered slide images by index — used for live updates on invalidation. */
 let slideImages: Map<number, HTMLImageElement> = new Map();
+
+/** Per-slide render times in milliseconds. */
+let slideRenderTimes: Map<number, number> = new Map();
+
+/** Whether the thumbnail sidebar is visible. */
+let thumbsVisible = false;
+
+/** Whether the perf overlay is visible. */
+let perfVisible = false;
 
 /** Inspector mode state. */
 let inspectorActive = false;
@@ -389,19 +404,27 @@ async function renderAllSlides(): Promise<void> {
 
   // Phase 2: Render each slide incrementally, replacing skeletons as we go.
   const t0 = performance.now();
+  slideRenderTimes.clear();
+  thumbnailSidebar.innerHTML = '';
+
   for (let i = 0; i < slideCount; i++) {
     setLoading(true, `Rendering slide ${i + 1} of ${slideCount}...`);
     setStatus(`Rendering slide ${i + 1} of ${slideCount}...`);
 
+    const slideT0 = performance.now();
     await kit.renderSlide(i);
+    const slideMs = performance.now() - slideT0;
+    slideRenderTimes.set(i, slideMs);
 
     // Snapshot the offscreen canvas into a visible <img> inside
     // a container div (needed for inspector/edit overlay positioning).
     const imgContainer = document.createElement('div');
     imgContainer.className = 'slide-image-container';
 
+    const dataUrl = offscreenCanvas!.toDataURL('image/png');
+
     const img = document.createElement('img');
-    img.src = offscreenCanvas!.toDataURL('image/png');
+    img.src = dataUrl;
     img.alt = `Slide ${i + 1}`;
     img.className = 'slide-image';
 
@@ -424,6 +447,24 @@ async function renderAllSlides(): Promise<void> {
     const slideIndex = i;
     saveBtn.addEventListener('click', () => saveSlideAsPng(img, slideIndex));
 
+    // Generate thumbnail for sidebar.
+    const thumbItem = document.createElement('div');
+    thumbItem.className = 'thumb-item';
+    thumbItem.dataset.slideIndex = String(i);
+    const thumbImg = document.createElement('img');
+    thumbImg.src = dataUrl;
+    thumbImg.alt = `Slide ${i + 1}`;
+    const thumbNum = document.createElement('span');
+    thumbNum.className = 'thumb-num';
+    thumbNum.textContent = String(i + 1);
+    thumbItem.appendChild(thumbImg);
+    thumbItem.appendChild(thumbNum);
+    thumbItem.addEventListener('click', () => {
+      const target = document.querySelector(`.slide-wrapper[data-slide-index="${i}"]`);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    thumbnailSidebar.appendChild(thumbItem);
+
     // Yield to browser between slides so each one appears immediately.
     await yieldToBrowser();
   }
@@ -431,6 +472,7 @@ async function renderAllSlides(): Promise<void> {
   const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
   setLoading(false);
   setStatus(`Rendered ${slideCount} slides in ${elapsed}s.`);
+  updatePerfOverlay();
 }
 
 /**
@@ -1404,6 +1446,58 @@ dropZone.addEventListener('click', (e) => {
     fileInput.value = '';
     fileInput.click();
   }
+});
+
+// ---------------------------------------------------------------------------
+// Thumbnail sidebar & Perf overlay
+// ---------------------------------------------------------------------------
+
+/** Update the performance overlay badge with render stats. */
+function updatePerfOverlay(): void {
+  if (!perfVisible || slideRenderTimes.size === 0) {
+    perfOverlay.classList.remove('visible');
+    return;
+  }
+  const times = [...slideRenderTimes.values()];
+  const total = times.reduce((a, b) => a + b, 0);
+  const avg = total / times.length;
+  const max = Math.max(...times);
+  perfOverlay.innerHTML =
+    `Total: ${total.toFixed(0)}ms | Avg: ${avg.toFixed(0)}ms | Max: ${max.toFixed(0)}ms | ${times.length} slides`;
+  perfOverlay.classList.add('visible');
+}
+
+/** Track which slide is in view and highlight its thumbnail. */
+function setupThumbnailScrollTracking(): void {
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          const idx = (entry.target as HTMLElement).dataset.slideIndex;
+          thumbnailSidebar
+            .querySelectorAll('.thumb-item')
+            .forEach((el) =>
+              el.classList.toggle('active', (el as HTMLElement).dataset.slideIndex === idx)
+            );
+        }
+      }
+    },
+    { threshold: 0.5 }
+  );
+  document.querySelectorAll('.slide-wrapper').forEach((el) => observer.observe(el));
+}
+
+btnThumbs.addEventListener('click', () => {
+  thumbsVisible = !thumbsVisible;
+  thumbnailSidebar.classList.toggle('visible', thumbsVisible);
+  btnThumbs.classList.toggle('active', thumbsVisible);
+  if (thumbsVisible) setupThumbnailScrollTracking();
+});
+
+btnPerf.addEventListener('click', () => {
+  perfVisible = !perfVisible;
+  btnPerf.classList.toggle('active', perfVisible);
+  updatePerfOverlay();
 });
 
 // ---------------------------------------------------------------------------

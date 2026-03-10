@@ -26,6 +26,12 @@
 | `adr/003-drawingml-shared-core.md` | DrawingML in shared core package           |
 | `adr/004-ir-serializable.md`       | IR is serializable JSON, not a file format |
 
+## Tools
+
+| Doc                | Purpose                                                              |
+| ------------------ | -------------------------------------------------------------------- |
+| `../tools/README.md` | Dev tools overview: viewer, element-debug, perf, CLI scripts       |
+
 ## Other
 
 | Directory         | Purpose                                                |

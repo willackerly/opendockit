@@ -286,6 +286,12 @@
         color: #aaa;
       }
 
+      /* Toggle button active state (thumbs, perf) */
+      .btn.active {
+        background: #0f3460;
+        border-color: #3b82f6;
+      }
+
       /* Inspector mode */
       .btn-inspector.active {
         background: #e94560;
@@ -589,6 +595,87 @@
         margin-top: 8px;
       }
 
+      /* Perf overlay badge */
+      #perf-overlay {
+        display: none;
+        position: fixed;
+        top: 56px;
+        right: 16px;
+        background: rgba(22, 33, 62, 0.92);
+        border: 1px solid #0f3460;
+        border-radius: 6px;
+        padding: 6px 12px;
+        z-index: 25;
+        font-size: 12px;
+        font-family: 'SF Mono', 'Fira Code', monospace;
+        color: #8ec;
+        pointer-events: none;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      }
+
+      #perf-overlay.visible {
+        display: block;
+      }
+
+      /* Thumbnail sidebar */
+      #thumbnail-sidebar {
+        display: none;
+        position: fixed;
+        left: 0;
+        top: 48px;
+        bottom: 40px;
+        width: 140px;
+        background: #16213e;
+        border-right: 1px solid #0f3460;
+        overflow-y: auto;
+        z-index: 15;
+        padding: 8px;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      #thumbnail-sidebar.visible {
+        display: flex;
+      }
+
+      #thumbnail-sidebar.visible ~ #drop-zone {
+        margin-left: 140px;
+      }
+
+      .thumb-item {
+        cursor: pointer;
+        border: 2px solid transparent;
+        border-radius: 4px;
+        transition: border-color 0.15s;
+        position: relative;
+      }
+
+      .thumb-item:hover {
+        border-color: #0f3460;
+      }
+
+      .thumb-item.active {
+        border-color: #e94560;
+      }
+
+      .thumb-item img {
+        width: 100%;
+        display: block;
+        border-radius: 2px;
+        background: #fff;
+      }
+
+      .thumb-num {
+        position: absolute;
+        bottom: 2px;
+        left: 4px;
+        font-size: 10px;
+        color: #999;
+        background: rgba(22, 33, 62, 0.8);
+        padding: 0 4px;
+        border-radius: 2px;
+      }
+
       /* Format indicator badge */
       .format-badge {
         display: inline-flex;
@@ -620,6 +707,8 @@
       <h1>OpenDocKit Viewer</h1>
       <div class="file-controls">
         <span id="format-badge" class="format-badge" style="display: none"></span>
+        <button id="btn-thumbs" class="btn" title="Toggle slide thumbnail panel">Thumbs</button>
+        <button id="btn-perf" class="btn" title="Toggle render time overlay">Perf</button>
         <button id="btn-inspect" class="btn btn-inspector" title="Toggle element inspector (click slides to inspect)">Inspect</button>
         <button id="btn-edit" class="btn btn-edit" title="Toggle edit mode (click elements to select and edit)">Edit</button>
         <button id="btn-save" class="btn" title="Download modified file" disabled>Save PPTX</button>
@@ -709,6 +798,12 @@
 
       <div class="edit-status" id="edit-status"></div>
     </div>
+
+    <!-- Thumbnail sidebar -->
+    <div id="thumbnail-sidebar"></div>
+
+    <!-- Perf overlay badge -->
+    <div id="perf-overlay"></div>
 
     <footer>
       <span id="loading" class="loading-indicator">

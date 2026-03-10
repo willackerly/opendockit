@@ -311,11 +311,14 @@ export class SlideKit {
     // Build the set of element kinds currently loading via WASM modules.
     const loadingKinds = this._getLoadingKinds();
 
+    // Use per-master theme for this slide's master chain.
+    const slideTheme = this._getThemeForMaster(pres.slides[index].masterPartUri);
+
     // Build render context — include dynamic renderers for progressive fidelity.
     const rctx: RenderContext = {
       backend: new CanvasBackend(ctx),
       dpiScale: this._dpiScale,
-      theme: pres.theme,
+      theme: slideTheme,
       mediaCache: this._mediaCache,
       resolveFont: (name: string) => this._resolveFont(name),
       dynamicRenderers: this._dynamicRenderers.size > 0 ? this._dynamicRenderers : undefined,
@@ -415,10 +418,13 @@ export class SlideKit {
 
     const loadingKinds = this._getLoadingKinds();
 
+    // Use per-master theme for this slide's master chain.
+    const slideTheme = this._getThemeForMaster(pres.slides[index].masterPartUri);
+
     const rctx: RenderContext = {
       backend: new CanvasBackend(ctx),
       dpiScale: this._dpiScale,
-      theme: pres.theme,
+      theme: slideTheme,
       mediaCache: this._mediaCache,
       resolveFont: (name: string) => this._resolveFont(name),
       dynamicRenderers: this._dynamicRenderers.size > 0 ? this._dynamicRenderers : undefined,
@@ -715,6 +721,19 @@ export class SlideKit {
   // -------------------------------------------------------------------------
 
   /**
+   * Get the theme for a given slide master.
+   *
+   * Returns the master-specific theme if one was parsed (from the master's
+   * own OPC theme relationship), otherwise falls back to the presentation-level
+   * theme. This enables multi-theme presentations where different slide masters
+   * reference different theme files with different color schemes.
+   */
+  private _getThemeForMaster(masterPartUri: string): ThemeIR {
+    const pres = this._presentation!;
+    return pres.masterThemes?.[masterPartUri] ?? pres.theme;
+  }
+
+  /**
    * Parse top-level presentation metadata from the OPC package.
    *
    * Delegates to the full `parsePresentation` parser which handles
@@ -771,7 +790,7 @@ export class SlideKit {
 
     const pkg = this._pkg!;
     const masterXml = await pkg.getPartXml(partUri);
-    const theme = this._presentation!.theme;
+    const theme = this._getThemeForMaster(partUri);
     const master = parseSlideMaster(masterXml, partUri, theme);
 
     this._masterCache.set(partUri, master);
@@ -787,7 +806,7 @@ export class SlideKit {
 
     const pkg = this._pkg!;
     const layoutXml = await pkg.getPartXml(partUri);
-    const theme = this._presentation!.theme;
+    const theme = this._getThemeForMaster(masterPartUri);
     const layout = parseSlideLayout(layoutXml, partUri, masterPartUri, theme);
 
     this._layoutCache.set(partUri, layout);
@@ -860,7 +879,7 @@ export class SlideKit {
   ): Promise<SlideIR> {
     const pkg = this._pkg!;
     const slideXml = await pkg.getPartXml(partUri);
-    const theme = this._presentation!.theme;
+    const theme = this._getThemeForMaster(masterPartUri);
     const slide = parseSlide(slideXml, partUri, layoutPartUri, masterPartUri, theme);
 
     // Resolve SmartArt fallback drawings (replaces UnsupportedIR with GroupIR).
@@ -1436,10 +1455,13 @@ export class SlideKit {
   ): Promise<string[]> {
     const families = new Set<string>();
 
-    // Theme fonts
-    if (pres.theme.fontScheme) {
-      families.add(pres.theme.fontScheme.majorLatin);
-      families.add(pres.theme.fontScheme.minorLatin);
+    // Theme fonts (primary + all per-master themes)
+    const allThemes = [pres.theme, ...Object.values(pres.masterThemes ?? {})];
+    for (const t of allThemes) {
+      if (t.fontScheme) {
+        families.add(t.fontScheme.majorLatin);
+        families.add(t.fontScheme.minorLatin);
+      }
     }
 
     // Embedded font typefaces (may need OFL/Google fallback if embed failed)

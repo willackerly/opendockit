@@ -26,7 +26,8 @@
     "fonts:rebuild": "pnpm fonts:download && pnpm fonts:bundle",
     "test:bdd:matrix": "node scripts/bdd-coverage-matrix.mjs",
     "perf": "pnpm --filter @opendockit/perf bench",
-    "perf:update": "node tools/perf/scripts/update-baselines.mjs"
+    "perf:update": "node tools/perf/scripts/update-baselines.mjs",
+    "sbs": "node scripts/generate-sbs-viewer.mjs"
   },
   "devDependencies": {
     "@cucumber/cucumber": "^12.7.0",

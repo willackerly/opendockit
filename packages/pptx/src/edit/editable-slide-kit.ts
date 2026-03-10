@@ -90,12 +90,13 @@ export class EditableSlideKit {
     for (const slideRef of presIR.slides) {
       const slideXml = await this._pkg.getPartXml(slideRef.partUri);
 
+      const slideTheme = presIR.masterThemes?.[slideRef.masterPartUri] ?? presIR.theme;
       const slideIR = parseSlide(
         slideXml,
         slideRef.partUri,
         slideRef.layoutPartUri,
         slideRef.masterPartUri,
-        presIR.theme
+        slideTheme
       );
 
       slideData.push({ ir: slideIR, partUri: slideRef.partUri });

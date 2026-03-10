@@ -395,6 +395,313 @@ describe('parsePresentation', () => {
     expect(result.theme.fontScheme.minorLatin).toBe('Calibri');
   });
 
+  it('parses per-master themes when masters have their own theme', async () => {
+    const zip = new JSZip();
+
+    zip.file(
+      '[Content_Types].xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Override PartName="/ppt/presentation.xml"
+            ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  <Override PartName="/ppt/slides/slide1.xml"
+            ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+  <Override PartName="/ppt/slides/slide2.xml"
+            ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+  <Override PartName="/ppt/theme/theme1.xml"
+            ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+  <Override PartName="/ppt/theme/theme2.xml"
+            ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+  <Override PartName="/ppt/slideLayouts/slideLayout1.xml"
+            ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
+  <Override PartName="/ppt/slideLayouts/slideLayout2.xml"
+            ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
+  <Override PartName="/ppt/slideMasters/slideMaster1.xml"
+            ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
+  <Override PartName="/ppt/slideMasters/slideMaster2.xml"
+            ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
+</Types>`
+    );
+
+    zip.file(
+      '_rels/.rels',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1"
+    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+    Target="ppt/presentation.xml"/>
+</Relationships>`
+    );
+
+    // Presentation with 2 slides
+    zip.file(
+      'ppt/presentation.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:sldMasterIdLst>
+    <p:sldMasterId id="2147483648" r:id="rId10"/>
+    <p:sldMasterId id="2147483649" r:id="rId11"/>
+  </p:sldMasterIdLst>
+  <p:sldIdLst>
+    <p:sldId id="256" r:id="rId1"/>
+    <p:sldId id="257" r:id="rId2"/>
+  </p:sldIdLst>
+  <p:sldSz cx="9144000" cy="6858000"/>
+</p:presentation>`
+    );
+
+    zip.file(
+      'ppt/_rels/presentation.xml.rels',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1"
+    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
+    Target="slides/slide1.xml"/>
+  <Relationship Id="rId2"
+    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
+    Target="slides/slide2.xml"/>
+  <Relationship Id="rId3"
+    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
+    Target="theme/theme1.xml"/>
+  <Relationship Id="rId10"
+    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster"
+    Target="slideMasters/slideMaster1.xml"/>
+  <Relationship Id="rId11"
+    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster"
+    Target="slideMasters/slideMaster2.xml"/>
+</Relationships>`
+    );
+
+    // Theme 1 — accent3 = light blue (#C2D5ED)
+    zip.file(
+      'ppt/theme/theme1.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Theme1">
+  <a:themeElements>
+    <a:clrScheme name="Theme1">
+      <a:dk1><a:srgbClr val="000000"/></a:dk1>
+      <a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>
+      <a:dk2><a:srgbClr val="44546A"/></a:dk2>
+      <a:lt2><a:srgbClr val="E7E6E6"/></a:lt2>
+      <a:accent1><a:srgbClr val="4472C4"/></a:accent1>
+      <a:accent2><a:srgbClr val="ED7D31"/></a:accent2>
+      <a:accent3><a:srgbClr val="C2D5ED"/></a:accent3>
+      <a:accent4><a:srgbClr val="FFC000"/></a:accent4>
+      <a:accent5><a:srgbClr val="5B9BD5"/></a:accent5>
+      <a:accent6><a:srgbClr val="70AD47"/></a:accent6>
+      <a:hlink><a:srgbClr val="0563C1"/></a:hlink>
+      <a:folHlink><a:srgbClr val="954F72"/></a:folHlink>
+    </a:clrScheme>
+    <a:fontScheme name="Theme1">
+      <a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
+      <a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>
+    </a:fontScheme>
+    <a:fmtScheme name="Theme1">
+      <a:fillStyleLst><a:noFill/><a:noFill/><a:noFill/></a:fillStyleLst>
+      <a:lnStyleLst><a:ln/><a:ln/><a:ln/></a:lnStyleLst>
+      <a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>
+      <a:bgFillStyleLst><a:noFill/><a:noFill/><a:noFill/></a:bgFillStyleLst>
+    </a:fmtScheme>
+  </a:themeElements>
+</a:theme>`
+    );
+
+    // Theme 2 — accent3 = dark navy (#001E4A) — different from theme1
+    zip.file(
+      'ppt/theme/theme2.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Theme2">
+  <a:themeElements>
+    <a:clrScheme name="Theme2">
+      <a:dk1><a:srgbClr val="000000"/></a:dk1>
+      <a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>
+      <a:dk2><a:srgbClr val="44546A"/></a:dk2>
+      <a:lt2><a:srgbClr val="E7E6E6"/></a:lt2>
+      <a:accent1><a:srgbClr val="4472C4"/></a:accent1>
+      <a:accent2><a:srgbClr val="ED7D31"/></a:accent2>
+      <a:accent3><a:srgbClr val="001E4A"/></a:accent3>
+      <a:accent4><a:srgbClr val="FFC000"/></a:accent4>
+      <a:accent5><a:srgbClr val="5B9BD5"/></a:accent5>
+      <a:accent6><a:srgbClr val="70AD47"/></a:accent6>
+      <a:hlink><a:srgbClr val="0563C1"/></a:hlink>
+      <a:folHlink><a:srgbClr val="954F72"/></a:folHlink>
+    </a:clrScheme>
+    <a:fontScheme name="Theme2">
+      <a:majorFont><a:latin typeface="Arial"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
+      <a:minorFont><a:latin typeface="Arial"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>
+    </a:fontScheme>
+    <a:fmtScheme name="Theme2">
+      <a:fillStyleLst><a:noFill/><a:noFill/><a:noFill/></a:fillStyleLst>
+      <a:lnStyleLst><a:ln/><a:ln/><a:ln/></a:lnStyleLst>
+      <a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>
+      <a:bgFillStyleLst><a:noFill/><a:noFill/><a:noFill/></a:bgFillStyleLst>
+    </a:fmtScheme>
+  </a:themeElements>
+</a:theme>`
+    );
+
+    // Slide 1 → layout1 → master1 → theme1
+    zip.file(
+      'ppt/slides/slide1.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+</p:sld>`
+    );
+    zip.file(
+      'ppt/slides/_rels/slide1.xml.rels',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1"
+    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout"
+    Target="../slideLayouts/slideLayout1.xml"/>
+</Relationships>`
+    );
+
+    // Slide 2 → layout2 → master2 → theme2
+    zip.file(
+      'ppt/slides/slide2.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+</p:sld>`
+    );
+    zip.file(
+      'ppt/slides/_rels/slide2.xml.rels',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1"
+    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout"
+    Target="../slideLayouts/slideLayout2.xml"/>
+</Relationships>`
+    );
+
+    // Layout 1 → master 1
+    zip.file(
+      'ppt/slideLayouts/slideLayout1.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+             xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+             xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank">
+  <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+</p:sldLayout>`
+    );
+    zip.file(
+      'ppt/slideLayouts/_rels/slideLayout1.xml.rels',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1"
+    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster"
+    Target="../slideMasters/slideMaster1.xml"/>
+</Relationships>`
+    );
+
+    // Layout 2 → master 2
+    zip.file(
+      'ppt/slideLayouts/slideLayout2.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+             xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+             xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank">
+  <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+</p:sldLayout>`
+    );
+    zip.file(
+      'ppt/slideLayouts/_rels/slideLayout2.xml.rels',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1"
+    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster"
+    Target="../slideMasters/slideMaster2.xml"/>
+</Relationships>`
+    );
+
+    // Master 1 → theme1 (via its rels)
+    zip.file(
+      'ppt/slideMasters/slideMaster1.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+             xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+             xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+  <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2"
+            accent1="accent1" accent2="accent2" accent3="accent3"
+            accent4="accent4" accent5="accent5" accent6="accent6"
+            hlink="hlink" folHlink="folHlink"/>
+</p:sldMaster>`
+    );
+    zip.file(
+      'ppt/slideMasters/_rels/slideMaster1.xml.rels',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1"
+    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
+    Target="../theme/theme1.xml"/>
+</Relationships>`
+    );
+
+    // Master 2 → theme2 (via its rels)
+    zip.file(
+      'ppt/slideMasters/slideMaster2.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+             xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+             xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+  <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2"
+            accent1="accent1" accent2="accent2" accent3="accent3"
+            accent4="accent4" accent5="accent5" accent6="accent6"
+            hlink="hlink" folHlink="folHlink"/>
+</p:sldMaster>`
+    );
+    zip.file(
+      'ppt/slideMasters/_rels/slideMaster2.xml.rels',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1"
+    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
+    Target="../theme/theme2.xml"/>
+</Relationships>`
+    );
+
+    const data = await zip.generateAsync({ type: 'arraybuffer' });
+    const pkg = await OpcPackageReader.open(data);
+    const result = await parsePresentation(pkg);
+
+    // Primary theme is from the presentation-level relationship
+    expect(result.theme.name).toBe('Theme1');
+    expect(result.theme.colorScheme.accent3).toEqual({ r: 194, g: 213, b: 237, a: 1 });
+
+    // Master themes are parsed per-master
+    expect(result.masterThemes).toBeDefined();
+    const master1Theme = result.masterThemes!['/ppt/slideMasters/slideMaster1.xml'];
+    const master2Theme = result.masterThemes!['/ppt/slideMasters/slideMaster2.xml'];
+
+    expect(master1Theme).toBeDefined();
+    expect(master1Theme.name).toBe('Theme1');
+    expect(master1Theme.colorScheme.accent3).toEqual({ r: 194, g: 213, b: 237, a: 1 });
+
+    expect(master2Theme).toBeDefined();
+    expect(master2Theme.name).toBe('Theme2');
+    expect(master2Theme.colorScheme.accent3).toEqual({ r: 0, g: 30, b: 74, a: 1 });
+
+    // Font schemes differ between themes
+    expect(master1Theme.fontScheme.majorLatin).toBe('Calibri Light');
+    expect(master2Theme.fontScheme.majorLatin).toBe('Arial');
+
+    // Slide 1 uses master 1, slide 2 uses master 2
+    expect(result.slides[0].masterPartUri).toBe('/ppt/slideMasters/slideMaster1.xml');
+    expect(result.slides[1].masterPartUri).toBe('/ppt/slideMasters/slideMaster2.xml');
+  });
+
   it('throws when no presentation part is found', async () => {
     const zip = new JSZip();
     zip.file(

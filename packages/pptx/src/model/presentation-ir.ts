@@ -40,6 +40,12 @@ export interface PresentationIR {
   slides: SlideReference[];
   /** Presentation theme (from the first/primary theme part). */
   theme: ThemeIR;
+  /**
+   * Per-slide-master themes. Maps masterPartUri → ThemeIR.
+   * When a master has its own theme (via its rels), it overrides `theme`
+   * for all slides using that master.
+   */
+  masterThemes?: Record<string, ThemeIR>;
   /** Embedded fonts from the PPTX package (from p:embeddedFontLst). */
   embeddedFonts?: EmbeddedFontRef[];
 }

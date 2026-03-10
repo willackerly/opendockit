@@ -42,7 +42,7 @@ The full PPTX rendering pipeline is implemented, tested, and visually validated.
 - **@opendockit/pdf-signer**: Signing primitives (COS objects, COSWriter, xref generation, signature dictionary patching) — ported from Apache PDFBox.
 - **@opendockit/core edit module**: Branded EMU types (compile-time unit safety), EditablePresentation with dirty tracking (WeakSet-based, mirrors pdfbox-ts COSUpdateTracker), element ID registry (`partUri#shapeId`), XML reconstitution engine (surgical DOM patching via @xmldom/xmldom), OPC Package Writer (JSZip-based, unchanged parts copied as raw bytes), IR re-derivation engine (zero-alloc fast path for clean elements)
 - **@opendockit/pptx edit module**: EditableSlideKit API (load/edit/save), editable builder (IR → mutable model), save pipeline (dirty part patching → OPC writer → ZIP)
-- **Dev tools**: Element inspector in viewer (click-to-highlight with z-order hit testing, group recursion, tooltip with kind/name/position/layer), interactive edit mode (click-to-select any element kind including pictures/tables, move/resize/text/delete, nudge arrows, save PPTX download), instant edit feedback via deriveIR + renderSlideWithOverrides (single-slide re-render, no save/reload cycle), unified viewer with PPTX + PDF format detection
+- **Dev tools**: Unified viewer (`tools/viewer/`) with element inspector, edit mode (move/resize/text/delete/save), thumbnail sidebar, perf overlay, PPTX + PDF format detection. Element debug viewer (`tools/element-debug/`) for SBS comparison with RMSE analysis. Shared Vite aliases (`tools/shared/vite-aliases.ts`). CLI: `pnpm sbs -- --pptx <path> --ref-dir <dir>` for automated SBS report generation. Test harness deprecated (superseded by viewer)
 
 ### RenderBackend Abstraction
 
@@ -149,6 +149,10 @@ packages/
 ## Blockers
 
 None currently.
+
+## Recent Changes
+
+- **Multi-theme support**: Each slide master can now have its own theme (parsed from master's OPC relationships). Slides using different masters correctly resolve scheme colors from their master's theme, not just the presentation-level default.
 
 ## Active Bugs
 

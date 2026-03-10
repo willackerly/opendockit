@@ -89,7 +89,7 @@ export async function parsePresentation(pkg: OpcPackage): Promise<PresentationIR
     }
   }
 
-  // 6. Parse theme
+  // 6. Parse presentation-level theme (primary/default theme)
   const themeRel = presRels.getByType(REL_THEME)[0];
   let theme: ThemeIR;
   if (themeRel) {
@@ -99,7 +99,19 @@ export async function parsePresentation(pkg: OpcPackage): Promise<PresentationIR
     theme = defaultTheme();
   }
 
-  // 7. Parse embedded font list
+  // 7. Parse per-master themes
+  // Each slide master can have its own theme via its relationships.
+  // Collect unique masters and resolve each master's theme.
+  const masterThemes: Record<string, ThemeIR> = {};
+  const uniqueMasters = new Set(slides.map((s) => s.masterPartUri).filter(Boolean));
+  for (const masterUri of uniqueMasters) {
+    const masterTheme = await resolveMasterTheme(pkg, masterUri);
+    if (masterTheme) {
+      masterThemes[masterUri] = masterTheme;
+    }
+  }
+
+  // 8. Parse embedded font list
   const embeddedFonts = parseEmbeddedFontList(presXml, presRels);
 
   const result: PresentationIR = {
@@ -109,6 +121,9 @@ export async function parsePresentation(pkg: OpcPackage): Promise<PresentationIR
     slides,
     theme,
   };
+  if (Object.keys(masterThemes).length > 0) {
+    result.masterThemes = masterThemes;
+  }
   if (embeddedFonts.length > 0) {
     result.embeddedFonts = embeddedFonts;
   }
@@ -144,6 +159,33 @@ async function resolveSlideChain(
   }
 
   return { layoutPartUri, masterPartUri };
+}
+
+/**
+ * Resolve a slide master's theme by following its OPC relationships.
+ *
+ * Each slide master can reference its own theme part (e.g., theme2.xml)
+ * via a REL_THEME relationship. This is how multi-theme presentations
+ * work — different masters may have different color schemes.
+ *
+ * Returns undefined if the master has no theme relationship (the
+ * presentation-level theme will be used as fallback).
+ */
+async function resolveMasterTheme(
+  pkg: OpcPackage,
+  masterPartUri: string
+): Promise<ThemeIR | undefined> {
+  try {
+    const masterRels = await pkg.getPartRelationships(masterPartUri);
+    const themeRel = masterRels.getByType(REL_THEME)[0];
+    if (!themeRel) return undefined;
+
+    const themeXml = await pkg.getPartXml(themeRel.target);
+    return parseTheme(themeXml);
+  } catch {
+    // If master rels can't be read, fall back to presentation theme
+    return undefined;
+  }
 }
 
 /**
