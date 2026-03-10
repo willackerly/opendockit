@@ -22,7 +22,7 @@ interface CacheEntry {
 }
 
 const DEFAULT_MAX_ENTRIES = 1000;
-const DEFAULT_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+const DEFAULT_MAX_BYTES = 512 * 1024 * 1024; // 512 MB
 
 export class MediaCache {
   private readonly _maxEntries: number;

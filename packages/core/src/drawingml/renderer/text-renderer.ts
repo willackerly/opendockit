@@ -225,7 +225,8 @@ function buildFontString(
       td.defPPr?.defaultCharacterProperties?.fontFamily ??
       td.defPPr?.defaultCharacterProperties?.latin;
   }
-  family = family || 'sans-serif';
+  // Fall back to theme minor Latin font (OOXML default for body text), then sans-serif.
+  family = family || rctx?.theme?.fontScheme?.minorLatin || 'sans-serif';
   // Resolve theme font placeholders (+mj-lt, +mn-lt, etc.) to actual names.
   family = resolveThemeFontFamily(family, rctx?.theme);
   const resolved = resolveFont(family);
@@ -371,10 +372,11 @@ function getFontLineHeightMultiplier(
   if (rctx.fontMetricsDB) {
     const vm = rctx.fontMetricsDB.getVerticalMetrics(rawFamily, fontSizePx, bold, italic);
     if (vm?.lineHeight != null && fontSizePx > 0) {
-      // Cap at 1.2: some fonts (e.g. Roboto Slab at 1.3188) have very tall
-      // ascenders that produce line heights significantly larger than what
-      // presentation software actually uses for "single spacing."
-      return Math.min(vm.lineHeight / fontSizePx, 1.2);
+      // Use the font's natural line height multiplier directly.
+      // OOXML spec (ECMA-376 ss 21.1.2.2.11): 100% line spacing uses the font's
+      // built-in metrics (ascender + |descender| + lineGap). PowerPoint respects
+      // this — no artificial cap.
+      return vm.lineHeight / fontSizePx;
     }
   }
   return 1.2;
@@ -443,6 +445,7 @@ function getParagraphFontFamily(paragraph: ParagraphIR, rctx?: RenderContext): s
     inherited?.levels[level]?.defaultCharacterProperties?.latin ??
     inherited?.defPPr?.defaultCharacterProperties?.fontFamily ??
     inherited?.defPPr?.defaultCharacterProperties?.latin ??
+    rctx?.theme?.fontScheme?.minorLatin ??
     'sans-serif';
   return resolveThemeFontFamily(raw, rctx?.theme);
 }
@@ -695,7 +698,8 @@ function wrapParagraph(
         td.defPPr?.defaultCharacterProperties?.fontFamily ??
         td.defPPr?.defaultCharacterProperties?.latin;
     }
-    rawFamily = rawFamily || 'sans-serif';
+    // Fall back to theme minor Latin font (OOXML default for body text), then sans-serif.
+    rawFamily = rawFamily || rctx.theme?.fontScheme?.minorLatin || 'sans-serif';
     // Resolve theme font placeholders (+mj-lt, +mn-lt, etc.) to actual names.
     rawFamily = resolveThemeFontFamily(rawFamily, rctx.theme);
     const fontSizePx = ptToCanvasPx(fontSizePt, dpiScale);

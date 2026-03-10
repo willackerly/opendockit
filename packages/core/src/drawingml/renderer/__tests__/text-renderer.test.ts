@@ -474,7 +474,7 @@ describe('renderTextBody', () => {
     expect(rctx.backend.font).toContain('Times New Roman');
   });
 
-  it('defaults to sans-serif when no font is specified', () => {
+  it('defaults to theme minor Latin font when no font is specified', () => {
     const rctx = createMockRenderContext();
     const body = makeTextBody([
       makeParagraph([makeRun('Default', { fontFamily: undefined, latin: undefined })]),
@@ -482,7 +482,8 @@ describe('renderTextBody', () => {
 
     renderTextBody(body, rctx, BOUNDS);
 
-    expect(rctx.backend.font).toContain('sans-serif');
+    // Falls back to theme.fontScheme.minorLatin ('Calibri' in mock theme).
+    expect(rctx.backend.font).toContain('Calibri');
   });
 
   // -------------------------------------------------------------------------

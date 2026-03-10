@@ -32,7 +32,7 @@ function linearGradientEndpoints(
 ): [x0: number, y0: number, x1: number, y1: number] {
   const cx = width / 2;
   const cy = height / 2;
-  const rad = ((angle - 90) * Math.PI) / 180;
+  const rad = (-(angle - 90) * Math.PI) / 180;
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
   const halfW = width / 2;

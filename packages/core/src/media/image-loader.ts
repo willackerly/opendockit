@@ -173,6 +173,17 @@ export async function loadAndCacheImage(
   }
 
   const decoded = await decodeImage(data, mimeType);
-  cache.set(partUri, decoded, data.byteLength);
+  // Use decoded pixel size for byte accounting (width * height * 4 for RGBA),
+  // falling back to compressed size for non-image types (Uint8Array in Node).
+  let byteSize = data.byteLength;
+  if (decoded instanceof Uint8Array) {
+    byteSize = decoded.byteLength;
+  } else {
+    const img = decoded as { width?: number; height?: number };
+    if (img.width && img.height) {
+      byteSize = img.width * img.height * 4;
+    }
+  }
+  cache.set(partUri, decoded, byteSize);
   return decoded;
 }

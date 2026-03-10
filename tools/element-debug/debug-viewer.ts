@@ -184,6 +184,8 @@ async function loadPptx(data: ArrayBuffer) {
   slideHeightPt = emuToPx(info.slideHeight, 72);
   updateRunButton();
   setStatus(`PPTX loaded: ${slideCount} slides`);
+  // Expose for diagnostic scripts
+  (window as unknown as { _slideKit: SlideKit })._slideKit = slideKit;
 }
 
 async function loadPdf(data: ArrayBuffer) {
@@ -777,6 +779,8 @@ async function ciLoadRefPng(b64: string): Promise<void> {
     img.src = url;
   });
   refImages.push(img);
+  // Expose for diagnostic scripts
+  (window as unknown as { _refImages: HTMLImageElement[] })._refImages = refImages;
 }
 
 function ciGetSlideCount() {

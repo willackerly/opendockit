@@ -34,9 +34,10 @@ function linearGradientEndpoints(
   const cx = bounds.x + bounds.width / 2;
   const cy = bounds.y + bounds.height / 2;
 
-  // Convert OOXML angle (clockwise from top) to standard math radians
-  // (counter-clockwise from right): subtract 90 to rotate, negate for CW.
-  const rad = ((angle - 90) * Math.PI) / 180;
+  // Convert OOXML angle (clockwise from top, 0°=top-to-bottom) to standard
+  // math radians. In Canvas2D coords (Y down), angle 0° → direction (0, +1),
+  // 90° → (+1, 0), etc. Standard math: subtract 90 and negate for CW→CCW.
+  const rad = (-(angle - 90) * Math.PI) / 180;
 
   // The gradient line must span the full bounding box diagonal projection.
   // Use the half-diagonal projected onto the gradient direction.
