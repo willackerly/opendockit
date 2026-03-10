@@ -1337,11 +1337,47 @@ function decodeImageXObject(
   }
 
   // Decompress the stream
-  const data = getDecompressedStreamData(stream);
+  let data = getDecompressedStreamData(stream);
   if (!data || data.length === 0) return null;
 
   const bpc = dict.getInt('BitsPerComponent', 8);
   const cs = resolveColorSpace(dict, resolve);
+
+  // Apply /Decode array if present — remaps raw pixel values to color component values
+  const decodeItem = dict.getItem('Decode');
+  if (decodeItem instanceof COSArray && decodeItem.size() >= 2) {
+    const decode: number[] = [];
+    for (let i = 0; i < decodeItem.size(); i++) {
+      const v = decodeItem.get(i);
+      if (v instanceof COSFloat || v instanceof COSInteger) {
+        decode.push(v.getValue());
+      } else {
+        decode.push(i % 2 === 0 ? 0 : 1); // default [0, 1] per component
+      }
+    }
+    // Check if Decode differs from default [0,1,0,1,...] — skip remap if default
+    const isNonDefault = decode.some((v, i) => (i % 2 === 0 ? v !== 0 : v !== 1));
+    if (isNonDefault) {
+      const maxVal = (1 << bpc) - 1;
+      const numComponents = Math.floor(decode.length / 2);
+      const newData = new Uint8Array(data.length);
+      const pixelCount = width * height;
+      if (bpc === 8 && numComponents > 0) {
+        for (let p = 0; p < pixelCount; p++) {
+          for (let c = 0; c < numComponents; c++) {
+            const idx = p * numComponents + c;
+            if (idx < data.length) {
+              const dMin = decode[2 * c];
+              const dMax = decode[2 * c + 1];
+              const mapped = dMin + (data[idx] / maxVal) * (dMax - dMin);
+              newData[idx] = Math.round(Math.max(0, Math.min(1, mapped)) * 255);
+            }
+          }
+        }
+        data = newData;
+      }
+    }
+  }
 
   // Image mask (1-bit)
   const imageMaskVal = dict.getItem('ImageMask');

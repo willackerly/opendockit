@@ -537,15 +537,18 @@ export class NativeCanvasGraphics {
       renderMode === 1 || renderMode === 2 || renderMode === 5 || renderMode === 6;
     if (!shouldFill && !shouldStroke) return;
 
+    // Build the full batched string for native kerning
+    const batchedString = glyphs.map((g) => g.unicode || '').join('');
+
+    // Render the entire string at the starting position (enables native kerning)
+    const startX = this.textMatrix[4];
+    const startY = this.textMatrix[5];
+    if (batchedString) {
+      this.renderGlyph(batchedString, startX, startY + textRise, fontSize, shouldFill, shouldStroke);
+    }
+
+    // Still advance textMatrix per-glyph for correct position tracking
     for (const glyph of glyphs) {
-      // Compute glyph position from textMatrix
-      const x = this.textMatrix[4];
-      const y = this.textMatrix[5];
-
-      // Render the glyph
-      this.renderGlyph(glyph.unicode, x, y + textRise, fontSize, shouldFill, shouldStroke);
-
-      // Advance text position
       // Width is in 1/1000 of text space unit
       const glyphWidth = (glyph.width / 1000) * fontSize;
       const isSpace = glyph.unicode === ' ';
@@ -564,16 +567,29 @@ export class NativeCanvasGraphics {
     const fontSize = this.state.fontSize;
     const hScale = this.state.horizontalScaling / 100;
 
+    // Batch consecutive glyphs between numeric adjustments
+    let glyphBatch: Glyph[] = [];
+
     for (const item of items) {
       if (typeof item === 'number') {
+        // Flush any accumulated glyph batch before applying displacement
+        if (glyphBatch.length > 0) {
+          this.showText(glyphBatch);
+          glyphBatch = [];
+        }
         // Numeric displacement: negative = advance, in thousandths of text space unit
         const displacement = (-item / 1000) * fontSize * hScale;
         this.textMatrix[4] += displacement * this.textMatrix[0];
         this.textMatrix[5] += displacement * this.textMatrix[1];
       } else {
-        // Glyph
-        this.showText([item]);
+        // Accumulate glyph for batched rendering
+        glyphBatch.push(item);
       }
+    }
+
+    // Flush remaining glyphs
+    if (glyphBatch.length > 0) {
+      this.showText(glyphBatch);
     }
   }
 
@@ -709,9 +725,6 @@ export class NativeCanvasGraphics {
         return;
       }
 
-      // Scale from 1×1 to pixel dimensions for putImageData
-      ctx.scale(1 / width, 1 / height);
-
       // Create ImageData and draw via temp canvas (putImageData ignores transforms)
       const imageData = new ImageData(
         new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength),
@@ -723,7 +736,8 @@ export class NativeCanvasGraphics {
       if (tempCanvas) {
         const tempCtx = tempCanvas.getContext('2d')!;
         tempCtx.putImageData(imageData, 0, 0);
-        ctx.drawImage(tempCanvas as any, 0, 0);
+        // Draw directly into the 1×1 unit square (Y already flipped above)
+        ctx.drawImage(tempCanvas as any, 0, 0, 1, 1);
       }
 
       ctx.restore();

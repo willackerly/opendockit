@@ -115,6 +115,10 @@ export function createMockContext(): MockContext {
     restore: () => calls.push({ method: 'restore', args: [] }),
     translate: (x: number, y: number) => calls.push({ method: 'translate', args: [x, y] }),
     rotate: (angle: number) => calls.push({ method: 'rotate', args: [angle] }),
+    transform: (a: number, b: number, c: number, d: number, e: number, f: number) =>
+      calls.push({ method: 'transform', args: [a, b, c, d, e, f] }),
+    setTransform: (a: number, b: number, c: number, d: number, e: number, f: number) =>
+      calls.push({ method: 'setTransform', args: [a, b, c, d, e, f] }),
 
     // Gradient factories
     createLinearGradient: (x0: number, y0: number, x1: number, y1: number) => {

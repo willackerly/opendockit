@@ -138,6 +138,12 @@
       }
       .badge.pptx { background: #1e3a5f; color: #93c5fd; }
       .badge.pdf { background: #3d1a00; color: #fca5a5; }
+      .badge.ref { background: #1a3d1a; color: #86efac; }
+      .badge.diff { background: #3d1a3d; color: #f0abfc; }
+      .rmse-badge { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; margin-left: auto; padding: 2px 8px; border-radius: 3px; font-weight: 600; }
+      .rmse-good { background: rgba(76,175,80,0.2); color: #4caf50; }
+      .rmse-ok { background: rgba(255,235,59,0.2); color: #ffeb3b; }
+      .rmse-bad { background: rgba(244,67,54,0.2); color: #f44336; }
 
       .slide-canvas-wrap {
         position: relative;
@@ -259,7 +265,10 @@
         <input id="input-pptx" class="file-input" type="file" accept=".pptx" />
         <button id="btn-pdf" class="btn btn-primary">Load PDF</button>
         <input id="input-pdf" class="file-input" type="file" accept=".pdf" />
+        <button id="btn-ref" class="btn btn-primary">Load Reference PNGs</button>
+        <input id="input-ref" class="file-input" type="file" accept="image/*" multiple />
         <button id="btn-run" class="btn" disabled>Run All Slides</button>
+        <button id="btn-overlay" class="btn">Overlays: ON</button>
       </div>
     </header>
 
@@ -275,7 +284,7 @@
     <div class="progress-bar" id="progress-bar"><div class="progress-bar-fill" id="progress-fill"></div></div>
 
     <div id="slides-container">
-      <div class="empty-state" id="empty-state">Load a PPTX and PDF file, then click "Run All Slides"</div>
+      <div class="empty-state" id="empty-state">Load a PPTX and/or PDF file, then click the render button</div>
     </div>
 
     <div id="detail-panel">
