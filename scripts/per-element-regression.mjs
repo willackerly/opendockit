@@ -160,19 +160,23 @@ const pdfB64 = pdfBytes.toString('base64');
 
 // Load both files via CI bridge
 console.log('Loading PPTX and PDF...');
-const info = await page.evaluate(async ({ pptxB64, pdfB64 }) => {
-  const pptxArr = Uint8Array.from(atob(pptxB64), c => c.charCodeAt(0));
-  const pdfArr = Uint8Array.from(atob(pdfB64), c => c.charCodeAt(0));
-  return await (window).__ciLoad(pptxArr.buffer, pdfArr.buffer);
-}, { pptxB64, pdfB64 });
+await page.evaluate(async (b64) => {
+  const arr = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  await (window).__ciLoad(arr.buffer);
+}, pptxB64);
+await page.evaluate(async (b64) => {
+  const arr = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  await (window).__ciLoadPdf(arr.buffer);
+}, pdfB64);
 
-console.log(`PPTX: ${info.slideCount} slides, PDF: ${info.pdfPageCount} pages`);
+const info = await page.evaluate(() => (window).__ciGetSlideCount());
+console.log(`PPTX: ${info.pptx} slides, PDF: ${info.pdf} pages`);
 console.log('');
 
 // Determine which slides to diff
 const slidesToDiff = opts.slide !== null
   ? [opts.slide]
-  : Array.from({ length: Math.min(info.slideCount, info.pdfPageCount) }, (_, i) => i);
+  : Array.from({ length: Math.min(info.pptx, info.pdf) }, (_, i) => i);
 
 // Run diffs slide by slide
 const results = [];
@@ -181,9 +185,21 @@ for (const slideIdx of slidesToDiff) {
   process.stdout.write(`  Slide ${slideIdx + 1}/${slidesToDiff.length}...`);
 
   try {
-    const result = await page.evaluate(async (idx) => {
-      return await (window).__ciDiff(idx);
+    const assessResult = await page.evaluate(async (idx) => {
+      return await (window).__ciAssess(idx);
     }, slideIdx);
+    const result = {
+      slideIndex: assessResult.slideIndex,
+      matched: assessResult.pptxVsPdf?.matched ?? [],
+      unmatchedA: assessResult.pptxVsPdf?.unmatchedA ?? 0,
+      unmatchedB: assessResult.pptxVsPdf?.unmatchedB ?? 0,
+      summary: assessResult.pptxVsPdf ? {
+        matchedCount: assessResult.pptxVsPdf.matchedCount,
+        avgPositionDelta: assessResult.pptxVsPdf.avgPositionDelta,
+        fontMismatches: assessResult.pptxVsPdf.fontMismatches,
+        colorMismatches: assessResult.pptxVsPdf.colorMismatches,
+      } : { matchedCount: 0, avgPositionDelta: 0, fontMismatches: 0, colorMismatches: 0 },
+    };
 
     results.push(result);
     const worst = result.matched.reduce(

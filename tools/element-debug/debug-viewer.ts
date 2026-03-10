@@ -734,64 +734,158 @@ btnOverlay.addEventListener('click', () => {
 
 // ─── CI bridge ──────────────────────────────────────────
 
-const win = window as unknown as {
+interface CIWindow {
   __ciLoad: typeof loadPptx;
   __ciLoadPdf: typeof loadPdf;
-  __ciRenderSlide: (i: number) => Promise<unknown>;
+  __ciLoadRefPng: (b64: string) => Promise<void>;
+  __ciGetSlideCount: () => { pptx: number; pdf: number; ref: number };
+  __ciAssess: (slideIndex: number) => Promise<CIAssessResult>;
   __ciReady: boolean;
-};
+}
 
-async function ciRenderSlide(slideIndex: number) {
-  if (!slideKit || !pdfRenderer) throw new Error('Load files first');
-  const kit = slideKit as unknown as {
-    _getOrParseSlide: (index: number) => Promise<unknown>;
-    _presentation: { theme: unknown; slideWidth: number; slideHeight: number };
-    _mediaCache: unknown;
-    _fontMetricsDB: unknown;
-    _resolveFont: (name: string) => string;
-    _dpiScale: number;
-  };
-  const pres = kit._presentation;
-  const dpiScale = kit._dpiScale;
-  const wPx = emuToPx(pres.slideWidth, 96 * dpiScale);
-  const hPx = emuToPx(pres.slideHeight, 96 * dpiScale);
+interface CIAssessResult {
+  slideIndex: number;
+  pptxVsRef: { rmse: number } | null;
+  pdfVsRef: { rmse: number } | null;
+  pptxVsPdf: {
+    matchedCount: number;
+    unmatchedA: number;
+    unmatchedB: number;
+    avgPositionDelta: number;
+    fontMismatches: number;
+    colorMismatches: number;
+    worstSeverity: string;
+    matched: Array<{
+      aId: string; bId: string; aType: string;
+      matchMethod: string; confidence: number;
+      overallSeverity: string;
+      deltas: Array<{ property: string; valueA: unknown; valueB: unknown; delta?: number; severity: string }>;
+    }>;
+  } | null;
+}
 
-  // Trace render
-  const tc = document.createElement('canvas');
-  tc.width = wPx; tc.height = hPx;
-  const tctx = tc.getContext('2d')!;
-  const tb = new TracingBackend(new CanvasBackend(tctx), { dpiScale, glyphLevel: false });
-  const enriched = await kit._getOrParseSlide(slideIndex);
-  const colorMap = {
-    ...(enriched as { master: { colorMap: Record<string, string> } }).master.colorMap,
-    ...((enriched as { layout: { colorMap?: Record<string, string> } }).layout.colorMap ?? {}),
-    ...((enriched as { slide: { colorMap?: Record<string, string> } }).slide.colorMap ?? {}),
-  };
-  renderSlide(
-    enriched as Parameters<typeof renderSlide>[0],
-    { backend: tb, dpiScale, theme: pres.theme, mediaCache: kit._mediaCache, resolveFont: (n: string) => kit._resolveFont(n), colorMap, fontMetricsDB: kit._fontMetricsDB, slideNumber: slideIndex + 1 } as Parameters<typeof renderSlide>[1],
-    wPx, hPx,
-  );
-  const pptxEls = traceToElements(tb.getTrace(`pptx:slide${slideIndex + 1}`, slideWidthPt, slideHeightPt));
-  const pdfEls = slideIndex < pdfPageCount ? pdfRenderer!.getPageElements(slideIndex) : [];
-  const report = generateDiffReport(pptxEls, pdfEls);
-  return {
+const win = window as unknown as CIWindow;
+
+/** Load a single reference PNG from base64. Call once per image, in order. */
+async function ciLoadRefPng(b64: string): Promise<void> {
+  const img = new Image();
+  const blob = new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], { type: 'image/png' });
+  const url = URL.createObjectURL(blob);
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('Failed to load ref PNG'));
+    img.src = url;
+  });
+  refImages.push(img);
+}
+
+function ciGetSlideCount() {
+  return { pptx: slideCount, pdf: pdfPageCount, ref: refImages.length };
+}
+
+/** Run full assessment for a single slide/page. Returns pixel RMSE + element diffs. */
+async function ciAssess(slideIndex: number): Promise<CIAssessResult> {
+  const result: CIAssessResult = {
     slideIndex,
-    matched: report.matched.map((d) => ({
-      aId: d.pair.a.id, bId: d.pair.b.id, aType: d.pair.a.type,
-      matchMethod: d.pair.matchMethod, confidence: d.pair.confidence,
-      overallSeverity: d.overallSeverity,
-      deltas: d.deltas.map((dd) => ({ property: dd.property, valueA: dd.valueA, valueB: dd.valueB, delta: dd.delta, severity: dd.severity })),
-    })),
-    unmatchedA: report.unmatchedA.length,
-    unmatchedB: report.unmatchedB.length,
-    summary: report.summary,
+    pptxVsRef: null,
+    pdfVsRef: null,
+    pptxVsPdf: null,
   };
+
+  let pptxCanvas: HTMLCanvasElement | null = null;
+  let pptxElements: PageElement[] = [];
+  let pdfCanvas: HTMLCanvasElement | null = null;
+  let pdfElements: PageElement[] = [];
+
+  // ── Render PPTX ──
+  if (slideKit && slideIndex < slideCount) {
+    const kit = slideKit as unknown as {
+      _getOrParseSlide: (index: number) => Promise<unknown>;
+      _presentation: { theme: unknown; slideWidth: number; slideHeight: number };
+      _mediaCache: unknown;
+      _fontMetricsDB: unknown;
+      _resolveFont: (name: string) => string;
+      _dpiScale: number;
+    };
+    const pres = kit._presentation;
+    const dpiScale = kit._dpiScale;
+    const wPx = emuToPx(pres.slideWidth, 96 * dpiScale);
+    const hPx = emuToPx(pres.slideHeight, 96 * dpiScale);
+
+    pptxCanvas = document.createElement('canvas');
+    pptxCanvas.width = wPx;
+    pptxCanvas.height = hPx;
+    const pctx = pptxCanvas.getContext('2d')!;
+    const tb = new TracingBackend(new CanvasBackend(pctx), { dpiScale, glyphLevel: false });
+    const enriched = await kit._getOrParseSlide(slideIndex);
+    const colorMap = {
+      ...(enriched as { master: { colorMap: Record<string, string> } }).master.colorMap,
+      ...((enriched as { layout: { colorMap?: Record<string, string> } }).layout.colorMap ?? {}),
+      ...((enriched as { slide: { colorMap?: Record<string, string> } }).slide.colorMap ?? {}),
+    };
+    renderSlide(
+      enriched as Parameters<typeof renderSlide>[0],
+      { backend: tb, dpiScale, theme: pres.theme, mediaCache: kit._mediaCache, resolveFont: (n: string) => kit._resolveFont(n), colorMap, fontMetricsDB: kit._fontMetricsDB, slideNumber: slideIndex + 1 } as Parameters<typeof renderSlide>[1],
+      wPx, hPx,
+    );
+    const trace = tb.getTrace(`pptx:slide${slideIndex + 1}`, slideWidthPt, slideHeightPt);
+    pptxElements = traceToElements(trace);
+  }
+
+  // ── Render PDF ──
+  if (pdfRenderer && slideIndex < pdfPageCount) {
+    pdfCanvas = document.createElement('canvas');
+    await pdfRenderer.renderPageToCanvas(slideIndex, pdfCanvas, { scale: 2 });
+    pdfElements = pdfRenderer.getPageElements(slideIndex);
+  }
+
+  // ── PPTX vs Reference PNG (pixel RMSE) ──
+  if (pptxCanvas && refImages.length > slideIndex) {
+    const refCanvas = loadImageAsCanvas(refImages[slideIndex], pptxCanvas.width, pptxCanvas.height);
+    const { rmse } = computeRMSE(pptxCanvas, refCanvas);
+    result.pptxVsRef = { rmse };
+  }
+
+  // ── PDF vs Reference PNG (pixel RMSE) ──
+  if (pdfCanvas && refImages.length > slideIndex) {
+    const refCanvas = loadImageAsCanvas(refImages[slideIndex], pdfCanvas.width, pdfCanvas.height);
+    const { rmse } = computeRMSE(pdfCanvas, refCanvas);
+    result.pdfVsRef = { rmse };
+  }
+
+  // ── PPTX vs PDF (element-level diff) ──
+  if (pptxElements.length > 0 && pdfElements.length > 0) {
+    const report = generateDiffReport(pptxElements, pdfElements);
+    const RANK: Record<string, number> = { match: 0, minor: 1, major: 2, critical: 3 };
+    let worst = 'match';
+    for (const d of report.matched) {
+      if ((RANK[d.overallSeverity] ?? 0) > (RANK[worst] ?? 0)) worst = d.overallSeverity;
+    }
+    result.pptxVsPdf = {
+      matchedCount: report.summary.matchedCount,
+      unmatchedA: report.unmatchedA.length,
+      unmatchedB: report.unmatchedB.length,
+      avgPositionDelta: report.summary.avgPositionDelta,
+      fontMismatches: report.summary.fontMismatches,
+      colorMismatches: report.summary.colorMismatches,
+      worstSeverity: worst,
+      matched: report.matched.map((d) => ({
+        aId: d.pair.a.id, bId: d.pair.b.id, aType: d.pair.a.type,
+        matchMethod: d.pair.matchMethod, confidence: d.pair.confidence,
+        overallSeverity: d.overallSeverity,
+        deltas: d.deltas.map((dd) => ({ property: dd.property, valueA: dd.valueA, valueB: dd.valueB, delta: dd.delta, severity: dd.severity })),
+      })),
+    };
+  }
+
+  return result;
 }
 
 win.__ciLoad = loadPptx;
 win.__ciLoadPdf = loadPdf;
-win.__ciRenderSlide = ciRenderSlide;
+win.__ciLoadRefPng = ciLoadRefPng;
+win.__ciGetSlideCount = ciGetSlideCount;
+win.__ciAssess = ciAssess;
 win.__ciReady = true;
 
 setStatus('Ready — load PPTX and PDF files to begin');
