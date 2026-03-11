@@ -818,7 +818,20 @@ export class NativeCanvasGraphics {
 
       // Fast path: browser-decoded ImageBitmap (avoids RGBA round-trip)
       if (image.bitmap) {
-        ctx.drawImage(image.bitmap as any, 0, 0, 1, 1);
+        if (image.smaskData) {
+          // Apply soft mask to bitmap by drawing to temp canvas first
+          const tmpC = createOffscreenCanvas(width, height);
+          if (tmpC) {
+            const tmpCtx = (tmpC as any).getContext('2d')!;
+            tmpCtx.drawImage(image.bitmap as any, 0, 0, width, height);
+            this.applySMask(tmpCtx, image.smaskData, width, height);
+            ctx.drawImage(tmpC as any, 0, 0, 1, 1);
+          } else {
+            ctx.drawImage(image.bitmap as any, 0, 0, 1, 1);
+          }
+        } else {
+          ctx.drawImage(image.bitmap as any, 0, 0, 1, 1);
+        }
         ctx.restore();
         return;
       }
@@ -827,7 +840,20 @@ export class NativeCanvasGraphics {
         // JPEG: decode raw bytes using node-canvas Image (sync)
         const jpegImage = decodeJpegSync(data);
         if (jpegImage) {
-          ctx.drawImage(jpegImage as any, 0, 0, 1, 1);
+          if (image.smaskData) {
+            // Apply soft mask: decode JPEG to pixels, set alpha, re-draw
+            const tmpC = createOffscreenCanvas(width, height);
+            if (tmpC) {
+              const tmpCtx = (tmpC as any).getContext('2d')!;
+              tmpCtx.drawImage(jpegImage as any, 0, 0, width, height);
+              this.applySMask(tmpCtx, image.smaskData, width, height);
+              ctx.drawImage(tmpC as any, 0, 0, 1, 1);
+            } else {
+              ctx.drawImage(jpegImage as any, 0, 0, 1, 1);
+            }
+          } else {
+            ctx.drawImage(jpegImage as any, 0, 0, 1, 1);
+          }
           ctx.restore();
           return;
         }
@@ -862,6 +888,24 @@ export class NativeCanvasGraphics {
         /* ignore */
       }
     }
+  }
+
+  /** Apply SMask alpha data to an already-drawn temp canvas */
+  private applySMask(
+    tmpCtx: CanvasRenderingContext2D,
+    smaskData: Uint8Array,
+    w: number,
+    h: number
+  ): void {
+    const imgData = tmpCtx.getImageData(0, 0, w, h);
+    const pixels = imgData.data;
+    const pixelCount = w * h;
+    for (let i = 0; i < pixelCount; i++) {
+      const smaskAlpha = i < smaskData.length ? smaskData[i] : 0;
+      // Multiply existing alpha by SMask alpha
+      pixels[i * 4 + 3] = Math.round((pixels[i * 4 + 3] * smaskAlpha) / 255);
+    }
+    tmpCtx.putImageData(imgData, 0, 0);
   }
 
   // ================================================================

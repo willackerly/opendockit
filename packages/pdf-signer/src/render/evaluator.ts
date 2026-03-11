@@ -1610,6 +1610,16 @@ function resolveColorSpace(dict: COSDictionary, resolve: ObjectResolver): string
 
   if (cs instanceof COSName) return cs.getName();
 
+  // Direct ICC profile stream reference (no [/ICCBased ...] wrapper)
+  if (cs instanceof COSStream) {
+    const iccDict = cs.getDictionary();
+    const n = iccDict.getInt('N', 3);
+    if (n === 1) return 'DeviceGray';
+    if (n === 2) return 'ICCBased2';
+    if (n === 3) return 'DeviceRGB';
+    if (n === 4) return 'DeviceCMYK';
+  }
+
   if (cs instanceof COSArray && cs.size() > 0) {
     let first: COSBase | undefined = cs.get(0);
     if (first instanceof COSObjectReference) first = resolve(first);
@@ -2509,19 +2519,21 @@ function decodeStitchingFunction(
     const t0 = allBounds[i];
     const t1 = allBounds[i + 1];
 
+    let subStops: ShadingStop[] = [];
     if (subType === 2) {
-      const subStops = decodeExponentialFunction(subDict, [t0, t1], cs, resolve);
+      subStops = decodeExponentialFunction(subDict, [t0, t1], cs, resolve);
+    } else if (subType === 0) {
+      subStops = decodeSampledFunction(subDict, [t0, t1], cs, resolve);
+    } else if (subType === 3) {
+      subStops = decodeStitchingFunction(subDict, [t0, t1], cs, resolve);
+    }
+
+    if (subStops.length > 0) {
       for (const s of subStops) {
         // Map offset from sub-domain to parent domain [0..1]
         const parentT = (t0 + s.offset * (t1 - t0) - domain[0]) / domainRange;
         stops.push({ offset: Math.max(0, Math.min(1, parentT)), color: s.color });
       }
-    } else {
-      // For unsupported sub-function types, sample at boundaries
-      const offset0 = (t0 - domain[0]) / domainRange;
-      const offset1 = (t1 - domain[0]) / domainRange;
-      stops.push({ offset: Math.max(0, Math.min(1, offset0)), color: 'rgb(128,128,128)' });
-      stops.push({ offset: Math.max(0, Math.min(1, offset1)), color: 'rgb(128,128,128)' });
     }
   }
 
@@ -2529,16 +2541,102 @@ function decodeStitchingFunction(
 }
 
 function decodeSampledFunction(
-  _funcDict: COSDictionary,
-  _domain: number[],
-  _cs: string,
-  _resolve: ObjectResolver
+  funcDict: COSDictionary,
+  domain: number[],
+  cs: string,
+  resolve: ObjectResolver
 ): ShadingStop[] {
-  // Sampled functions are complex — provide a fallback
-  return [
-    { offset: 0, color: 'rgb(0,0,0)' },
-    { offset: 1, color: 'rgb(255,255,255)' },
-  ];
+  // Type 0 sampled function: a lookup table of output values
+  // For 1-input functions (gradients), this is a 1D table
+  const sizeArr = getNumberArray(funcDict, 'Size', resolve);
+  if (!sizeArr || sizeArr.length === 0) return [];
+
+  const size = sizeArr[0]; // number of samples
+  const bps = funcDict.getInt('BitsPerSample', 8);
+  const rangeArr = getNumberArray(funcDict, 'Range', resolve);
+  if (!rangeArr || rangeArr.length < 2) return [];
+
+  const numOutputs = Math.floor(rangeArr.length / 2);
+
+  // Get the sample data — funcDict may be a COSStream
+  let sampleData: Uint8Array | null = null;
+  const streamEntry = funcDict instanceof COSStream
+    ? funcDict
+    : (funcDict as any);
+  if (streamEntry && typeof streamEntry.getData === 'function') {
+    sampleData = getDecompressedStreamData(streamEntry);
+  }
+  if (!sampleData || sampleData.length === 0) return [];
+
+  // Extract sample values from bit-packed data
+  const samples: number[][] = [];
+  const maxSampleVal = (1 << bps) - 1;
+  let bitOffset = 0;
+
+  for (let i = 0; i < size; i++) {
+    const row: number[] = [];
+    for (let j = 0; j < numOutputs; j++) {
+      let val = 0;
+      if (bps === 8) {
+        const byteIdx = Math.floor(bitOffset / 8);
+        val = byteIdx < sampleData.length ? sampleData[byteIdx] : 0;
+        bitOffset += 8;
+      } else if (bps === 16) {
+        const byteIdx = Math.floor(bitOffset / 8);
+        val = byteIdx + 1 < sampleData.length
+          ? (sampleData[byteIdx] << 8) | sampleData[byteIdx + 1]
+          : 0;
+        bitOffset += 16;
+      } else if (bps === 32) {
+        const byteIdx = Math.floor(bitOffset / 8);
+        val = byteIdx + 3 < sampleData.length
+          ? (sampleData[byteIdx] << 24) | (sampleData[byteIdx + 1] << 16) |
+            (sampleData[byteIdx + 2] << 8) | sampleData[byteIdx + 3]
+          : 0;
+        val = val >>> 0; // unsigned
+        bitOffset += 32;
+      } else {
+        // Generic bit extraction
+        const byteIdx = Math.floor(bitOffset / 8);
+        const bitPos = bitOffset % 8;
+        val = byteIdx < sampleData.length
+          ? (sampleData[byteIdx] >> (8 - bitPos - bps)) & maxSampleVal
+          : 0;
+        bitOffset += bps;
+      }
+
+      // Map sample value to output range
+      const rMin = rangeArr[2 * j];
+      const rMax = rangeArr[2 * j + 1];
+      row.push(rMin + (val / maxSampleVal) * (rMax - rMin));
+    }
+    samples.push(row);
+  }
+
+  // Generate gradient stops by sampling at regular intervals
+  const numStops = Math.min(size, 16); // cap at 16 stops for performance
+  const stops: ShadingStop[] = [];
+  const domainRange = domain[1] - domain[0];
+
+  for (let i = 0; i < numStops; i++) {
+    const t = numStops === 1 ? 0 : i / (numStops - 1);
+    // Map t to sample index (with linear interpolation)
+    const sampleIdx = t * (size - 1);
+    const idx0 = Math.floor(sampleIdx);
+    const idx1 = Math.min(idx0 + 1, size - 1);
+    const frac = sampleIdx - idx0;
+
+    const components: number[] = [];
+    for (let j = 0; j < numOutputs; j++) {
+      const v0 = samples[idx0]?.[j] ?? 0;
+      const v1 = samples[idx1]?.[j] ?? 0;
+      components.push(v0 + frac * (v1 - v0));
+    }
+
+    stops.push({ offset: t, color: componentsToCSS(components, cs) });
+  }
+
+  return stops;
 }
 
 function decodeFunctionArray(
@@ -2556,14 +2654,35 @@ function decodeFunctionArray(
     const t = i / steps;
     const components: number[] = [];
 
-    for (const funcDict of funcs) {
-      const funcType = funcDict.getInt('FunctionType', -1);
+    for (const func of funcs) {
+      const funcType = func.getInt('FunctionType', -1);
       if (funcType === 2) {
-        const N = funcDict.getInt('N', 1);
-        const c0 = getNumberArray(funcDict, 'C0', resolve) ?? [0];
-        const c1 = getNumberArray(funcDict, 'C1', resolve) ?? [1];
+        const N = func.getInt('N', 1);
+        const c0 = getNumberArray(func, 'C0', resolve) ?? [0];
+        const c1 = getNumberArray(func, 'C1', resolve) ?? [1];
         const tN = Math.pow(t, N);
         components.push(c0[0] + tN * ((c1[0] ?? 1) - c0[0]));
+      } else if (funcType === 0) {
+        // Sampled function — evaluate at t
+        const subStops = decodeSampledFunction(func, [0, 1], 'DeviceGray', resolve);
+        if (subStops.length >= 2) {
+          // Interpolate between the closest stops
+          let val = 0;
+          for (let s = 0; s < subStops.length - 1; s++) {
+            if (t >= subStops[s].offset && t <= subStops[s + 1].offset) {
+              const range = subStops[s + 1].offset - subStops[s].offset;
+              const frac = range > 0 ? (t - subStops[s].offset) / range : 0;
+              // Parse the gray value from the CSS string
+              const v0 = parseFloat(subStops[s].color.match(/\d+/)?.[0] ?? '0') / 255;
+              const v1 = parseFloat(subStops[s + 1].color.match(/\d+/)?.[0] ?? '0') / 255;
+              val = v0 + frac * (v1 - v0);
+              break;
+            }
+          }
+          components.push(val);
+        } else {
+          components.push(t);
+        }
       } else {
         components.push(t); // fallback: linear ramp
       }
