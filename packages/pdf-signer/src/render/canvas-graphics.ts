@@ -54,6 +54,8 @@ interface GraphicsState {
   textLeading: number;
   textRise: number;
   textRenderingMode: number;
+  /** Font ascent ratio (0–1) from PDF FontDescriptor /Ascent. Default 0.8. */
+  fontAscentRatio: number;
 }
 
 function defaultState(): GraphicsState {
@@ -79,6 +81,7 @@ function defaultState(): GraphicsState {
     textLeading: 0,
     textRise: 0,
     textRenderingMode: 0,
+    fontAscentRatio: 0.8,
   };
 }
 
@@ -276,7 +279,7 @@ export class NativeCanvasGraphics {
         this.state.textLeading = args![0];
         break;
       case OPS.setFont:
-        this.setFont(args![0], args![1], args![2], args![3]);
+        this.setFont(args![0], args![1], args![2], args![3], args![4]);
         break;
       case OPS.setTextRenderingMode:
         this.state.textRenderingMode = args![0];
@@ -605,7 +608,7 @@ export class NativeCanvasGraphics {
     this.inTextBlock = false;
   }
 
-  private setFont(_fontId: string, fontSize: number, css: NativeFont, registeredFamily?: string | object): void {
+  private setFont(_fontId: string, fontSize: number, css: NativeFont, registeredFamily?: string | object, ascentRatio?: number): void {
     this.state.fontSize = fontSize;
     // Use registered (embedded) font family if available, fall back to CSS.
     // registeredFamily is a string when preRegisterFonts has run; otherwise
@@ -616,6 +619,7 @@ export class NativeCanvasGraphics {
       : css.family;
     this.state.fontWeight = isRegistered ? 'normal' : css.weight;
     this.state.fontStyle = isRegistered ? 'normal' : css.style;
+    this.state.fontAscentRatio = ascentRatio ?? 0.8;
   }
 
   private moveText(tx: number, ty: number): void {
@@ -661,14 +665,14 @@ export class NativeCanvasGraphics {
     // to pile up or gap apart.
     for (const glyph of glyphs) {
       const ch = glyph.unicode || '';
+      const glyphWidth = (glyph.width / 1000) * fontSize;
       if (ch) {
         const x = this.textMatrix[4];
         const y = this.textMatrix[5];
-        this.renderGlyph(ch, x, y + textRise, fontSize, shouldFill, shouldStroke);
+        this.renderGlyph(ch, x, y + textRise, fontSize, shouldFill, shouldStroke, Math.abs(glyphWidth));
       }
 
       // Advance textMatrix by PDF-specified glyph width + spacing
-      const glyphWidth = (glyph.width / 1000) * fontSize;
       const isSpace = glyph.unicode === ' ';
       const spacing = charSpacing + (isSpace ? wordSpacing : 0);
       const advance = (glyphWidth + spacing) * hScale;
@@ -716,7 +720,8 @@ export class NativeCanvasGraphics {
     y: number,
     fontSize: number,
     fill: boolean,
-    stroke: boolean
+    stroke: boolean,
+    pdfGlyphWidth?: number
   ): void {
     if (!text) return;
 
@@ -744,14 +749,57 @@ export class NativeCanvasGraphics {
       ctx.scale(1, -1);
     }
 
-    // Set font — always use absolute fontSize for the actual glyph size
-    const fontStr = `${this.state.fontStyle} ${this.state.fontWeight} ${Math.abs(fontSize)}px ${this.state.fontFamily}`;
+    // Font size clamping: browsers render poorly at very small/large font sizes.
+    // Clamp to [16, 100] range and compensate with a scale factor (pdf.js pattern).
+    const MIN_FONT_SIZE = 16;
+    const MAX_FONT_SIZE = 100;
+    const rawSize = Math.abs(fontSize);
+    let browserFontSize = rawSize;
+    let fontSizeScale = 1;
+    if (rawSize < MIN_FONT_SIZE) {
+      fontSizeScale = rawSize / MIN_FONT_SIZE;
+      browserFontSize = MIN_FONT_SIZE;
+    } else if (rawSize > MAX_FONT_SIZE) {
+      fontSizeScale = rawSize / MAX_FONT_SIZE;
+      browserFontSize = MAX_FONT_SIZE;
+    }
+
+    if (fontSizeScale !== 1) {
+      ctx.scale(fontSizeScale, fontSizeScale);
+    }
+
+    // Set font using the clamped browser font size
+    const fontStr = `${this.state.fontStyle} ${this.state.fontWeight} ${browserFontSize}px ${this.state.fontFamily}`;
     ctx.font = fontStr;
+
+    // Remeasure: compensate for font metric mismatches when using substituted
+    // system fonts. If the browser's measured width differs from the PDF-specified
+    // glyph width, scale horizontally to match (pdf.js pattern).
+    let remeasureOffsetX = 0;
+    const expectedWidth = pdfGlyphWidth ?? 0;
+    if (expectedWidth > 0 && rawSize > 0 && typeof ctx.measureText === 'function') {
+      const measured = ctx.measureText(text).width;
+      // The measured width is in the clamped font space; scale back to raw space
+      const measuredInRaw = measured * fontSizeScale;
+      if (measuredInRaw > 0) {
+        const ratio = expectedWidth / measuredInRaw;
+        // Only correct if the difference is significant (>5%)
+        if (Math.abs(ratio - 1) > 0.05) {
+          if (measuredInRaw > expectedWidth) {
+            // Browser glyph is wider than PDF expects — scale down to fit
+            ctx.scale(ratio, 1);
+          } else {
+            // Browser glyph is narrower — center it in the PDF-specified advance
+            remeasureOffsetX = (expectedWidth - measuredInRaw) / (2 * fontSizeScale);
+          }
+        }
+      }
+    }
 
     if (fill) {
       ctx.globalAlpha = this.state.fillAlpha;
       ctx.fillStyle = this.state.fillColor;
-      ctx.fillText(text, 0, 0);
+      ctx.fillText(text, remeasureOffsetX, 0);
 
       // Record text event — use the pre-transform position (x, y in text space)
       if (this.recorder) {
@@ -759,7 +807,10 @@ export class NativeCanvasGraphics {
         // In many PDFs, fontSize is 1 and the text matrix does the scaling.
         const tmScale = Math.sqrt(a * a + b * b); // text matrix scale from [a,b,c,d]
         const effectiveFontSize = Math.abs(fontSize) * tmScale;
-        const glyphWidth = effectiveFontSize * 0.6; // approximate advance
+        const glyphWidth =
+          pdfGlyphWidth && pdfGlyphWidth > 0
+            ? pdfGlyphWidth * tmScale
+            : effectiveFontSize * 0.6; // fallback approximate advance
         this.recorder.recordText(
           text,
           x,
@@ -769,6 +820,7 @@ export class NativeCanvasGraphics {
           typeof this.state.fillColor === 'string' ? this.state.fillColor : 'pattern',
           glyphWidth,
           this.textMatrix,
+          this.state.fontAscentRatio,
         );
       }
     }
@@ -776,7 +828,7 @@ export class NativeCanvasGraphics {
     if (stroke) {
       ctx.globalAlpha = this.state.strokeAlpha;
       ctx.strokeStyle = this.state.strokeColor;
-      ctx.strokeText(text, 0, 0);
+      ctx.strokeText(text, remeasureOffsetX, 0);
 
       if (this.recorder) {
         const tmScale = Math.sqrt(a * a + b * b);

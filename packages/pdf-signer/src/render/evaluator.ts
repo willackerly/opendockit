@@ -203,13 +203,14 @@ class EvalContext {
   private opList: OperatorList;
   private fontCache = new Map<
     string,
-    { decoder: FontDecoder; css: NativeFont; stdWidthFn: ((code: number) => number) | null; extractedFont: ExtractedFont | undefined }
+    { decoder: FontDecoder; css: NativeFont; stdWidthFn: ((code: number) => number) | null; extractedFont: ExtractedFont | undefined; ascentRatio: number }
   >();
   private currentFont: {
     decoder: FontDecoder;
     css: NativeFont;
     stdWidthFn: ((code: number) => number) | null;
     extractedFont: ExtractedFont | undefined;
+    ascentRatio: number;
   } | null = null;
   private recursionDepth = 0;
 
@@ -929,7 +930,8 @@ class EvalContext {
       style: 'normal',
     };
     const embeddedFont = fontInfo?.extractedFont ?? undefined;
-    this.opList.addOpArgs(OPS.setFont, [fontNameVal, fontSizeVal, css, embeddedFont]);
+    const ascentRatio = fontInfo?.ascentRatio ?? 0.8;
+    this.opList.addOpArgs(OPS.setFont, [fontNameVal, fontSizeVal, css, embeddedFont, ascentRatio]);
   }
 
   private resolveFont(
@@ -939,6 +941,7 @@ class EvalContext {
     css: NativeFont;
     stdWidthFn: ((code: number) => number) | null;
     extractedFont: ExtractedFont | undefined;
+    ascentRatio: number;
   } | null {
     if (!this.resources) return null;
 
@@ -961,7 +964,11 @@ class EvalContext {
         // Non-critical — fall back to CSS fonts
       }
 
-      return { decoder, css, stdWidthFn, extractedFont };
+      // Extract ascent ratio from FontDescriptor /Ascent (in 1/1000 em units).
+      // For composite (Type0) fonts, the FontDescriptor is on the descendant CIDFont.
+      const ascentRatio = extractAscentRatio(fontDict, this.resolve);
+
+      return { decoder, css, stdWidthFn, extractedFont, ascentRatio };
     } catch (err) {
       this.diagnostics?.warn('font', `Failed to build font decoder for "${fontName}"`, {
         error: String(err),
@@ -2191,6 +2198,48 @@ function resolveItem(
   let item: COSBase | undefined = dict.getItem(key);
   if (item instanceof COSObjectReference) item = resolve(item);
   return item ?? undefined;
+}
+
+/**
+ * Extract the ascent ratio (0–1) from a font's FontDescriptor /Ascent entry.
+ * PDF font descriptors store Ascent in units of 1/1000 of the em square.
+ * For composite (Type0) fonts, the FontDescriptor is on the descendant CIDFont.
+ * Returns 0.8 as a sensible default when no descriptor is available.
+ */
+function extractAscentRatio(
+  fontDict: COSDictionary,
+  resolve: ObjectResolver,
+): number {
+  const DEFAULT_ASCENT_RATIO = 0.8;
+
+  // Determine where the FontDescriptor lives:
+  // - Simple fonts: directly on the font dict
+  // - Type0 (composite): on DescendantFonts[0]
+  let descriptorSource: COSDictionary = fontDict;
+  const subtype = resolveItem(fontDict, 'Subtype', resolve);
+  if (subtype instanceof COSName && subtype.getName() === 'Type0') {
+    const descendants = resolveItem(fontDict, 'DescendantFonts', resolve);
+    if (descendants instanceof COSArray && descendants.size() > 0) {
+      let cidFont: COSBase | undefined = descendants.get(0);
+      if (cidFont instanceof COSObjectReference) cidFont = resolve(cidFont);
+      if (cidFont instanceof COSDictionary) {
+        descriptorSource = cidFont;
+      }
+    }
+  }
+
+  const fd = resolveItem(descriptorSource, 'FontDescriptor', resolve);
+  if (!(fd instanceof COSDictionary)) return DEFAULT_ASCENT_RATIO;
+
+  const ascentEntry = resolveItem(fd, 'Ascent', resolve);
+  let ascent: number | undefined;
+  if (ascentEntry instanceof COSInteger) ascent = ascentEntry.getValue();
+  else if (ascentEntry instanceof COSFloat) ascent = ascentEntry.getValue();
+
+  if (ascent === undefined || ascent <= 0) return DEFAULT_ASCENT_RATIO;
+
+  // Ascent is in 1/1000 em units → divide by 1000 to get ratio
+  return Math.min(ascent / 1000, 1);
 }
 
 /** Extract N numeric values from operands. */

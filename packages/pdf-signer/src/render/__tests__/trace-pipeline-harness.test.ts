@@ -146,8 +146,10 @@ function traceToFlatRuns(trace: RenderTrace, scale: number): FlatTextRun[] {
     const fontSize = ev.fontSizePt * pageCTMScale;
 
     // Our Y is the text baseline. pdftotext gives yMin (top of glyph bbox).
-    // Subtract approximate ascent to align: ascent ≈ 0.8 * fontSize
-    const ascent = fontSize * 0.8;
+    // Use actual font ascent ratio from PDF FontDescriptor when available,
+    // falling back to 0.8 estimate for fonts without descriptors.
+    const ascentRatio = ev.ascentRatio ?? 0.8;
+    const ascent = fontSize * ascentRatio;
     y -= ascent;
 
     // Estimate glyph advance width from the traced width

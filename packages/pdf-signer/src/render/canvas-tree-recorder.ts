@@ -39,6 +39,8 @@ export interface TextTraceEvent {
   fillStyle: string;
   ctm: Matrix6Tuple;
   charAdvances?: number[];
+  /** Font ascent as a ratio of fontSize (0–1). From PDF FontDescriptor /Ascent. */
+  ascentRatio?: number;
   shapeId?: string;
   shapeName?: string;
   paragraphIndex?: number;
@@ -220,6 +222,7 @@ export class CanvasTreeRecorder {
     fillStyle: string,
     glyphWidth: number,
     _textMatrix: number[],
+    ascentRatio?: number,
   ): void {
     // The text position in user space is (x, y) which already has
     // textMatrix translation applied. We need to transform through the CTM
@@ -236,6 +239,7 @@ export class CanvasTreeRecorder {
       fontString,
       fillStyle: typeof fillStyle === 'string' ? fillStyle : 'pattern',
       ctm: this.ctm.slice() as Matrix6,
+      ascentRatio,
     };
 
     this.events.push(event);
