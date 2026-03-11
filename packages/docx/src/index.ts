@@ -36,7 +36,7 @@ export {
 } from './parser/index.js';
 export type { NumberingDef, NumberingLevelDef, NumberingMap } from './parser/index.js';
 
-// Layout
+// Layout (legacy scaffold)
 export {
   computePageDimensions,
   layoutSection,
@@ -49,4 +49,17 @@ export type {
   PositionedParagraph,
   PageContent,
   BlockLayoutResult,
+} from './layout/index.js';
+
+// Layout engine (new — line-breaking + pagination)
+export { breakParagraphIntoLines } from './layout/index.js';
+export { layoutDocumentPages, layoutSectionPages } from './layout/index.js';
+export type {
+  TextMeasurement,
+  TextMeasurer,
+  LayoutRun,
+  LayoutLine,
+  LayoutBlock,
+  LayoutPage,
+  LayoutDocument,
 } from './layout/index.js';
