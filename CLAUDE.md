@@ -96,6 +96,13 @@ The following command patterns are pre-approved for autonomous execution:
 - `strings`, `awk`, `xargs`, `test`
 - `timeout`, `lsof`, `pkill`, `killall`, `jobs`
 - `curl`, `node`, `python3`
+- `unzip`, `zip`, `tar`, `gzip`, `gunzip`
+- `xmllint`, `jq`, `sed`, `grep`, `rg`, `wc`, `sort`, `diff`
+- `cp`, `mv`, `rm`, `mkdir`, `touch`, `ln`
+
+## Coding Conventions
+
+- **Inline python/scripts in bash**: Do NOT use inline python (`python3 -c "..."`) in bash commands. Instead, write a script file to `/tmp/` and execute it. This avoids quote-tracking issues and permission prompts.
 
 ### Scripts
 

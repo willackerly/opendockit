@@ -258,8 +258,9 @@ async function loadFile(file: File): Promise<void> {
 
 async function loadEditKit(bytes: ArrayBuffer): Promise<void> {
   try {
-    editKit = new EditableSlideKit();
-    await editKit.load(bytes);
+    const ek = new EditableSlideKit();
+    await ek.load(bytes);
+    editKit = ek;
     document.body.dataset.editKitReady = 'true';
   } catch (err) {
     console.warn('Failed to load edit kit:', err);

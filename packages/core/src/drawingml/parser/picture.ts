@@ -22,6 +22,8 @@ import type {
 import type { ColorContext } from '../../theme/index.js';
 import { parseIntAttr, parseBoolAttr, parseEnumAttr } from '../../xml/index.js';
 import { parseTransform } from './transform.js';
+import { parseLineFromParent } from './line.js';
+import { parseEffectsFromParent } from './effect.js';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -55,8 +57,8 @@ import { parseTransform } from './transform.js';
  */
 export function parsePicture(
   picElement: XmlElement,
-  _theme: ThemeIR,
-  _context?: ColorContext
+  theme: ThemeIR,
+  context?: ColorContext
 ): PictureIR {
   // --- Non-visual properties ---
   const nonVisualProperties = parseNonVisualProperties(picElement);
@@ -71,7 +73,7 @@ export function parsePicture(
 
   // --- Shape properties ---
   const spPrEl = picElement.child('p:spPr');
-  const properties = spPrEl ? parseBasicShapeProperties(spPrEl) : { effects: [] };
+  const properties = spPrEl ? parseBasicShapeProperties(spPrEl, theme, context) : { effects: [] };
 
   return {
     kind: 'picture',
@@ -267,18 +269,32 @@ function parseTileInfo(tileEl: XmlElement): TileInfo {
  * the shared {@link parseTransform} from the transform module for
  * a:xfrm parsing, and handles a:prstGeom inline.
  */
-function parseBasicShapeProperties(spPrEl: XmlElement): ShapePropertiesIR {
+function parseBasicShapeProperties(
+  spPrEl: XmlElement,
+  theme: ThemeIR,
+  context?: ColorContext
+): ShapePropertiesIR {
   const xfrmEl = spPrEl.child('a:xfrm');
   const transform = xfrmEl ? parseTransform(xfrmEl) : undefined;
 
   const prstGeomEl = spPrEl.child('a:prstGeom');
   const geometry = prstGeomEl ? parsePresetGeometry(prstGeomEl) : undefined;
 
-  return {
+  // Parse line/stroke properties (e.g. picture borders).
+  const line = parseLineFromParent(spPrEl, theme, context);
+
+  // Parse effects (e.g. shadows on pictures).
+  const effects = parseEffectsFromParent(spPrEl, theme, context);
+
+  const result: ShapePropertiesIR = {
     transform,
     geometry,
-    effects: [],
+    effects,
   };
+  if (line !== undefined) {
+    result.line = line;
+  }
+  return result;
 }
 
 /**

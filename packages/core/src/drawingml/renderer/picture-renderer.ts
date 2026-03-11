@@ -15,6 +15,8 @@ import { buildPresetPath } from '../geometry/path-builder.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
 import type { RenderBackend } from './render-backend.js';
+import { applyLine } from './line-renderer.js';
+import { applyEffects } from './effect-renderer.js';
 
 /**
  * Type guard: checks whether a CachedMedia value is a drawable image source.
@@ -157,6 +159,13 @@ export function renderPicture(pictureIR: PictureIR, rctx: RenderContext): void {
   const hasFlipV = transform.flipV === true;
   const needsTransform = hasRotation || hasFlipH || hasFlipV;
 
+  // Apply effects (shadows) before drawing.
+  const effects = pictureIR.properties.effects;
+  const effectCleanup =
+    effects.length > 0
+      ? applyEffects(effects, rctx, { x: dx, y: dy, width: dw, height: dh })
+      : () => {};
+
   if (needsTransform) {
     backend.save();
 
@@ -195,6 +204,31 @@ export function renderPicture(pictureIR: PictureIR, rctx: RenderContext): void {
       backend.restore();
     } else {
       backend.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh);
+    }
+  }
+
+  // Clean up effects.
+  effectCleanup();
+
+  // Render picture outline/border if present.
+  const line = pictureIR.properties.line;
+  if (line) {
+    // Build a stroke path matching the picture geometry.
+    const geo = pictureIR.properties.geometry;
+    let strokePath: Path2D;
+    if (geo?.kind === 'preset' && geo.name !== 'rect') {
+      const presetPath = buildPresetPath(geo.name, dw, dh, geo.adjustValues);
+      if (presetPath) {
+        // Offset to picture position.
+        const offsetPath = new Path2D();
+        offsetPath.addPath(presetPath, { e: dx, f: dy });
+        applyLine(line, rctx, offsetPath);
+      }
+    } else {
+      // Default rectangular outline.
+      strokePath = new Path2D();
+      strokePath.rect(dx, dy, dw, dh);
+      applyLine(line, rctx, strokePath);
     }
   }
 }

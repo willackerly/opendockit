@@ -242,8 +242,9 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [ ] Server-side font metrics extraction service (for users with licensed fonts)
 - [ ] No kerning pairs in metrics bundle (~1-3% width error on long text runs)
 
-### NativeRenderer (PDF Reading) Improvements (2026-03-08)
+### NativeRenderer (PDF Reading) Improvements
 
+**Done (2026-03-08):**
 - [x] Fix curveTo2 (v operator) — correct bezierCurveTo with current point tracking
 - [x] Shading pattern support — linear (Type 2) and radial (Type 3) gradients
 - [x] JPEG image rendering — sync decode via node-canvas
@@ -251,6 +252,22 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [x] CropBox page clipping (fallback to MediaBox)
 - [x] Indexed color space decoding (palette-based images)
 - [x] Shading function decoding (Type 2 exponential, Type 3 stitching)
+
+**Done (2026-03-10):**
+- [x] ICCBased COSStream fix — getDictionary().getInt('N') for ICC profile component count
+- [x] ICCBased N=2 handler — 2-component ICC profiles decoded to grayscale
+- [x] Sub-byte bpc fix — bit-level extraction for bpc=2 and bpc=4 in decodeGrayImage/extractSMask
+- [x] Node.js ImageData fix — `ctx.createImageData()` instead of browser-only `new ImageData()`
+- [x] Per-character text rendering — each glyph positioned by PDF-specified widths (was single fillText batch)
+- [x] Browser JPEG ImageBitmap — store bitmap directly, skip lossy RGBA round-trip
+- [x] PDF comparison harness — vitest-based RMSE comparison against pdftoppm with HTML report
+
+**Remaining (open, avg RMSE 0.14):**
+- [ ] Grey/dark background on some elements — investigate ExtGState alpha, clipping, z-ordering
+- [ ] Embedded font decode — extract font programs from PDF for accurate text rendering
+- [ ] Pattern color spaces — tiling/shading patterns in fill operations
+- [ ] Form XObject rendering improvements — nested form XObjects may have alpha/clipping issues
+- [ ] Text kerning — no kerning pairs used, canvas uses system font kerning which differs from PDF
 
 ### pdfbox-ts Integration Items (FYI from prior team)
 

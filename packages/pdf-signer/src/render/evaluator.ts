@@ -75,6 +75,8 @@ export interface NativeImage {
   isJpeg: boolean;
   /** Soft mask alpha data (grayscale, same dimensions as image). */
   smaskData?: Uint8Array;
+  /** Browser-decoded ImageBitmap (avoids RGBA round-trip for JPEGs). */
+  bitmap?: ImageBitmap;
 }
 
 /** A gradient stop for shading patterns. */
@@ -1188,8 +1190,16 @@ class EvalContext {
       if (isStroke) this.strokeColor = color;
       else this.fillColor = color;
       this.opList.addOpArgs(isStroke ? OPS.setStrokeCMYKColor : OPS.setFillCMYKColor, components);
+    } else if (components.length === 0) {
+      // Pattern color space — operand is a name, not a number
+      const patternName = operands.find((t) => t.type === 'name');
+      if (patternName) {
+        this.diagnostics?.warn('color', `Pattern color space not implemented: /${patternName.value}`, {
+          isStroke,
+          operands: operands.map((t) => t.value),
+        });
+      }
     }
-    // Pattern colors (name operand) — deferred
   }
 
   // ---- XObjects ----
@@ -1405,6 +1415,10 @@ function decodeImageXObject(
     case 'Indexed':
       image = decodeIndexedImage(data, width, height, bpc, dict, resolve);
       break;
+    case 'ICCBased2':
+      // 2-component ICC profile — use first channel as gray, skip second
+      image = decode2ComponentImage(data, width, height);
+      break;
     case 'Separation':
     case 'DeviceN':
       image = decodeGrayImage(data, width, height, bpc);
@@ -1458,8 +1472,10 @@ function resolveColorSpace(dict: COSDictionary, resolve: ObjectResolver): string
         let iccObj: COSBase | undefined = cs.get(1);
         if (iccObj instanceof COSObjectReference) iccObj = resolve(iccObj);
         if (iccObj instanceof COSDictionary || iccObj instanceof COSStream) {
-          const n = (iccObj as COSDictionary).getInt('N', 3);
+          const iccDict = iccObj instanceof COSStream ? iccObj.getDictionary() : iccObj;
+          const n = iccDict.getInt('N', 3);
           if (n === 1) return 'DeviceGray';
+          if (n === 2) return 'ICCBased2'; // 2-component ICC (rare — approximate as gray)
           if (n === 3) return 'DeviceRGB';
           if (n === 4) return 'DeviceCMYK';
         }
@@ -1506,8 +1522,37 @@ function extractSMask(
   const alpha = new Uint8Array(pixelCount);
   const maxVal = (1 << smaskBpc) - 1;
 
-  for (let i = 0; i < pixelCount && i < smaskData.length; i++) {
-    alpha[i] = Math.round((smaskData[i] / maxVal) * 255);
+  if (smaskBpc === 8) {
+    for (let i = 0; i < pixelCount && i < smaskData.length; i++) {
+      alpha[i] = smaskData[i];
+    }
+  } else if (smaskBpc === 4) {
+    const rowBytes = Math.ceil((smaskWidth * 4) / 8);
+    for (let y = 0; y < smaskHeight; y++) {
+      for (let x = 0; x < smaskWidth; x++) {
+        const bitOffset = x * 4;
+        const byteIdx = y * rowBytes + Math.floor(bitOffset / 8);
+        const shift = 4 - (bitOffset % 8);
+        const val = (smaskData[byteIdx] >> shift) & 0x0f;
+        alpha[y * smaskWidth + x] = Math.round((val / maxVal) * 255);
+      }
+    }
+  } else if (smaskBpc === 2) {
+    const rowBytes = Math.ceil((smaskWidth * 2) / 8);
+    for (let y = 0; y < smaskHeight; y++) {
+      for (let x = 0; x < smaskWidth; x++) {
+        const bitOffset = x * 2;
+        const byteIdx = y * rowBytes + Math.floor(bitOffset / 8);
+        const shift = 6 - (bitOffset % 8);
+        const val = (smaskData[byteIdx] >> shift) & 0x03;
+        alpha[y * smaskWidth + x] = Math.round((val / maxVal) * 255);
+      }
+    }
+  } else {
+    // Generic fallback
+    for (let i = 0; i < pixelCount && i < smaskData.length; i++) {
+      alpha[i] = Math.round((smaskData[i] / maxVal) * 255);
+    }
   }
 
   // If SMask dimensions differ from image, resample using nearest-neighbor
@@ -1554,6 +1599,25 @@ function decodeImageMask(data: Uint8Array, width: number, height: number): Nativ
   return { width, height, data: rgba, isJpeg: false };
 }
 
+/**
+ * Decode a 2-component image (e.g. ICCBased N=2).
+ * Uses first component as grayscale luminance, ignores second.
+ */
+function decode2ComponentImage(data: Uint8Array, width: number, height: number): NativeImage {
+  const rgba = new Uint8Array(width * height * 4);
+  const pixelCount = width * height;
+
+  for (let i = 0; i < pixelCount; i++) {
+    const gray = data[i * 2] ?? 0;
+    rgba[i * 4] = gray;
+    rgba[i * 4 + 1] = gray;
+    rgba[i * 4 + 2] = gray;
+    rgba[i * 4 + 3] = 255;
+  }
+
+  return { width, height, data: rgba, isJpeg: false };
+}
+
 function decodeGrayImage(
   data: Uint8Array,
   width: number,
@@ -1564,12 +1628,58 @@ function decodeGrayImage(
   const maxVal = (1 << bpc) - 1;
   const pixelCount = width * height;
 
-  for (let i = 0; i < pixelCount && i < data.length; i++) {
-    const gray = Math.round((data[i] / maxVal) * 255);
-    rgba[i * 4] = gray;
-    rgba[i * 4 + 1] = gray;
-    rgba[i * 4 + 2] = gray;
-    rgba[i * 4 + 3] = 255;
+  if (bpc === 8) {
+    // Fast path: one byte per pixel
+    for (let i = 0; i < pixelCount && i < data.length; i++) {
+      const gray = data[i];
+      rgba[i * 4] = gray;
+      rgba[i * 4 + 1] = gray;
+      rgba[i * 4 + 2] = gray;
+      rgba[i * 4 + 3] = 255;
+    }
+  } else if (bpc === 4) {
+    // 2 pixels per byte (high nibble first)
+    const rowBytes = Math.ceil((width * 4) / 8);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const bitOffset = x * 4;
+        const byteIdx = y * rowBytes + Math.floor(bitOffset / 8);
+        const shift = 4 - (bitOffset % 8);
+        const val = (data[byteIdx] >> shift) & 0x0f;
+        const gray = Math.round((val / maxVal) * 255);
+        const idx = (y * width + x) * 4;
+        rgba[idx] = gray;
+        rgba[idx + 1] = gray;
+        rgba[idx + 2] = gray;
+        rgba[idx + 3] = 255;
+      }
+    }
+  } else if (bpc === 2) {
+    // 4 pixels per byte
+    const rowBytes = Math.ceil((width * 2) / 8);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const bitOffset = x * 2;
+        const byteIdx = y * rowBytes + Math.floor(bitOffset / 8);
+        const shift = 6 - (bitOffset % 8);
+        const val = (data[byteIdx] >> shift) & 0x03;
+        const gray = Math.round((val / maxVal) * 255);
+        const idx = (y * width + x) * 4;
+        rgba[idx] = gray;
+        rgba[idx + 1] = gray;
+        rgba[idx + 2] = gray;
+        rgba[idx + 3] = 255;
+      }
+    }
+  } else {
+    // Generic fallback (bpc=16, etc.) — read one byte per pixel
+    for (let i = 0; i < pixelCount && i < data.length; i++) {
+      const gray = Math.round((data[i] / maxVal) * 255);
+      rgba[i * 4] = gray;
+      rgba[i * 4 + 1] = gray;
+      rgba[i * 4 + 2] = gray;
+      rgba[i * 4 + 3] = 255;
+    }
   }
 
   return { width, height, data: rgba, isJpeg: false };
@@ -1619,7 +1729,8 @@ function decodeIndexedImage(
         let iccObj = baseCS.get(1);
         if (iccObj instanceof COSObjectReference) iccObj = resolve(iccObj);
         if (iccObj instanceof COSDictionary || iccObj instanceof COSStream) {
-          const nc = (iccObj as COSDictionary).getInt('N', 3);
+          const iccDict2 = iccObj instanceof COSStream ? iccObj.getDictionary() : iccObj;
+          const nc = iccDict2.getInt('N', 3);
           componentsPerColor = nc;
         }
       }

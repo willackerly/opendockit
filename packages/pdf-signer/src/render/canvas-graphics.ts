@@ -537,25 +537,25 @@ export class NativeCanvasGraphics {
       renderMode === 1 || renderMode === 2 || renderMode === 5 || renderMode === 6;
     if (!shouldFill && !shouldStroke) return;
 
-    // Build the full batched string for native kerning
-    const batchedString = glyphs.map((g) => g.unicode || '').join('');
-
-    // Render the entire string at the starting position (enables native kerning)
-    const startX = this.textMatrix[4];
-    const startY = this.textMatrix[5];
-    if (batchedString) {
-      this.renderGlyph(batchedString, startX, startY + textRise, fontSize, shouldFill, shouldStroke);
-    }
-
-    // Still advance textMatrix per-glyph for correct position tracking
+    // Render each character individually at its PDF-specified position.
+    // PDF glyph widths define exact character advances — we cannot rely on
+    // canvas's built-in font metrics (fillText with a multi-char string)
+    // because they differ from the PDF's specified widths, causing characters
+    // to pile up or gap apart.
     for (const glyph of glyphs) {
-      // Width is in 1/1000 of text space unit
+      const ch = glyph.unicode || '';
+      if (ch) {
+        const x = this.textMatrix[4];
+        const y = this.textMatrix[5];
+        this.renderGlyph(ch, x, y + textRise, fontSize, shouldFill, shouldStroke);
+      }
+
+      // Advance textMatrix by PDF-specified glyph width + spacing
       const glyphWidth = (glyph.width / 1000) * fontSize;
       const isSpace = glyph.unicode === ' ';
       const spacing = charSpacing + (isSpace ? wordSpacing : 0);
       const advance = (glyphWidth + spacing) * hScale;
 
-      // Advance textMatrix by [advance, 0] in text space
       this.textMatrix[4] += advance * this.textMatrix[0];
       this.textMatrix[5] += advance * this.textMatrix[1];
     }
@@ -712,6 +712,13 @@ export class NativeCanvasGraphics {
       // Flip Y because pixel data is top-down but PDF image space is bottom-up.
       ctx.transform(1, 0, 0, -1, 0, 1);
 
+      // Fast path: browser-decoded ImageBitmap (avoids RGBA round-trip)
+      if (image.bitmap) {
+        ctx.drawImage(image.bitmap as any, 0, 0, 1, 1);
+        ctx.restore();
+        return;
+      }
+
       if (isJpeg) {
         // JPEG: decode raw bytes using node-canvas Image (sync)
         const jpegImage = decodeJpegSync(data);
@@ -726,15 +733,12 @@ export class NativeCanvasGraphics {
       }
 
       // Create ImageData and draw via temp canvas (putImageData ignores transforms)
-      const imageData = new ImageData(
-        new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength),
-        width,
-        height
-      );
-
       const tempCanvas = createOffscreenCanvas(width, height);
       if (tempCanvas) {
-        const tempCtx = tempCanvas.getContext('2d')!;
+        const tempCtx = (tempCanvas as any).getContext('2d')!;
+        // Use ctx.createImageData() — works in both Node.js (node-canvas) and browser
+        const imageData = tempCtx.createImageData(width, height);
+        imageData.data.set(new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength));
         tempCtx.putImageData(imageData, 0, 0);
         // Draw directly into the 1×1 unit square (Y already flipped above)
         ctx.drawImage(tempCanvas as any, 0, 0, 1, 1);

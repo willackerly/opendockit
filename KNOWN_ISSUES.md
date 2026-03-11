@@ -1,10 +1,20 @@
 # Known Issues
 
-**Last updated:** 2026-02-27
+**Last updated:** 2026-03-10
 
 ## Active Bugs (Priority)
 
-None.
+### PDF NativeRenderer — Image & Text Rendering (2026-03-10)
+
+**Avg RMSE: 0.14 against pdftoppm ground truth** (USG Briefing, 30 pages). Key issues:
+
+1. **~~`ImageData is not defined` in Node.js~~** — FIXED: `canvas-graphics.ts` `paintImage()` used browser-only `new ImageData()`. Changed to `ctx.createImageData()` + `.data.set()`.
+2. **~~Text batched into single `fillText()` call~~** — FIXED: Characters now rendered individually at PDF-specified positions via glyph widths, respecting charSpacing/wordSpacing.
+3. **~~ICCBased image decode crashes~~** — FIXED: `evaluator.ts` COSStream.getInt() → getDictionary().getInt(), plus N=2 ICC profile handler.
+4. **~~Browser JPEG crosshatch~~** — FIXED: Store `ImageBitmap` directly instead of lossy RGBA round-trip.
+5. **Grey/dark background on some elements** — OPEN: Some content renders too dark, possibly ExtGState alpha or z-ordering issue.
+6. **Font mismatch** — OPEN: Canvas renders with system fonts, not PDF embedded fonts. No embedded font decode yet.
+7. **Pattern color spaces** — OPEN: Not implemented, emits diagnostic warning.
 
 ### Resolved: Bundled Font Loading Broken in Vite Dev Mode (2026-02-27)
 

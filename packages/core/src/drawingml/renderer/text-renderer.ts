@@ -249,18 +249,18 @@ function ptToCanvasPx(pt: number, dpiScale: number): number {
  * Compute the effective DPI scale for text (pt-based) measurements,
  * compensating for accumulated group transform scaling.
  *
- * Canvas2D `ctx.scale()` from group transforms scales text glyphs, but
- * PowerPoint renders text at the declared font size regardless of group
- * scaling. Dividing dpiScale by the group scale factor counter-acts this.
+ * When text is inside a group with non-uniform scaling (scaleX != scaleY),
+ * we apply a compensating `ctx.scale(1/gsx, 1/gsy)` transform in
+ * renderTextBody to undo the distortion. In that case, text uses the
+ * base dpiScale directly (no counter-scaling needed in font size).
  *
  * EMU-based measurements (insets, margins) are NOT affected — they use
  * `emuToScaledPx(emu, rctx)` which bypasses this adjustment.
  */
 function textDpiScale(rctx: RenderContext): number {
-  const gsx = rctx.groupScaleX ?? 1;
-  const gsy = rctx.groupScaleY ?? 1;
-  if (gsx === 1 && gsy === 1) return rctx.dpiScale;
-  return rctx.dpiScale / Math.sqrt(gsx * gsy);
+  // When group scaling is present, renderTextBody applies a compensating
+  // ctx.scale(1/gsx, 1/gsy) transform, so text layout uses base dpiScale.
+  return rctx.dpiScale;
 }
 
 /**
@@ -623,31 +623,45 @@ function wrapParagraph(
 
   const paragraphLevel = paragraph.properties.level ?? 0;
 
+  // Helper to push an empty line for a line break element.
+  function pushBrEmptyLine(brRun: (typeof paragraph.runs)[number]): void {
+    const fontSizePt = resolveFontSizePt(brRun.properties, fontScale, rctx, paragraphLevel);
+    const fontSizePxBr = ptToCanvasPx(fontSizePt, dpiScale);
+    const brLhMul = getFontLineHeightMultiplier(rctx, 'sans-serif', fontSizePxBr, false, false);
+    const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
+    const heightPx =
+      lineSpacingPct >= 0
+        ? ptToCanvasPx(fontSizePt * brLhMul * (lineSpacingPct / 100), dpiScale)
+        : ptToCanvasPx(-lineSpacingPct, dpiScale);
+    lines.push({
+      fragments: [],
+      widthPx: 0,
+      heightPx,
+      ascentPx: fontSizePxBr,
+    });
+    isFirstLine = false;
+  }
+
+  // Track the last BR run so we can emit a trailing empty line if the
+  // paragraph ends with a line break (e.g. heading + BR before bullets).
+  let trailingBrRun: (typeof paragraph.runs)[number] | null = null;
+
   for (const run of paragraph.runs) {
     if (run.kind === 'lineBreak') {
       // Force a line break. If we have no fragments, push an empty line
       // with the height of the line break's font.
       if (currentFragments.length === 0) {
-        const fontSizePt = resolveFontSizePt(run.properties, fontScale, rctx, paragraphLevel);
-        const fontSizePxBr = ptToCanvasPx(fontSizePt, dpiScale);
-        const brLhMul = getFontLineHeightMultiplier(rctx, 'sans-serif', fontSizePxBr, false, false);
-        const lineSpacingPct = resolveLineSpacingPct(effectiveLineSpacing, lnSpcReduction);
-        const heightPx =
-          lineSpacingPct >= 0
-            ? ptToCanvasPx(fontSizePt * brLhMul * (lineSpacingPct / 100), dpiScale)
-            : ptToCanvasPx(-lineSpacingPct, dpiScale);
-        lines.push({
-          fragments: [],
-          widthPx: 0,
-          heightPx,
-          ascentPx: fontSizePxBr,
-        });
-        isFirstLine = false;
+        pushBrEmptyLine(run);
       } else {
         commitLine();
       }
+      // Remember this BR — if it's the last run, we need a trailing empty line.
+      trailingBrRun = run;
       continue;
     }
+
+    // Any text run after a BR means the BR was mid-paragraph, not trailing.
+    trailingBrRun = null;
 
     // run.kind === 'run'
     // Replace field code text at render time (e.g. slidenum → actual number).
@@ -895,6 +909,12 @@ function wrapParagraph(
   // Commit any remaining fragments as the last line.
   if (currentFragments.length > 0) {
     commitLine();
+  }
+
+  // If the paragraph ended with a BR (e.g. "heading text" + BR before next
+  // paragraph's bullets), the BR creates a trailing empty line.
+  if (trailingBrRun != null) {
+    pushBrEmptyLine(trailingBrRun);
   }
 
   // If there are no lines at all (empty paragraph), create a single
@@ -1636,6 +1656,18 @@ export function renderTextBody(
 
   // Phase 3: Render each paragraph.
   backend.save();
+
+  // Compensate for non-uniform group scaling on text.
+  // Canvas2D ctx.scale() from group transforms distorts text glyphs, but
+  // PowerPoint renders text at declared font size regardless of group
+  // scaling. Applying the inverse scale here undoes the distortion so text
+  // appears at natural proportions. Position mapping is preserved because
+  // (pos / gsx) * gsx = pos in the outer coordinate system.
+  const gsx = rctx.groupScaleX ?? 1;
+  const gsy = rctx.groupScaleY ?? 1;
+  if (gsx !== 1 || gsy !== 1) {
+    backend.scale(1 / gsx, 1 / gsy);
+  }
 
   // Only clip when autoFit is 'shrink' (text already scaled to fit).
   // Default OOXML behavior (autoFit='none') allows text to overflow visually.

@@ -393,6 +393,8 @@ pnpm clean          # nuke node_modules
 
 TypeScript everywhere with strict configs. Follow Prettier defaults (2 spaces, semicolons, single quotes). No React in core/pptx packages — pure TS library with Canvas2D rendering. Name files after their primary export. For complex modules either add a two-line header comment or update the folder README's "File intent" table so others can skim responsibilities without reading implementations first.
 
+**Bash commands**: Do NOT use inline python (`python3 -c "..."`) or put quote characters inside `#` comments. Instead, write script files to `/tmp/` and execute them. This avoids quote-tracking desync and permission prompts.
+
 ## Testing Expectations
 
 Unit/integration coverage runs through Vitest; co-locate specs beside code or inside `__tests__`. Visual regression tests use LibreOffice headless as an oracle (see `tools/visual-regression/`). Keep `docs/testing/COVERAGE.md` updated when coverage changes ≥2 pts and record new investigative scripts under `scripts/`.

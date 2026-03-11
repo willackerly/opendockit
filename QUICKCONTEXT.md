@@ -1,6 +1,6 @@
 # Quick Context
 
-**Last updated:** 2026-03-08
+**Last updated:** 2026-03-10
 **Branch:** main
 **Phase:** Phase 4 (Waves 0-4) complete — PDF/Office unified architecture
 
@@ -156,4 +156,10 @@ None currently.
 
 ## Active Bugs
 
-None currently.
+### PDF NativeRenderer Quality (2026-03-10)
+
+Avg RMSE 0.14 against pdftoppm on USG Briefing (30 pages). Fixed this session: ImageData Node.js crash, per-character text positioning, ICCBased image decode, browser JPEG crosshatch. Remaining: grey/dark backgrounds (alpha/z-order), font mismatch (no embedded font decode), pattern colors.
+
+**Comparison harness**: `packages/pdf-signer/src/render/__tests__/pdf-compare-harness.test.ts` — generates HTML report at `packages/tmp/pdf-compare/usg-briefing/report.html`.
+**PPTX SBS viewer**: `pnpm sbs -- --pptx <path> --ref-dir <dir>` or `node scripts/generate-sbs-viewer.mjs`.
+**PowerPoint ground truth**: `~/dev/USG Briefing/PNG-USG Briefing Mar 7 - UNCLAS/` (30 slides, 2880x1620).

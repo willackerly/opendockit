@@ -16,7 +16,7 @@ declare function createImageBitmap(image: Blob): Promise<ImageBitmap>;
 declare interface ImageBitmap { readonly width: number; readonly height: number; close(): void; }
 declare class ImageData { constructor(data: Uint8ClampedArray, sw: number, sh: number); readonly data: Uint8ClampedArray; readonly width: number; readonly height: number; }
 
-import type { RenderOptions, RenderResult } from './types.js';
+import type { RenderOptions, RenderResult, RenderDiagnostic } from './types.js';
 import { RenderDiagnosticsCollector } from './types.js';
 import { evaluatePage, evaluatePageWithElements } from './evaluator.js';
 import type { PageElement } from '../elements/types.js';
@@ -99,7 +99,7 @@ export class NativeRenderer {
     pageIndex: number,
     canvas: HTMLCanvasElement,
     options?: RenderOptions
-  ): Promise<{ width: number; height: number; timeMs: number }> {
+  ): Promise<{ width: number; height: number; timeMs: number; diagnostics?: RenderDiagnostic[] }> {
     if (pageIndex < 0 || pageIndex >= this.pages.length) {
       throw new RangeError(`Page index ${pageIndex} out of range (0..${this.pages.length - 1})`);
     }
@@ -139,7 +139,12 @@ export class NativeRenderer {
     graphics.execute(opList);
 
     const t1 = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    return { width: canvasWidth, height: canvasHeight, timeMs: t1 - t0 };
+    return {
+      width: canvasWidth,
+      height: canvasHeight,
+      timeMs: t1 - t0,
+      diagnostics: diagnostics.length > 0 ? diagnostics.items : undefined,
+    };
   }
 
   /**
@@ -256,7 +261,7 @@ export class NativeRenderer {
     if (typeof createImageBitmap === 'undefined') return;
 
     const { fnArray, argsArray } = opList;
-    const promises: Array<{ index: number; promise: Promise<ImageData | null> }> = [];
+    const promises: Array<{ index: number; promise: Promise<ImageBitmap | null> }> = [];
 
     for (let i = 0; i < fnArray.length; i++) {
       if (
@@ -281,19 +286,34 @@ export class NativeRenderer {
       const result = results[j];
       if (result.status === 'fulfilled' && result.value) {
         const image = argsArray[promises[j].index]![0] as NativeImage;
-        const imgData = result.value;
-        image.data = new Uint8Array(imgData.data.buffer, imgData.data.byteOffset, imgData.data.byteLength);
-        image.width = imgData.width;
-        image.height = imgData.height;
-        (image as any).isJpeg = false;
+        const bitmap = result.value;
 
-        // Apply SMask if stored during evaluation (JPEG images defer SMask to after decode)
+        // If image has an SMask, we need RGBA pixels to apply alpha.
+        // Otherwise, keep the ImageBitmap for direct drawing (avoids crosshatch artifacts).
         if (image.smaskData) {
+          // Decode to RGBA to apply soft mask
+          const oc = new OffscreenCanvas(bitmap.width, bitmap.height);
+          const octx = oc.getContext('2d')!;
+          octx.drawImage(bitmap, 0, 0);
+          bitmap.close();
+          const imgData = octx.getImageData(0, 0, oc.width, oc.height);
+          image.data = new Uint8Array(imgData.data.buffer, imgData.data.byteOffset, imgData.data.byteLength);
+          image.width = imgData.width;
+          image.height = imgData.height;
+          (image as any).isJpeg = false;
+
+          // Apply SMask as alpha channel
           const pixelCount = image.width * image.height;
           for (let i = 0; i < pixelCount; i++) {
             image.data[i * 4 + 3] = image.smaskData[i];
           }
           image.smaskData = undefined;
+        } else {
+          // Store bitmap directly — paintImage will use ctx.drawImage(bitmap, ...)
+          image.bitmap = bitmap;
+          image.width = bitmap.width;
+          image.height = bitmap.height;
+          (image as any).isJpeg = false;
         }
       }
     }
@@ -301,20 +321,15 @@ export class NativeRenderer {
 
   private async decodeJpegAsync(
     jpegData: Uint8Array,
-    width: number,
-    height: number,
+    _width: number,
+    _height: number,
     diagnostics: RenderDiagnosticsCollector,
-  ): Promise<ImageData | null> {
+  ): Promise<ImageBitmap | null> {
     try {
       const blob = new Blob([jpegData], { type: 'image/jpeg' });
-      const bitmap = await createImageBitmap(blob);
-      const oc = new OffscreenCanvas(bitmap.width, bitmap.height);
-      const ctx = oc.getContext('2d')!;
-      ctx.drawImage(bitmap, 0, 0);
-      bitmap.close();
-      return ctx.getImageData(0, 0, oc.width, oc.height);
+      return await createImageBitmap(blob);
     } catch (err) {
-      diagnostics.warn('image', `Failed to async-decode JPEG (${width}x${height})`, {
+      diagnostics.warn('image', `Failed to async-decode JPEG (${_width}x${_height})`, {
         error: String(err),
       });
       return null;

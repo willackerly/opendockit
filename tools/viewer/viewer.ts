@@ -555,7 +555,13 @@ async function renderAllPdfPages(): Promise<void> {
       setStatus(`Rendering page ${i + 1} of ${pageCount}...`);
 
       // Render directly to our offscreen canvas (scale 1.5 = ~108 DPI)
-      await pdfRenderer.renderPageToCanvas(i, offscreen, { scale: 1.5 });
+      const renderResult = await pdfRenderer.renderPageToCanvas(i, offscreen, { scale: 1.5 });
+      if (renderResult.diagnostics && renderResult.diagnostics.length > 0) {
+        console.warn(`[PDF Page ${i + 1}] ${renderResult.diagnostics.length} diagnostic(s):`);
+        for (const d of renderResult.diagnostics) {
+          console.warn(`  [${d.category}] ${d.message}`, d.details || '');
+        }
+      }
 
       // Snapshot the rendered canvas to a data URL
       const imgContainer = document.createElement('div');
