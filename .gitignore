@@ -32,4 +32,5 @@ reference/
 test-data/corpus-baselines/
 
 # Downloaded font files (used for metrics extraction, not shipped)
-fonts/
+/fonts/
+

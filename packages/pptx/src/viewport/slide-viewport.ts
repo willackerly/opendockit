@@ -44,7 +44,9 @@ import {
   hasOflSubstitute,
   hasBundledFont,
   loadBundledFonts,
+  FontResolver,
 } from '@opendockit/core/font';
+import type { FontConfig } from '@opendockit/core/font';
 import type { FontFaceMetrics, FontMetricsBundle } from '@opendockit/core/font';
 import { metricsBundle } from '@opendockit/core/font/data/metrics-bundle';
 import type {
@@ -113,6 +115,11 @@ export interface SlideKitOptions {
    * how to present these (console, toast UI, diagnostic panel, etc.).
    */
   onDiagnostic?: DiagnosticListener;
+  /**
+   * Font resolution configuration. When provided, uses the new FontResolver
+   * instead of the built-in 5-tier cascade. See FontConfig for options.
+   */
+  fontConfig?: FontConfig;
 }
 
 /** Progress event emitted during load and render operations. */
@@ -166,6 +173,7 @@ export class SlideKit {
   private _dpiScale: number;
   private _fontSubstitutions: Record<string, string>;
   private _userFonts: SlideKitOptions['fonts'];
+  private _fontConfig: FontConfig | undefined;
   private _fontMetricsDB: FontMetricsDB;
   /** Set of font families successfully loaded at runtime. */
   private _loadedFonts = new Set<string>();
@@ -201,6 +209,7 @@ export class SlideKit {
     this._canvas = options.canvas;
     this._fontSubstitutions = options.fontSubstitutions ?? {};
     this._userFonts = options.fonts;
+    this._fontConfig = options.fontConfig;
     this._onProgress = options.onProgress;
     this._onSlideInvalidated = options.onSlideInvalidated;
     this._diagnostics = new DiagnosticEmitter(options.onDiagnostic);
@@ -1309,6 +1318,10 @@ export class SlideKit {
    * can bypass the static substitution table.
    */
   private async _loadFonts(pkg: OpcPackage, pres: PresentationIR): Promise<void> {
+    if (this._fontConfig) {
+      await this._loadFontsViaResolver(pkg, pres);
+      return;
+    }
     this._emitProgress('loading', 0, 5, 'Loading fonts');
 
     // Strategy 1: User-supplied fonts (highest priority)
@@ -1357,6 +1370,67 @@ export class SlideKit {
       }
     }
     this._emitProgress('loading', 5, 5, 'All fonts loaded');
+  }
+
+  /**
+   * Load fonts via the new FontResolver pipeline (opt-in via fontConfig).
+   *
+   * Uses the unified FontResolver which tries: memory cache, companion
+   * package, app-configured base URL, CacheStorage, custom URL resolver,
+   * Fontsource CDN, and Google Fonts CSS — in priority order.
+   */
+  private async _loadFontsViaResolver(
+    pkg: OpcPackage,
+    pres: PresentationIR
+  ): Promise<void> {
+    const config = this._fontConfig!;
+    const resolver = new FontResolver(config);
+
+    this._emitProgress('loading', 0, 4, 'Detecting fonts');
+
+    // Auto-detect companion package
+    await resolver.detectCompanion();
+
+    // Register user-supplied fonts first (highest priority)
+    if (config.fonts) {
+      for (const f of config.fonts) {
+        if (typeof f.src === 'string') {
+          // URL source — resolver.resolve() handles these
+          continue;
+        }
+        const descriptors: FontFaceDescriptors = {};
+        if (f.weight && f.weight !== 400) descriptors.weight = String(f.weight);
+        if (f.style && f.style !== 'normal') descriptors.style = f.style;
+        await loadFont(f.family, f.src, descriptors);
+        this._loadedFonts.add(f.family);
+      }
+    }
+    this._emitProgress('loading', 1, 4, 'User fonts loaded');
+
+    // Load embedded fonts from PPTX (same as existing cascade)
+    await this._loadEmbeddedFonts(pkg, pres);
+    this._emitProgress('loading', 2, 4, 'Embedded fonts loaded');
+
+    // Prefetch configured families
+    if (config.prefetchFonts) {
+      await resolver.prefetch(config.prefetchFonts);
+      for (const f of config.prefetchFonts) {
+        this._loadedFonts.add(f);
+      }
+    }
+
+    // Resolve all discovered font families not yet loaded
+    const neededFamilies = await this._collectNeededFontFamilies(pkg, pres);
+    const stillNeeded = neededFamilies.filter((f) => !this._loadedFonts.has(f));
+
+    await Promise.all(
+      stillNeeded.map(async (family) => {
+        const ok = await resolver.resolve(family);
+        if (ok) this._loadedFonts.add(family);
+      })
+    );
+
+    this._emitProgress('loading', 4, 4, 'All fonts loaded');
   }
 
   /**

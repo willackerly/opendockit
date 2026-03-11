@@ -12,6 +12,7 @@ export type {
   SlideKitProgressEvent,
   LoadedPresentation,
   HyperlinkHitRegion,
+  FontConfig,
 } from './viewport/index.js';
 
 // Model types

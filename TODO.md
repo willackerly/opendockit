@@ -219,8 +219,9 @@ Deep investigation of top-10 RMSE slides confirms:
 
 ### Phase 5: DOCX
 
-- [ ] WordprocessingML parser
-- [ ] Page layout engine
+- [x] WordprocessingML parser (document/paragraph/run/styles/numbering/section) — 129 tests
+- [x] Page layout engine scaffold — greedy word-boundary line breaking, section geometry, page breaks (2026-03-11)
+- [ ] Full page layout engine — floats, tables, columns, headers/footers, footnotes
 - [ ] Reuses ~40% of core DrawingML
 
 ### Phase 6: XLSX
@@ -244,7 +245,7 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 
 ### NativeRenderer (PDF Reading) — Active Focus
 
-**Current state:** Avg RMSE **0.069** against pdftoppm on USG Briefing (30 pages). Down from 0.14 — **51% reduction**. 24/30 pages FAIR (< 0.08), 6 BAD, worst page 29 at 0.19.
+**Current state:** Pixel RMSE **0.053** against pdftoppm on USG Briefing (30 pages). Down from 0.14 — **62% reduction**. Structural: **97% text accuracy, 4.4pt avg position delta** via Canvas Tree Recorder trace pipeline.
 
 **Done (2026-03-08):**
 - [x] Fix curveTo2 (v operator) — correct bezierCurveTo with current point tracking
@@ -274,7 +275,7 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [x] Tiling pattern implementation — PatternType 1 colored tiling via offscreen canvas + `ctx.createPattern()`
 - [x] Font extraction infrastructure — FontExtractor + FontRegistrar with fonttools patching (disabled pending metric tuning)
 
-**Element-Level Structural Diffing (infrastructure built 2026-03-11)**
+**Element-Level Structural Diffing (complete 2026-03-11)**
 
 Shift from pixel RMSE to structured comparison. The evaluator emits TextElement/ShapeElement/ImageElement — compare against Poppler ground truth for actionable per-element scoring.
 
@@ -283,17 +284,25 @@ Shift from pixel RMSE to structured comparison. The evaluator emits TextElement/
 - [x] Per-element scoring: text position accuracy, content correctness, font size match
 - [x] HTML diff report with element-level annotations
 - [x] Integration test harness — `element-diff-harness.test.ts` (3 tests)
-- [ ] Coordinate tuning — first run: 8.2% text accuracy, 29.7pt position delta (needs calibration)
+- [x] Coordinate tuning — 97% text accuracy, 4.4pt avg position delta (via Canvas Tree Recorder trace pipeline)
 - [ ] Integrate as `pnpm test:visual:pdf:elements` alongside pixel RMSE
 
-**Canvas Tree Recorder (planned — see `docs/plans/CANVAS_TREE_PLAN.md`)**
+**Canvas Tree Recorder (Phase 1+2 complete — see `docs/plans/CANVAS_TREE_PLAN.md`)**
 
 Instrument canvas-graphics.ts to emit TraceEvent[] (same format as PPTX TracingBackend). Enables structural comparison of every canvas operation — per-character font, size, position, color.
 
-- [ ] Phase 1: CanvasTreeRecorder class + canvas-graphics.ts instrumentation + NativeRenderer wiring
-- [ ] Phase 2: Wire to existing trace-to-elements → element-matcher → property-diff pipeline
+- [x] Phase 1: CanvasTreeRecorder class + canvas-graphics.ts instrumentation + NativeRenderer wiring (2026-03-11)
+- [x] Phase 2: Trace pipeline — traceToFlatRuns → groupGlyphsIntoWords → matchTextElements → ground truth comparison (2026-03-11)
+  - 97% text accuracy, 4.4pt avg position delta (up from 8.2% / 29.7pt)
+  - Key discoveries: page-level `cm` scaling, space-character word delimiters, font ascent from FontDescriptor
 - [ ] Phase 3: Cross-format comparison (PPTX TracingBackend vs PDF CanvasTreeRecorder)
 - [ ] Phase 4: Diagnostic HTML report with font/position/color mismatch visualization
+
+**Rendering accuracy improvements (2026-03-11):**
+- [x] Font size clamping [16, 100]px with fontSizeScale compensation (pdf.js pattern)
+- [x] Per-character remeasure system — ctx.measureText() correction when >5% width difference
+- [x] Actual glyph widths from PDF font metrics (was 0.6×fontSize fallback)
+- [x] Font ascent from FontDescriptor /Ascent (handles Type0/composite fonts)
 
 **Remaining pixel-level issues (lower priority):**
 - [ ] ExtGState SMask transparency groups (page 29 — Hard, requires offscreen compositing)
@@ -305,6 +314,18 @@ Instrument canvas-graphics.ts to emit TraceEvent[] (same format as PPTX TracingB
 **Tools consolidation:**
 - [ ] Unify diagnostic/comparison scripts (check-fonts, diagnose-fonts, diagnose-slide, measure-line-heights)
 - [ ] Streamline SBS viewer and comparison infrastructure
+
+### Font Delivery Redesign (offline-first) — see `docs/plans/FONT_DELIVERY_EXECUTION.md`
+
+Core npm drops from 18MB → ~800KB. Fonts become optional companion package + CDN.
+
+- [x] Phase 1: Create `@opendockit/fonts` companion package (scaffold, generate-font-package.py, registerOfflineFonts API, 8 tests) (2026-03-11)
+- [x] Phase 2: Add `FontResolver` to core (unified resolution pipeline, CDN fetcher, font cache, FontConfig types, SUBSTITUTION_REGISTRY — 37 tests) (2026-03-11)
+- [x] Phase 2b: Wire FontResolver into SlideKit as opt-in `fontConfig` option, re-export `FontConfig` type (2026-03-11)
+- [ ] Phase 3: Remove base64 WOFF2/TTF from core (**BREAKING** — 17MB deleted, companion becomes offline source) — IN PROGRESS
+- [ ] Phase 3b: Generate actual font files (`pnpm fonts:package` → populate companion with real WOFF2/TTF) — IN PROGRESS
+- [ ] Phase 4: CDN fallback polish (timeouts, retry, progress events, remove hardcoded Google Fonts allowlist)
+- [ ] Phase 5: harfbuzzjs PDF subsetting (lazy WASM, subset to used glyphs only)
 
 ### pdfbox-ts Integration Items (FYI from prior team)
 

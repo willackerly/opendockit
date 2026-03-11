@@ -173,3 +173,418 @@ export function resolveFontName(fontName: string): string {
   // Unknown font — return original with generic fallback
   return `'${fontName}', sans-serif`;
 }
+
+// ---------------------------------------------------------------------------
+// Extended substitution registry for FontResolver CDN resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Extended substitution entry with CDN metadata.
+ * Used by FontResolver for dynamic font fetching from Fontsource/Google CDN.
+ */
+export interface SubstitutionEntry {
+  /** OFL substitute font family name. */
+  substitute: string;
+  /** Fontsource CDN identifier (lowercase, hyphenated). */
+  fontsourceId: string;
+  /** Original Office font this substitutes for (if applicable). */
+  officeFont?: string;
+  /** Available subsets. */
+  subsets: string[];
+  /** Available weights. */
+  weights: number[];
+}
+
+/**
+ * Registry mapping font family names (lowercase) to CDN resolution metadata.
+ *
+ * Covers all families in the WOFF2 manifest plus Office font mappings.
+ * The existing SUBSTITUTIONS object and resolveFontName()/getFontSubstitution()
+ * functions are NOT modified — this is a parallel data structure used only
+ * by the new FontResolver.
+ */
+export const SUBSTITUTION_REGISTRY: Record<string, SubstitutionEntry> = {
+  // ── Office fonts → OFL metric-compatible substitutes ──────────────────
+
+  calibri: {
+    substitute: 'Carlito',
+    fontsourceId: 'carlito',
+    officeFont: 'Calibri',
+    subsets: ['latin', 'latin-ext', 'cyrillic'],
+    weights: [400, 700],
+  },
+  'calibri light': {
+    substitute: 'Carlito',
+    fontsourceId: 'carlito',
+    officeFont: 'Calibri Light',
+    subsets: ['latin', 'latin-ext', 'cyrillic'],
+    weights: [400],
+  },
+  cambria: {
+    substitute: 'Caladea',
+    fontsourceId: 'caladea',
+    officeFont: 'Cambria',
+    subsets: ['latin', 'latin-ext', 'cyrillic'],
+    weights: [400, 700],
+  },
+  arial: {
+    substitute: 'Liberation Sans',
+    fontsourceId: 'liberation-sans',
+    officeFont: 'Arial',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek'],
+    weights: [400, 700],
+  },
+  'arial narrow': {
+    substitute: 'Liberation Sans Narrow',
+    fontsourceId: 'liberation-sans-narrow',
+    officeFont: 'Arial Narrow',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+  'times new roman': {
+    substitute: 'Liberation Serif',
+    fontsourceId: 'liberation-serif',
+    officeFont: 'Times New Roman',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek'],
+    weights: [400, 700],
+  },
+  'courier new': {
+    substitute: 'Liberation Mono',
+    fontsourceId: 'liberation-mono',
+    officeFont: 'Courier New',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek'],
+    weights: [400, 700],
+  },
+  georgia: {
+    substitute: 'Gelasio',
+    fontsourceId: 'gelasio',
+    officeFont: 'Georgia',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+  'segoe ui': {
+    substitute: 'Selawik',
+    fontsourceId: 'selawik',
+    officeFont: 'Segoe UI',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+  'segoe ui light': {
+    substitute: 'Selawik Light',
+    fontsourceId: 'selawik',
+    officeFont: 'Segoe UI Light',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400],
+  },
+  'segoe ui semibold': {
+    substitute: 'Selawik Semibold',
+    fontsourceId: 'selawik',
+    officeFont: 'Segoe UI Semibold',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400],
+  },
+  'segoe ui semilight': {
+    substitute: 'Selawik Semilight',
+    fontsourceId: 'selawik',
+    officeFont: 'Segoe UI Semilight',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400],
+  },
+  'palatino linotype': {
+    substitute: 'TeX Gyre Pagella',
+    fontsourceId: 'tex-gyre-pagella',
+    officeFont: 'Palatino Linotype',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+  'bookman old style': {
+    substitute: 'TeX Gyre Bonum',
+    fontsourceId: 'tex-gyre-bonum',
+    officeFont: 'Bookman Old Style',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+  'century schoolbook': {
+    substitute: 'TeX Gyre Schola',
+    fontsourceId: 'tex-gyre-schola',
+    officeFont: 'Century Schoolbook',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+
+  // ── OFL substitute families (standalone) ──────────────────────────────
+
+  carlito: {
+    substitute: 'Carlito',
+    fontsourceId: 'carlito',
+    subsets: ['latin', 'latin-ext', 'cyrillic'],
+    weights: [400, 700],
+  },
+  caladea: {
+    substitute: 'Caladea',
+    fontsourceId: 'caladea',
+    subsets: ['latin', 'latin-ext', 'cyrillic'],
+    weights: [400, 700],
+  },
+  gelasio: {
+    substitute: 'Gelasio',
+    fontsourceId: 'gelasio',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+  selawik: {
+    substitute: 'Selawik',
+    fontsourceId: 'selawik',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+  'selawik light': {
+    substitute: 'Selawik Light',
+    fontsourceId: 'selawik',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400],
+  },
+  'selawik semibold': {
+    substitute: 'Selawik Semibold',
+    fontsourceId: 'selawik',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400],
+  },
+  'selawik semilight': {
+    substitute: 'Selawik Semilight',
+    fontsourceId: 'selawik',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400],
+  },
+  'liberation sans': {
+    substitute: 'Liberation Sans',
+    fontsourceId: 'liberation-sans',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek'],
+    weights: [400, 700],
+  },
+  'liberation sans narrow': {
+    substitute: 'Liberation Sans Narrow',
+    fontsourceId: 'liberation-sans-narrow',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+  'liberation serif': {
+    substitute: 'Liberation Serif',
+    fontsourceId: 'liberation-serif',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek'],
+    weights: [400, 700],
+  },
+  'liberation mono': {
+    substitute: 'Liberation Mono',
+    fontsourceId: 'liberation-mono',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek'],
+    weights: [400, 700],
+  },
+  'tex gyre pagella': {
+    substitute: 'TeX Gyre Pagella',
+    fontsourceId: 'tex-gyre-pagella',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+  'tex gyre bonum': {
+    substitute: 'TeX Gyre Bonum',
+    fontsourceId: 'tex-gyre-bonum',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+  'tex gyre schola': {
+    substitute: 'TeX Gyre Schola',
+    fontsourceId: 'tex-gyre-schola',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+
+  // ── Google Fonts families ─────────────────────────────────────────────
+
+  arimo: {
+    substitute: 'Arimo',
+    fontsourceId: 'arimo',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [400, 700],
+  },
+  tinos: {
+    substitute: 'Tinos',
+    fontsourceId: 'tinos',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [400, 700],
+  },
+  roboto: {
+    substitute: 'Roboto',
+    fontsourceId: 'roboto',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [400, 700],
+  },
+  'roboto mono': {
+    substitute: 'Roboto Mono',
+    fontsourceId: 'roboto-mono',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [400, 700],
+  },
+  'roboto slab': {
+    substitute: 'Roboto Slab',
+    fontsourceId: 'roboto-slab',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [400, 700],
+  },
+  'roboto slab light': {
+    substitute: 'Roboto Slab Light',
+    fontsourceId: 'roboto-slab',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [300],
+  },
+  'roboto slab medium': {
+    substitute: 'Roboto Slab Medium',
+    fontsourceId: 'roboto-slab',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [500],
+  },
+  'roboto slab semibold': {
+    substitute: 'Roboto Slab SemiBold',
+    fontsourceId: 'roboto-slab',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [600],
+  },
+  'open sans': {
+    substitute: 'Open Sans',
+    fontsourceId: 'open-sans',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [400, 700],
+  },
+  'open sans extrabold': {
+    substitute: 'Open Sans ExtraBold',
+    fontsourceId: 'open-sans',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [800],
+  },
+  lato: {
+    substitute: 'Lato',
+    fontsourceId: 'lato',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+  'lato light': {
+    substitute: 'Lato Light',
+    fontsourceId: 'lato',
+    subsets: ['latin', 'latin-ext'],
+    weights: [300],
+  },
+  montserrat: {
+    substitute: 'Montserrat',
+    fontsourceId: 'montserrat',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'vietnamese'],
+    weights: [400, 700],
+  },
+  poppins: {
+    substitute: 'Poppins',
+    fontsourceId: 'poppins',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+  'noto sans': {
+    substitute: 'Noto Sans',
+    fontsourceId: 'noto-sans',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [400, 700],
+  },
+  'noto sans symbols': {
+    substitute: 'Noto Sans Symbols',
+    fontsourceId: 'noto-sans-symbols',
+    subsets: ['latin'],
+    weights: [400, 700],
+  },
+  'noto serif': {
+    substitute: 'Noto Serif',
+    fontsourceId: 'noto-serif',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [400, 700],
+  },
+  oswald: {
+    substitute: 'Oswald',
+    fontsourceId: 'oswald',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'vietnamese'],
+    weights: [400, 700],
+  },
+  'playfair display': {
+    substitute: 'Playfair Display',
+    fontsourceId: 'playfair-display',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'vietnamese'],
+    weights: [400, 700],
+  },
+  raleway: {
+    substitute: 'Raleway',
+    fontsourceId: 'raleway',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'vietnamese'],
+    weights: [400, 700],
+  },
+  'source code pro': {
+    substitute: 'Source Code Pro',
+    fontsourceId: 'source-code-pro',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [400, 700],
+  },
+  'source sans pro': {
+    substitute: 'Source Sans Pro',
+    fontsourceId: 'source-sans-3',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'vietnamese'],
+    weights: [400, 700],
+  },
+  ubuntu: {
+    substitute: 'Ubuntu',
+    fontsourceId: 'ubuntu',
+    subsets: ['latin', 'latin-ext', 'cyrillic', 'greek'],
+    weights: [400, 700],
+  },
+  play: {
+    substitute: 'Play',
+    fontsourceId: 'play',
+    subsets: ['latin', 'latin-ext', 'cyrillic'],
+    weights: [400, 700],
+  },
+  barlow: {
+    substitute: 'Barlow',
+    fontsourceId: 'barlow',
+    subsets: ['latin', 'latin-ext', 'vietnamese'],
+    weights: [400, 700],
+  },
+  'barlow light': {
+    substitute: 'Barlow Light',
+    fontsourceId: 'barlow',
+    subsets: ['latin', 'latin-ext', 'vietnamese'],
+    weights: [300],
+  },
+  'barlow medium': {
+    substitute: 'Barlow Medium',
+    fontsourceId: 'barlow',
+    subsets: ['latin', 'latin-ext', 'vietnamese'],
+    weights: [500],
+  },
+  comfortaa: {
+    substitute: 'Comfortaa',
+    fontsourceId: 'comfortaa',
+    subsets: ['latin', 'latin-ext', 'cyrillic'],
+    weights: [400, 700],
+  },
+  'comfortaa light': {
+    substitute: 'Comfortaa Light',
+    fontsourceId: 'comfortaa',
+    subsets: ['latin', 'latin-ext', 'cyrillic'],
+    weights: [300],
+  },
+  'courier prime': {
+    substitute: 'Courier Prime',
+    fontsourceId: 'courier-prime',
+    subsets: ['latin', 'latin-ext'],
+    weights: [400, 700],
+  },
+  'fira code': {
+    substitute: 'Fira Code',
+    fontsourceId: 'fira-code',
+    subsets: ['latin', 'latin-ext', 'cyrillic'],
+    weights: [400, 700],
+  },
+};

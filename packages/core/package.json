@@ -46,10 +46,6 @@
       "types": "./dist/font/data/metrics-bundle.d.ts",
       "import": "./dist/font/data/metrics-bundle.js"
     },
-    "./font/data/ttf/manifest": {
-      "types": "./dist/font/data/ttf/manifest.d.ts",
-      "import": "./dist/font/data/ttf/manifest.js"
-    },
     "./media": {
       "types": "./dist/media/index.d.ts",
       "import": "./dist/media/index.js"
@@ -79,6 +75,12 @@
     "@xmldom/xmldom": "^0.8.11",
     "fast-xml-parser": "^4.5.0",
     "jszip": "^3.10.0"
+  },
+  "peerDependencies": {
+    "@opendockit/fonts": "^0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@opendockit/fonts": { "optional": true }
   },
   "devDependencies": {
     "typescript": "^5.7.0",

@@ -13,10 +13,11 @@
   - Also handles generic font families
 - `font-metrics-db.ts` — `FontMetricsDB` class for precomputed per-glyph advance widths and vertical metrics
   - Loaded from `data/metrics-bundle.ts` (42 families, 130 faces, ~750KB)
-- `bundled-font-loader.ts` — `loadBundledFont(family, bold, italic): Promise<FontFace>` for Canvas2D rendering
-  - Loads WOFF2 modules from `data/woff2/` via dynamic import
+- `bundled-font-loader.ts` — `loadBundledFont(family): Promise<boolean>` for Canvas2D rendering
+  - Loads WOFF2 from `@opendockit/fonts` companion package (optional peer dep)
+  - Falls back to false if companion is not installed
 - `ttf-loader.ts` — `loadTTF(family, bold, italic): Promise<Uint8Array | null>` for PDF embedding
-  - Loads raw TTF bytes from `data/ttf/` via dynamic import
+  - Loads raw TTF bytes from `@opendockit/fonts` companion package
   - Cached: same font requested multiple times returns same Uint8Array
   - Variant fallback cascade: boldItalic → bold → italic → regular → first available
   - `hasTTFBundle(family): boolean` — check if a family has TTF data available
@@ -29,10 +30,7 @@
 **Data directories:**
 
 - `data/metrics-bundle.ts` — precomputed advance widths + vertical metrics (42 families, 130 faces)
-- `data/woff2/` — base64-encoded WOFF2 modules for Canvas2D rendering (~5MB, 42 families)
-- `data/woff2/manifest.ts` — maps family names to WOFF2 module paths
-- `data/ttf/` — base64-encoded raw TTF modules for PDF embedding (~12MB, 46 modules)
-- `data/ttf/manifest.ts` — maps family names to TTF module paths + variant info
+- WOFF2 and TTF font data moved to `@opendockit/fonts` companion package (optional peer dep)
 
 **Dependencies:**
 
@@ -45,7 +43,7 @@
 **Font loading tiers (highest priority first):**
 1. User-supplied fonts — app provides ArrayBuffer/URL
 2. PPTX embedded fonts — EOT parser extracts from the file
-3. Bundled WOFF2 fonts — 42 families shipped in npm package (Canvas2D)
+3. Bundled WOFF2 fonts — 42 families from @opendockit/fonts companion package (Canvas2D)
 4. OFL CDN fallback — metrically compatible open fonts
 5. Google Fonts CDN fallback — for Google Slides fonts
 6. Bundled TTF fonts — raw TrueType for PDF embedding (separate tier, used by pdf-font-embedder)

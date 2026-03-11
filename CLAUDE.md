@@ -6,6 +6,12 @@ Project instructions for Claude Code. These override defaults—follow them exac
 
 Progressive-fidelity, 100% client-side OOXML document renderer. Monorepo with shared DrawingML core and format-specific packages (PPTX first, then DOCX/XLSX).
 
+## Core Tenets
+
+1. **Offline-First** — Every feature must work without network access. Network is for enhancement (CDN font fetching, updates), never a hard dependency. Font metrics ship in-bundle for instant layout; font binaries available via companion package (`@opendockit/fonts`) for full offline rendering. Test offline paths first.
+2. **Client-Side Only** — Zero server dependencies. All parsing, rendering, editing, and export runs in the browser or Node.js. No server-side rendering, no API calls for core functionality.
+3. **Progressive Fidelity** — Render something useful immediately, improve quality as resources load. Metrics-only text layout → font binary swap → WASM-accelerated effects. Never block on optional resources.
+
 ## Cold Start (New Agent?)
 
 **Read in order:**
@@ -34,14 +40,21 @@ pnpm fonts:metrics          # regenerate metrics-bundle.ts from fonts/
 pnpm fonts:woff2            # regenerate WOFF2 TS bundles from fonts/ (needs python3 fontTools)
 pnpm fonts:bundle           # regenerate both metrics + WOFF2
 pnpm fonts:rebuild          # full pipeline: download + metrics + WOFF2
+pnpm fonts:package          # generate @opendockit/fonts companion (raw WOFF2/TTF + manifest)
 ```
 
 ## Structure
 
-- `packages/core/` - `@opendockit/core` — shared OOXML infrastructure (OPC, DrawingML, themes, geometry)
+- `packages/core/` - `@opendockit/core` — shared OOXML infrastructure (OPC, DrawingML, themes, geometry, font metrics + FontResolver)
 - `packages/pptx/` - `@opendockit/pptx` — PPTX renderer (SlideKit)
+- `packages/docx/` - `@opendockit/docx` — DOCX renderer (DocKit)
+- `packages/elements/` - `@opendockit/elements` — unified element model (PageModel/PageElement)
+- `packages/render/` - `@opendockit/render` — shared render utilities (font metrics, color, matrix)
+- `packages/pdf/` - `@opendockit/pdf` — PDF export pipeline (PDFBackend)
+- `packages/fonts/` - `@opendockit/fonts` — offline font companion (42 OFL families, WOFF2 + TTF). Optional peer dep of core.
+- `packages/pdf-signer/` - `@opendockit/pdf-signer` — PDF signing primitives (Apache PDFBox port)
 - `packages/wasm-modules/` - On-demand WASM accelerators (future)
-- `tools/` - Visual regression, corpus runner, coverage dashboard
+- `tools/` - Visual regression, corpus runner, coverage dashboard, unified viewer
 - `test-data/` - PPTX/DOCX/XLSX test fixtures
 - `docs/` - Architecture, specs, testing, plans, status
 - `scripts/` - Build and utility scripts

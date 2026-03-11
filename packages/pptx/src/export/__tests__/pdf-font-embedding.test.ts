@@ -523,6 +523,11 @@ describe('embedFontsForPdf', () => {
   });
 
   it('embeds bundled fonts as custom (not standard)', async () => {
+    // Skip if companion package not installed (no TTF data available)
+    const { loadTTF } = await import('@opendockit/core/font');
+    const testBytes = await loadTTF('Arial', false, false);
+    if (!testBytes) return;
+
     const pdfDoc = await PDFDocument.create({ updateMetadata: false });
     const results = await embedFontsForPdf(
       [

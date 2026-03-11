@@ -10,6 +10,16 @@
 
 **Full context:** 4. `README.md` → repo purpose + quick start 5. `AGENTS.md` (this file) → norms 6. `docs/README.md` → documentation tree
 
+## Core Tenets
+
+Every feature and decision must align with these non-negotiable principles:
+
+1. **Offline-First** — Every feature works without network. Font metrics ship in-bundle; companion `@opendockit/fonts` provides full offline rendering. Network is for enhancement only. Test offline paths first.
+2. **Client-Side Only** — Zero server dependencies. Parsing, rendering, editing, export all run in browser/Node.js.
+3. **Progressive Fidelity** — Render immediately with what's available, improve as resources load. Never block on optional resources.
+
+---
+
 ## Agent Autonomy
 
 **Maximum autonomy granted.** Act decisively. Ship code. Don't ask permission for routine work.
@@ -121,10 +131,10 @@ Multiple agents work async on this codebase. Docs drift when agents complete wor
 
 ## Active Workstreams (2026-03-11)
 
-- **Phase 0–3.5, Edit, 4 (COMPLETE)** — Full PPTX rendering, editing, PDF/Office unified architecture. **4,564 tests passing** (1,768 core + 331 elements + 208 render + 370 pptx + 1,734 pdf-signer + 129 docx + 24 pdf).
-- **NativeRenderer Quality (ACTIVE)** — PDF reading fidelity. Avg RMSE **0.069** against pdftoppm (down from 0.14 — 51% reduction). 24/30 pages FAIR. 15 rendering bugs fixed (including negative fontSize, CS/cs tracking). Element-level structural diffing infrastructure built (ground-truth-extractor + element-matcher + integration harness, 55 new tests). **Next: Canvas Tree Recorder** — see `docs/plans/CANVAS_TREE_PLAN.md`.
-- **pdf-signer-web migration (COMPLETE 2026-03-11)** — Swapped vendored pdfbox-ts for @opendockit/pdf-signer. 2 files changed, all tests pass.
-- **DOCX support (scaffold done, 129 tests)** — WordprocessingML parser + DocKit viewport complete; page layout engine future
+- **Font Delivery Redesign (ACTIVE)** — Offline-first architecture. Core npm 18MB → ~800KB. `@opendockit/fonts` companion package for offline rendering, FontResolver + CDN fallback for online. Phase 1-2 complete (45 new tests), Phase 3 in progress (remove base64 bundles). See `docs/plans/FONT_DELIVERY_PLAN.md`.
+- **Phase 0–3.5, Edit, 4 (COMPLETE)** — Full PPTX rendering, editing, PDF/Office unified architecture. **4,630 tests passing** (1,805 core + 331 elements + 208 render + 370 pptx + 1,755 pdf-signer + 129 docx + 24 pdf + 8 fonts).
+- **NativeRenderer Quality** — PDF reading fidelity. Pixel RMSE **0.053** (down from 0.14 — 62% reduction). Structural: **97% text accuracy, 4.4pt position delta**. Canvas Tree Recorder Phase 1+2 complete. See `docs/plans/CANVAS_TREE_PLAN.md`.
+- **DOCX support (scaffold done, 129 tests)** — WordprocessingML parser + DocKit viewport + page layout engine scaffold. See `docs/plans/DOCX_LAYOUT_PLAN.md`.
 - **Still deferred** — CanvasKit WASM, slide transitions, SVG export, full ChartML parser
 - **XLSX support (future)** — SpreadsheetML parser + grid layout, reuses ~35% of core
 

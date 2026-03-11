@@ -1,0 +1,31 @@
+{
+  "name": "@opendockit/fonts",
+  "version": "0.1.0",
+  "description": "Offline font package for OpenDocKit — OFL font families (WOFF2 + TTF)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./manifest.json": "./manifest.json",
+    "./woff2/*": "./woff2/*",
+    "./ttf/*": "./ttf/*"
+  },
+  "files": ["dist/", "woff2/", "ttf/", "manifest.json"],
+  "dependencies": {
+    "@opendockit/core": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  },
+  "license": "MIT"
+}

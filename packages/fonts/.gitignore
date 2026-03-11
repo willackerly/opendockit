@@ -1,0 +1,8 @@
+# Generated font files (created by pnpm fonts:package)
+woff2/**/*.woff2
+ttf/**/*.ttf
+# But keep the directories
+!woff2/.gitkeep
+!ttf/.gitkeep
+# Build output
+dist/

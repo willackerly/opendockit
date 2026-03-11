@@ -39,3 +39,18 @@ export {
   loadTTF,
   clearTTFCache,
 } from './ttf-loader.js';
+
+export { FontResolver } from './font-resolver.js';
+export { FontCache } from './font-cache.js';
+export { fetchFromFontsource, fetchFromGoogleFonts } from './cdn-fetcher.js';
+export type {
+  FontConfig,
+  FontRegistration,
+  FontSource,
+  FontResolutionStatus,
+  FontProgressEvent,
+} from './font-config.js';
+export {
+  SUBSTITUTION_REGISTRY,
+  type SubstitutionEntry,
+} from './substitution-table.js';

@@ -11,3 +11,6 @@ export type {
   LoadedPresentation,
   HyperlinkHitRegion,
 } from './slide-viewport.js';
+
+// Re-export FontConfig so users can configure fontConfig without reaching into core
+export type { FontConfig } from '@opendockit/core/font';

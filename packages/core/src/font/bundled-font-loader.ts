@@ -1,15 +1,57 @@
 /**
  * Bundled WOFF2 font loader.
  *
- * Loads fonts from base64-encoded WOFF2 data bundled in the npm package.
- * Uses dynamic imports so bundlers can code-split per-family.
+ * Loads fonts from the @opendockit/fonts companion package when installed.
+ * If the companion package is not available, returns false (font not available
+ * from bundle). CDN fallback loaders handle the online case.
  *
  * Substitute mappings are handled transparently: requesting "Calibri"
- * loads the Carlito module and registers the font under "Calibri".
+ * loads the Carlito WOFF2 and registers the font under "Calibri".
  */
 
 import { loadFont } from './font-loader.js';
-import { BUNDLED_FONTS } from './data/woff2/manifest.js';
+
+// ---------------------------------------------------------------------------
+// Companion package detection
+// ---------------------------------------------------------------------------
+
+interface CompanionInfo {
+  manifest: { families: Record<string, CompanionFamilyEntry> };
+  basePath: string;
+}
+
+interface CompanionFamilyEntry {
+  displayName: string;
+  substituteFor?: string;
+  woff2: Record<string, { file: string; size: number }>;
+}
+
+/** Cached companion detection promise — evaluated once. */
+let companionPromise: Promise<CompanionInfo | null> | null = null;
+
+/** Synchronous cache of the companion manifest (populated after first async detection). */
+let cachedManifest: CompanionInfo['manifest'] | null = null;
+
+async function getCompanion(): Promise<CompanionInfo | null> {
+  if (!companionPromise) {
+    companionPromise = (async () => {
+      try {
+        const mod = await import('@opendockit/fonts');
+        const manifest = mod.getManifest();
+        const basePath = mod.getBasePath();
+        cachedManifest = manifest;
+        return { manifest, basePath };
+      } catch {
+        return null;
+      }
+    })();
+  }
+  return companionPromise;
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 /** Track which families have been loaded. */
 const loadedFamilies = new Set<string>();
@@ -17,63 +59,24 @@ const loadedFamilies = new Set<string>();
 /**
  * Check if a font family has bundled WOFF2 data available.
  *
- * Checks both the original family name and substitute mappings
- * (e.g., "Calibri" → Carlito bundle, "Arial" → Liberation Sans bundle).
+ * Returns true only if the @opendockit/fonts companion package has been
+ * detected and contains the requested family. Returns false if the companion
+ * has not been detected yet (synchronous check — use loadBundledFont for
+ * async detection).
  */
 export function hasBundledFont(family: string): boolean {
-  return family.toLowerCase() in BUNDLED_FONTS;
+  if (!cachedManifest) return false;
+  return family.toLowerCase() in cachedManifest.families;
 }
 
 /**
- * Decode a base64 string to an ArrayBuffer.
- */
-function base64ToArrayBuffer(b64: string): ArrayBuffer {
-  const binaryStr = atob(b64);
-  const bytes = new Uint8Array(binaryStr.length);
-  for (let i = 0; i < binaryStr.length; i++) {
-    bytes[i] = binaryStr.charCodeAt(i);
-  }
-  return bytes.buffer as ArrayBuffer;
-}
-
-/** Variant name → FontFace descriptors. */
-const VARIANT_DESCRIPTORS: Record<string, FontFaceDescriptors> = {
-  regular: {},
-  bold: { weight: 'bold' },
-  italic: { style: 'italic' },
-  boldItalic: { weight: 'bold', style: 'italic' },
-};
-
-/**
- * Resolve a manifest module path to a URL relative to this file.
+ * Load a single bundled font family from the companion package.
  *
- * Uses import.meta.url so the browser can resolve the path correctly
- * regardless of how the module is bundled or served (Vite dev, production
- * build, Node.js). Manifest paths are relative to `data/woff2/` but this
- * file is in `font/`, so we prepend the subdirectory.
+ * Dynamically detects the @opendockit/fonts companion package, fetches
+ * raw WOFF2 files, and registers each variant via the FontFace API.
  *
- * In Vite dev mode, source files are .ts (served via ESM transform), so
- * we swap .js → .ts for HTTP URLs. In production builds and Node.js, the
- * compiled .js files are used as-is.
- */
-function resolveModuleUrl(manifestModule: string): string {
-  const relativePath = manifestModule.replace('./', './data/woff2/');
-  const url = new URL(relativePath, import.meta.url);
-  // Vite dev server serves source .ts files, not compiled .js
-  if (url.protocol === 'http:' || url.protocol === 'https:') {
-    return url.href.replace(/\.js(\?.*)?$/, '.ts$1');
-  }
-  return url.href;
-}
-
-/**
- * Load a single bundled font family.
- *
- * Dynamically imports the WOFF2 module, decodes base64 data, and
- * registers each variant via the FontFace API.
- *
- * The font is registered under `registerAs` from the manifest —
- * for substitutes this is the Office font name (e.g., "Calibri").
+ * The font is registered under the substituteFor name (for Office font
+ * substitutes) or the displayName.
  *
  * @param family - Font family name (e.g., "Calibri", "Roboto").
  * @returns true if at least one variant was loaded.
@@ -84,33 +87,43 @@ export async function loadBundledFont(family: string): Promise<boolean> {
   const key = family.toLowerCase();
   if (loadedFamilies.has(key)) return true;
 
-  const entry = BUNDLED_FONTS[key];
+  const companion = await getCompanion();
+  if (!companion) return false;
+
+  const entry = companion.manifest.families[key];
   if (!entry) return false;
 
   loadedFamilies.add(key);
 
   try {
-    const url = resolveModuleUrl(entry.module);
-    const mod = await import(/* @vite-ignore */ url);
+    const registerName = entry.substituteFor || entry.displayName;
 
     const results = await Promise.all(
-      entry.variants.map(async (variant) => {
-        const b64: string | undefined = mod[variant];
-        if (!b64) return false;
-
+      Object.entries(entry.woff2).map(async ([variantKey, variant]) => {
         try {
-          const buffer = base64ToArrayBuffer(b64);
-          const descriptors = VARIANT_DESCRIPTORS[variant] ?? {};
-          return loadFont(entry.registerAs, buffer, descriptors);
+          const url = new URL(variant.file, companion.basePath).href;
+          const response = await fetch(url);
+          if (!response.ok) return false;
+          const buffer = await response.arrayBuffer();
+
+          // Parse weight and style from variant key: "latin-400-normal"
+          const parts = variantKey.split('-');
+          const weight = parts[1] || '400';
+          const style = parts[2] || 'normal';
+
+          const descriptors: FontFaceDescriptors = {};
+          if (weight !== '400') descriptors.weight = weight;
+          if (style !== 'normal') descriptors.style = style;
+
+          return loadFont(registerName, buffer, descriptors);
         } catch {
           return false;
         }
-      })
+      }),
     );
 
     return results.some(Boolean);
   } catch {
-    // Module import failed — font not available.
     loadedFamilies.delete(key);
     return false;
   }
@@ -119,18 +132,23 @@ export async function loadBundledFont(family: string): Promise<boolean> {
 /**
  * Load bundled fonts for all applicable families.
  *
- * Filters input to only families with bundled data, skips already-loaded
- * families, and loads all remaining in parallel.
+ * Filters input to only families available in the companion package,
+ * skips already-loaded families, and loads all remaining in parallel.
  *
  * @param families - Font family names to attempt loading.
- * @returns Map of family name → success boolean (only for bundled families).
+ * @returns Map of family name -> success boolean (only for available families).
  */
-export async function loadBundledFonts(families: string[]): Promise<Map<string, boolean>> {
+export async function loadBundledFonts(
+  families: string[],
+): Promise<Map<string, boolean>> {
   const results = new Map<string, boolean>();
+
+  // Trigger companion detection early
+  const companion = await getCompanion();
 
   const toLoad = families.filter((f) => {
     const key = f.toLowerCase();
-    if (!(key in BUNDLED_FONTS)) return false;
+    if (!companion || !(key in companion.manifest.families)) return false;
     if (loadedFamilies.has(key)) {
       results.set(f, true);
       return false;
@@ -144,7 +162,7 @@ export async function loadBundledFonts(families: string[]): Promise<Map<string, 
     toLoad.map(async (family) => {
       const ok = await loadBundledFont(family);
       results.set(family, ok);
-    })
+    }),
   );
 
   return results;
