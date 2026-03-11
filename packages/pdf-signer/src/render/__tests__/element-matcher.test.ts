@@ -701,7 +701,7 @@ describe('generateElementDiffReport', () => {
     };
 
     const html = generateElementDiffReport([goodPage, badPage]);
-    expect(html).toContain('class="good"');
-    expect(html).toContain('class="bad"');
+    expect(html).toContain('badge good');
+    expect(html).toContain('badge bad');
   });
 });

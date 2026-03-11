@@ -94,9 +94,11 @@ Cross-project alignment with pdfbox-ts: EditTracker mirrors COSUpdateTracker pat
 
 **Remaining:** ExtGState SMask transparency groups (page 29 — Hard), font substitution differences, Separation/DeviceN tint transforms.
 
-**Element-level structural diffing (2026-03-11):** Infrastructure built — ground-truth-extractor.ts, element-matcher.ts, element-diff-harness.test.ts (55 new tests). First run: 8.2% text accuracy, 29.7pt position delta. Next: coordinate tuning to improve accuracy.
+**Element-level structural diffing (2026-03-11):** Infrastructure built — ground-truth-extractor.ts, element-matcher.ts, element-diff-harness.test.ts (55 new tests). First run: 8.2% text accuracy, 29.7pt position delta.
 
-**Phase 3:** Tools consolidation — unify diagnostic scripts, streamline comparison infrastructure.
+**Next: Canvas Tree Recorder** — instrument canvas-graphics.ts to emit TraceEvent[] (same format as PPTX TracingBackend), enabling full structural comparison pipeline. See `docs/plans/CANVAS_TREE_PLAN.md`. Target: text accuracy 8.2% → >90%.
+
+**pdf-signer-web migration (COMPLETE 2026-03-11):** Swapped vendored pdfbox-ts tarball for @opendockit/pdf-signer. 2 source files + 2 package.json + 2 vitest configs updated. All 101 tests pass, typecheck clean.
 
 ### Phase 4: Charts + Export (complete)
 

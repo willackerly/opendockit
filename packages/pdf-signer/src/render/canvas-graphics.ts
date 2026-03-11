@@ -22,6 +22,7 @@ import type {
   NativeTilingPattern,
 } from './evaluator.js';
 import type { RenderDiagnosticsCollector } from './types.js';
+import type { CanvasTreeRecorder } from './canvas-tree-recorder.js';
 
 // ---------------------------------------------------------------------------
 // Graphics state
@@ -105,7 +106,20 @@ export class NativeCanvasGraphics {
   // Track current point for curveTo2 (v operator)
   private currentPoint: [number, number] = [0, 0];
 
+  // Path bounds tracking for recorder
+  private pathMinX = Infinity;
+  private pathMinY = Infinity;
+  private pathMaxX = -Infinity;
+  private pathMaxY = -Infinity;
+
   private diagnostics?: RenderDiagnosticsCollector;
+
+  /**
+   * Optional recorder for structured trace capture.
+   * When set, every visual operation emits a TraceEvent alongside the
+   * canvas call. See canvas-tree-recorder.ts and docs/plans/CANVAS_TREE_PLAN.md.
+   */
+  recorder?: CanvasTreeRecorder;
 
   constructor(ctx: CanvasRenderingContext2D, diagnostics?: RenderDiagnosticsCollector) {
     this.ctx = ctx;
@@ -162,14 +176,19 @@ export class NativeCanvasGraphics {
       case OPS.moveTo:
         this.ctx.moveTo(args![0], args![1]);
         this.currentPoint = [args![0], args![1]];
+        this.extendPathBounds(args![0], args![1]);
         break;
       case OPS.lineTo:
         this.ctx.lineTo(args![0], args![1]);
         this.currentPoint = [args![0], args![1]];
+        this.extendPathBounds(args![0], args![1]);
         break;
       case OPS.curveTo:
         this.ctx.bezierCurveTo(args![0], args![1], args![2], args![3], args![4], args![5]);
         this.currentPoint = [args![4], args![5]];
+        this.extendPathBounds(args![0], args![1]);
+        this.extendPathBounds(args![2], args![3]);
+        this.extendPathBounds(args![4], args![5]);
         break;
       case OPS.curveTo2: {
         // v: first control point is current point
@@ -177,12 +196,16 @@ export class NativeCanvasGraphics {
         const cp1 = this.currentPoint;
         this.ctx.bezierCurveTo(cp1[0], cp1[1], args![0], args![1], args![2], args![3]);
         this.currentPoint = [args![2], args![3]];
+        this.extendPathBounds(args![0], args![1]);
+        this.extendPathBounds(args![2], args![3]);
         break;
       }
       case OPS.curveTo3: {
         // y: second control point equals endpoint
         this.ctx.bezierCurveTo(args![0], args![1], args![2], args![3], args![2], args![3]);
         this.currentPoint = [args![2], args![3]];
+        this.extendPathBounds(args![0], args![1]);
+        this.extendPathBounds(args![2], args![3]);
         break;
       }
       case OPS.closePath:
@@ -191,6 +214,8 @@ export class NativeCanvasGraphics {
       case OPS.rectangle:
         this.ctx.rect(args![0], args![1], args![2], args![3]);
         this.currentPoint = [args![0], args![1]];
+        this.extendPathBounds(args![0], args![1]);
+        this.extendPathBounds(args![0] + args![2], args![1] + args![3]);
         break;
 
       // ---- Path painting ----
@@ -387,16 +412,19 @@ export class NativeCanvasGraphics {
   private save(): void {
     this.stateStack.push(cloneState(this.state));
     this.ctx.save();
+    this.recorder?.pushState();
   }
 
   private restore(): void {
     const prev = this.stateStack.pop();
     if (prev) this.state = prev;
     this.ctx.restore();
+    this.recorder?.popState();
   }
 
   private transform(args: number[]): void {
     this.ctx.transform(args[0], args[1], args[2], args[3], args[4], args[5]);
+    this.recorder?.applyTransform(args[0], args[1], args[2], args[3], args[4], args[5]);
   }
 
   private setLineWidth(w: number): void {
@@ -445,11 +473,40 @@ export class NativeCanvasGraphics {
   // Path painting
   // ================================================================
 
+  private extendPathBounds(x: number, y: number): void {
+    if (x < this.pathMinX) this.pathMinX = x;
+    if (y < this.pathMinY) this.pathMinY = y;
+    if (x > this.pathMaxX) this.pathMaxX = x;
+    if (y > this.pathMaxY) this.pathMaxY = y;
+  }
+
+  private resetPathBounds(): void {
+    this.pathMinX = Infinity;
+    this.pathMinY = Infinity;
+    this.pathMaxX = -Infinity;
+    this.pathMaxY = -Infinity;
+  }
+
+  private hasPathBounds(): boolean {
+    return this.pathMinX !== Infinity;
+  }
+
   private fillPath(rule: CanvasFillRule): void {
     this.applyFillColor();
     this.ctx.globalAlpha = this.state.fillAlpha;
     this.ctx.fill(rule);
     this.ctx.globalAlpha = 1;
+
+    if (this.recorder && this.hasPathBounds()) {
+      this.recorder.recordShape(
+        'fill',
+        this.pathMinX, this.pathMinY,
+        this.pathMaxX - this.pathMinX, this.pathMaxY - this.pathMinY,
+        typeof this.state.fillColor === 'string' ? this.state.fillColor : undefined,
+        undefined,
+      );
+    }
+
     this.consumeClip();
   }
 
@@ -458,6 +515,18 @@ export class NativeCanvasGraphics {
     this.ctx.globalAlpha = this.state.strokeAlpha;
     this.ctx.stroke();
     this.ctx.globalAlpha = 1;
+
+    if (this.recorder && this.hasPathBounds()) {
+      this.recorder.recordShape(
+        'stroke',
+        this.pathMinX, this.pathMinY,
+        this.pathMaxX - this.pathMinX, this.pathMaxY - this.pathMinY,
+        undefined,
+        typeof this.state.strokeColor === 'string' ? this.state.strokeColor : undefined,
+        this.state.lineWidth,
+      );
+    }
+
     this.consumeClip();
   }
 
@@ -477,6 +546,17 @@ export class NativeCanvasGraphics {
     this.ctx.stroke();
     this.ctx.globalAlpha = 1;
 
+    if (this.recorder && this.hasPathBounds()) {
+      this.recorder.recordShape(
+        'fillStroke',
+        this.pathMinX, this.pathMinY,
+        this.pathMaxX - this.pathMinX, this.pathMaxY - this.pathMinY,
+        typeof this.state.fillColor === 'string' ? this.state.fillColor : undefined,
+        typeof this.state.strokeColor === 'string' ? this.state.strokeColor : undefined,
+        this.state.lineWidth,
+      );
+    }
+
     this.consumeClip();
   }
 
@@ -495,6 +575,7 @@ export class NativeCanvasGraphics {
       this.pendingClip = null;
     }
     this.ctx.beginPath();
+    this.resetPathBounds();
   }
 
   // ================================================================
@@ -524,14 +605,17 @@ export class NativeCanvasGraphics {
     this.inTextBlock = false;
   }
 
-  private setFont(_fontId: string, fontSize: number, css: NativeFont, registeredFamily?: string): void {
+  private setFont(_fontId: string, fontSize: number, css: NativeFont, registeredFamily?: string | object): void {
     this.state.fontSize = fontSize;
-    // Use registered (embedded) font family if available, fall back to CSS
-    this.state.fontFamily = registeredFamily
+    // Use registered (embedded) font family if available, fall back to CSS.
+    // registeredFamily is a string when preRegisterFonts has run; otherwise
+    // it may be an ExtractedFont object (when font registration is disabled).
+    const isRegistered = typeof registeredFamily === 'string';
+    this.state.fontFamily = isRegistered
       ? `'${registeredFamily}'`
       : css.family;
-    this.state.fontWeight = registeredFamily ? 'normal' : css.weight;
-    this.state.fontStyle = registeredFamily ? 'normal' : css.style;
+    this.state.fontWeight = isRegistered ? 'normal' : css.weight;
+    this.state.fontStyle = isRegistered ? 'normal' : css.style;
   }
 
   private moveText(tx: number, ty: number): void {
@@ -668,12 +752,46 @@ export class NativeCanvasGraphics {
       ctx.globalAlpha = this.state.fillAlpha;
       ctx.fillStyle = this.state.fillColor;
       ctx.fillText(text, 0, 0);
+
+      // Record text event — use the pre-transform position (x, y in text space)
+      if (this.recorder) {
+        // Effective font size = fontSize * text matrix scale factor.
+        // In many PDFs, fontSize is 1 and the text matrix does the scaling.
+        const tmScale = Math.sqrt(a * a + b * b); // text matrix scale from [a,b,c,d]
+        const effectiveFontSize = Math.abs(fontSize) * tmScale;
+        const glyphWidth = effectiveFontSize * 0.6; // approximate advance
+        this.recorder.recordText(
+          text,
+          x,
+          y,
+          effectiveFontSize,
+          fontStr,
+          typeof this.state.fillColor === 'string' ? this.state.fillColor : 'pattern',
+          glyphWidth,
+          this.textMatrix,
+        );
+      }
     }
 
     if (stroke) {
       ctx.globalAlpha = this.state.strokeAlpha;
       ctx.strokeStyle = this.state.strokeColor;
       ctx.strokeText(text, 0, 0);
+
+      if (this.recorder) {
+        const tmScale = Math.sqrt(a * a + b * b);
+        const effectiveFontSize = Math.abs(fontSize) * tmScale;
+        this.recorder.recordStrokeText(
+          text,
+          x,
+          y,
+          effectiveFontSize,
+          fontStr,
+          typeof this.state.strokeColor === 'string' ? this.state.strokeColor : 'pattern',
+          this.state.lineWidth,
+          this.textMatrix,
+        );
+      }
     }
 
     ctx.globalAlpha = 1;
@@ -817,6 +935,9 @@ export class NativeCanvasGraphics {
       // Apply graphics state alpha (matches text/shape behavior)
       ctx.globalAlpha = this.state.fillAlpha;
 
+      // Record image event BEFORE transform (use current CTM for position)
+      this.recorder?.recordImage();
+
       // PDF images are drawn in a 1×1 unit square that the CTM scales.
       // Flip Y because pixel data is top-down but PDF image space is bottom-up.
       ctx.transform(1, 0, 0, -1, 0, 1);
@@ -926,6 +1047,7 @@ export class NativeCanvasGraphics {
     // Apply the form's matrix
     if (matrix && matrix.length === 6) {
       this.ctx.transform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+      this.recorder?.applyTransform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
     }
 
     // Clip to BBox

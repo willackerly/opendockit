@@ -286,6 +286,15 @@ Shift from pixel RMSE to structured comparison. The evaluator emits TextElement/
 - [ ] Coordinate tuning — first run: 8.2% text accuracy, 29.7pt position delta (needs calibration)
 - [ ] Integrate as `pnpm test:visual:pdf:elements` alongside pixel RMSE
 
+**Canvas Tree Recorder (planned — see `docs/plans/CANVAS_TREE_PLAN.md`)**
+
+Instrument canvas-graphics.ts to emit TraceEvent[] (same format as PPTX TracingBackend). Enables structural comparison of every canvas operation — per-character font, size, position, color.
+
+- [ ] Phase 1: CanvasTreeRecorder class + canvas-graphics.ts instrumentation + NativeRenderer wiring
+- [ ] Phase 2: Wire to existing trace-to-elements → element-matcher → property-diff pipeline
+- [ ] Phase 3: Cross-format comparison (PPTX TracingBackend vs PDF CanvasTreeRecorder)
+- [ ] Phase 4: Diagnostic HTML report with font/position/color mismatch visualization
+
 **Remaining pixel-level issues (lower priority):**
 - [ ] ExtGState SMask transparency groups (page 29 — Hard, requires offscreen compositing)
 - [x] Negative fontSize — `renderGlyph()` skips Y-flip for negative fontSize (2026-03-11)
@@ -299,8 +308,8 @@ Shift from pixel RMSE to structured comparison. The evaluator emits TextElement/
 
 ### pdfbox-ts Integration Items (FYI from prior team)
 
-- [ ] pdf-signer-web integration — browser-compatible signing UI
-- [ ] Publish pdfbox-ts 1.0 to npm
+- [x] pdf-signer-web integration — migrated from pdfbox-ts to @opendockit/pdf-signer (2026-03-11)
+- [ ] Publish @opendockit/pdf-signer 1.0 to npm
 - [ ] CI parity gate — automated Java vs TS comparison in CI
 
 ## Code Debt

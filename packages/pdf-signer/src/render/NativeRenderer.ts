@@ -30,6 +30,8 @@ import type { ExtractedFont } from '../document/extraction/FontExtractor.js';
 import type { OperatorList } from './operator-list.js';
 import { OPS } from './ops.js';
 import { FontRegistrar } from './font-registrar.js';
+import { CanvasTreeRecorder } from './canvas-tree-recorder.js';
+import type { RenderTrace } from './canvas-tree-recorder.js';
 
 const DEFAULT_SCALE = 1.5;
 
@@ -229,6 +231,74 @@ export class NativeRenderer {
       results.push(await this.renderPage(i, options));
     }
     return results;
+  }
+
+  /**
+   * Render a page and capture a structured trace of all canvas operations.
+   *
+   * Returns the same RenderTrace format as PPTX TracingBackend, so the
+   * downstream pipeline (traceToElements → matchElements → generateDiffReport)
+   * works identically for both formats.
+   *
+   * @param pageIndex  0-based page index
+   * @param options    Rendering options (scale, background)
+   * @returns RenderTrace with all text/shape/image events in render order
+   */
+  async renderPageWithTrace(
+    pageIndex: number,
+    options?: RenderOptions,
+  ): Promise<{ result: RenderResult; trace: RenderTrace }> {
+    if (pageIndex < 0 || pageIndex >= this.pages.length) {
+      throw new RangeError(`Page index ${pageIndex} out of range (0..${this.pages.length - 1})`);
+    }
+
+    const scale = options?.scale ?? DEFAULT_SCALE;
+    const background = options?.background ?? 'white';
+    const pageDict = this.pages[pageIndex].pageDict;
+    const diagnostics = new RenderDiagnosticsCollector();
+
+    const visibleBox = getVisibleBox(pageDict, this.resolve);
+    const pageWidth = visibleBox[2] - visibleBox[0];
+    const pageHeight = visibleBox[3] - visibleBox[1];
+
+    const canvasWidth = Math.floor(pageWidth * scale);
+    const canvasHeight = Math.floor(pageHeight * scale);
+
+    const { canvas, context } = await createCanvas(canvasWidth, canvasHeight);
+
+    if (background) {
+      context.fillStyle = background;
+      context.fillRect(0, 0, canvasWidth, canvasHeight);
+    }
+
+    // Set up viewport transform
+    context.transform(scale, 0, 0, -scale, -visibleBox[0] * scale, visibleBox[3] * scale);
+
+    const opList = evaluatePage(pageDict, this.resolve, diagnostics);
+    await this.preDecodeJpegs(opList, diagnostics);
+
+    // Create recorder and set its initial CTM to match the viewport transform
+    const recorder = new CanvasTreeRecorder(pageWidth, pageHeight);
+    recorder.applyTransform(scale, 0, 0, -scale, -visibleBox[0] * scale, visibleBox[3] * scale);
+
+    // Render with recorder attached
+    const graphics = new NativeCanvasGraphics(context, diagnostics);
+    graphics.recorder = recorder;
+    graphics.execute(opList);
+
+    const png = await canvasToPng(canvas);
+    const trace = recorder.getTrace(`pdf:page${pageIndex}`);
+
+    return {
+      result: {
+        png,
+        width: canvasWidth,
+        height: canvasHeight,
+        pageIndex,
+        diagnostics: diagnostics.length > 0 ? diagnostics.items : undefined,
+      },
+      trace,
+    };
   }
 
   /**

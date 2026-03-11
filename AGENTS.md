@@ -105,13 +105,13 @@ Multiple agents work async on this codebase. Docs drift when agents complete wor
 
 `packages/pptx` (`@opendockit/pptx`) is the PPTX renderer (SlideKit) — PresentationML parser, slide master/layout inheritance, slide renderer, SlideViewport, public API.
 
-`packages/elements` (`@opendockit/elements`) is the unified element model — PageModel/PageElement types, spatial utilities, dirty tracking. Shared contract between PPTX and PDF renderers.
+`packages/elements` (`@opendockit/elements`) is the unified element model — PageModel/PageElement types, spatial utilities, dirty tracking. Shared contract between PPTX and PDF renderers. **Also contains the structural comparison infrastructure**: trace-to-elements (463 lines), element-matcher (284 lines, multi-pass matching), property-diff (345 lines, per-property severity scoring), all exported from the package index.
 
 `packages/render` (`@opendockit/render`) holds shared render utilities — font metrics, color resolution, matrix math. Imports from `@opendockit/core`; does not maintain its own copy of the metrics bundle.
 
 `packages/pdf` (`@opendockit/pdf`) is the PDF rendering package — PDFBackend implementation, PDF export pipeline for basic shapes/fills, batch PPTX→PDF conversion script.
 
-`packages/pdf-signer` (`@opendockit/pdf-signer`) holds PDF signing primitives ported from Apache PDFBox — COS objects, COSWriter, xref generation, signature dictionary patching.
+`packages/pdf-signer` (`@opendockit/pdf-signer`) holds PDF signing primitives ported from Apache PDFBox — COS objects, COSWriter, xref generation, signature dictionary patching. **Also contains the NativeRenderer** (PDF reading/rendering engine): evaluator.ts (2,853 lines, dual-output OperatorList + PageElement), canvas-graphics.ts (1,043 lines, Canvas2D dispatch), NativeRenderer.ts (orchestrator). Comparison infrastructure: pdf-compare-harness (RMSE), ground-truth-extractor (pdftotext XML), element-matcher (position/text matching), element-diff-harness (integration). **Upstream consumer: pdf-signer-web** (`/Users/will/dev/pdf-signer-web/`) vendors this package as a tarball.
 
 `packages/wasm-modules` will hold on-demand WASM accelerators (CanvasKit, HarfBuzz, etc.) — empty for now.
 
@@ -121,11 +121,67 @@ Multiple agents work async on this codebase. Docs drift when agents complete wor
 
 ## Active Workstreams (2026-03-11)
 
-- **Phase 0–3.5, Edit, 4 (COMPLETE)** — Full PPTX rendering, editing, PDF/Office unified architecture. **4,548 tests passing** (1,768 core + 331 elements + 208 render + 370 pptx + 1,718 pdf-signer + 129 docx + 24 pdf).
-- **NativeRenderer Quality (ACTIVE)** — PDF reading fidelity. Avg RMSE **0.069** against pdftoppm (down from 0.14 — 51% reduction). 24/30 pages FAIR. 15 rendering bugs fixed (including negative fontSize, CS/cs tracking). Element-level structural diffing infrastructure built (ground-truth-extractor + element-matcher + integration harness, 55 new tests) — tuning in progress.
+- **Phase 0–3.5, Edit, 4 (COMPLETE)** — Full PPTX rendering, editing, PDF/Office unified architecture. **4,564 tests passing** (1,768 core + 331 elements + 208 render + 370 pptx + 1,734 pdf-signer + 129 docx + 24 pdf).
+- **NativeRenderer Quality (ACTIVE)** — PDF reading fidelity. Avg RMSE **0.069** against pdftoppm (down from 0.14 — 51% reduction). 24/30 pages FAIR. 15 rendering bugs fixed (including negative fontSize, CS/cs tracking). Element-level structural diffing infrastructure built (ground-truth-extractor + element-matcher + integration harness, 55 new tests). **Next: Canvas Tree Recorder** — see `docs/plans/CANVAS_TREE_PLAN.md`.
+- **pdf-signer-web migration (COMPLETE 2026-03-11)** — Swapped vendored pdfbox-ts for @opendockit/pdf-signer. 2 files changed, all tests pass.
 - **DOCX support (scaffold done, 129 tests)** — WordprocessingML parser + DocKit viewport complete; page layout engine future
 - **Still deferred** — CanvasKit WASM, slide transitions, SVG export, full ChartML parser
 - **XLSX support (future)** — SpreadsheetML parser + grid layout, reuses ~35% of core
+
+---
+
+## Structural Comparison & Tracing Infrastructure
+
+**USE THIS.** The repo has ~3,700 lines of production-ready tracing, matching, and diffing code. Don't rebuild it.
+
+### PPTX Render Tracing (complete)
+
+| Component | Location | What It Does |
+|-----------|----------|-------------|
+| **TracingBackend** | `packages/core/src/drawingml/renderer/tracing-backend.ts` (759 lines, 42 tests) | Wraps RenderBackend, records every fillText/drawImage/fill/stroke as structured TraceEvent with world-space coordinates and shadow CTM tracking |
+| **Trace types** | `packages/core/src/drawingml/renderer/trace-types.ts` (186 lines) | TextTraceEvent, ShapeTraceEvent, ImageTraceEvent, StrokeTextTraceEvent — with per-glyph charAdvances, shape context (shapeId/shapeName/paragraphIndex/runIndex) |
+| **RenderBackend** | `packages/core/src/drawingml/renderer/render-backend.ts` (348 lines) | Abstract Canvas2D interface — CanvasBackend (passthrough) and TracingBackend (recorder) both implement it |
+
+### Unified Element Model (complete)
+
+| Component | Location | What It Does |
+|-----------|----------|-------------|
+| **PageElement types** | `packages/pdf-signer/src/elements/types.ts` (149 lines) | TextElement (paragraphs→runs), ShapeElement, ImageElement, PathElement, GroupElement — format-agnostic |
+| **trace-to-elements** | `packages/elements/src/debug/trace-to-elements.ts` (463 lines, 21 tests) | Converts RenderTrace → PageElement[]. Groups by shapeId/paragraph/run. Parses CSS colors/fonts |
+| **element-matcher** | `packages/elements/src/debug/element-matcher.ts` (284 lines) | Multi-pass matching: (1) text-exact, (2) text-fuzzy (LCS > 0.7), (3) spatial (IoU > 0.3) |
+| **property-diff** | `packages/elements/src/debug/property-diff.ts` (345 lines) | Per-property comparison: position (<1pt match, 1-3pt minor, >8pt critical), font size, color (RGB distance), font family |
+| **PPTX→elements bridge** | `packages/pptx/src/elements/pptx-to-elements.ts` (578 lines) | Converts SlideElementIR → PageElement[] with EMU→points, rotation, source preservation |
+
+### PDF Comparison Infrastructure (partial — Canvas Tree will complete it)
+
+| Component | Location | What It Does |
+|-----------|----------|-------------|
+| **Ground truth extractor** | `packages/pdf-signer/src/render/__tests__/ground-truth-extractor.ts` (249 lines, 10 tests) | Parses `pdftotext -bbox-layout` XML → word/line/block structures with positions |
+| **Element matcher (PDF)** | `packages/pdf-signer/src/render/__tests__/element-matcher.ts` (660 lines, 42 tests) | Flattens TextElements to runs, groups into words, greedy nearest-neighbor matching |
+| **Element diff harness** | `packages/pdf-signer/src/render/__tests__/element-diff-harness.test.ts` (134 lines) | Integration: render → extract elements → match ground truth → score → HTML report |
+| **RMSE comparison harness** | `packages/pdf-signer/src/render/__tests__/pdf-compare-harness.test.ts` | Pixel-level: NativeRenderer vs pdftoppm → per-page RMSE → HTML report with diffs |
+
+### How to Use (Quick Reference)
+
+```typescript
+// PPTX: Capture structured trace
+import { CanvasBackend, TracingBackend } from '@opendockit/core/drawingml/renderer';
+const tracing = new TracingBackend(new CanvasBackend(ctx), { glyphLevel: false, dpiScale: 2 });
+renderSlide(data, { backend: tracing, ... });
+const trace = tracing.getTrace('pptx:slide1', 720, 540);
+
+// Convert trace → elements (works for both PPTX and future PDF traces)
+import { traceToElements, matchElements, generateDiffReport } from '@opendockit/elements';
+const elements = traceToElements(trace);
+
+// Compare two sets of elements
+const report = generateDiffReport(elementsA, elementsB);
+// report.summary: { matchedCount, avgPositionDelta, fontMismatches, colorMismatches }
+```
+
+### Next: Canvas Tree Recorder (planned — see `docs/plans/CANVAS_TREE_PLAN.md`)
+
+Will instrument PDF's `canvas-graphics.ts` to emit the same `TraceEvent[]` format as PPTX's TracingBackend, enabling the full comparison pipeline for PDF rendering. Target: text accuracy from 8.2% → >90%.
 
 ---
 

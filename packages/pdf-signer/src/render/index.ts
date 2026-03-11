@@ -34,6 +34,10 @@ export { NativeCanvasGraphics } from './canvas-graphics.js';
 export { evaluatePageWithElements } from './evaluator.js';
 export { getPageElements } from './NativeRenderer.js';
 
+// Canvas Tree Recorder (structural trace capture)
+export { CanvasTreeRecorder } from './canvas-tree-recorder.js';
+export type { RenderTrace, TraceEvent, TraceConfig } from './canvas-tree-recorder.js';
+
 // Types
 export type { RenderOptions, RenderResult, RenderDiagnostic } from './types.js';
 export { RenderDiagnosticsCollector } from './types.js';
