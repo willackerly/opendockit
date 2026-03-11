@@ -245,15 +245,13 @@ describe('Trace pipeline structural diff', () => {
         );
       }
 
-      // Print first few matched pairs from page 0 for debugging
+      // Print sample matches from first page for debugging
       if (pageResults.length > 0 && pageResults[0].matches.length > 0) {
-        console.log('\n  Sample matches (page 1):');
-        for (const m of pageResults[0].matches.slice(0, 10)) {
-          const t = m.textSimilarity.toFixed(2);
+        console.log(`\n  Sample matches (page ${pageResults[0].pageNum}):`);
+        for (const m of pageResults[0].matches.slice(0, 5)) {
           const d = m.positionDelta.toFixed(1);
           console.log(
-            `    "${m.ours.text}" ↔ "${m.ground.text}" | pos Δ=${d}pt | text sim=${t} | font: ${m.ours.fontFamily} ${m.ours.fontSize.toFixed(1)}pt` +
-            ` | ours(${m.ours.x.toFixed(1)},${m.ours.y.toFixed(1)}) gt(${m.ground.x.toFixed(1)},${m.ground.y.toFixed(1)})`
+            `    "${m.ours.text}" ↔ "${m.ground.text}" | Δ=${d}pt | font: ${m.ours.fontFamily} ${m.ours.fontSize.toFixed(1)}pt`
           );
         }
       }
