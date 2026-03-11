@@ -131,8 +131,8 @@ Multiple agents work async on this codebase. Docs drift when agents complete wor
 
 ## Active Workstreams (2026-03-11)
 
-- **Font Delivery Redesign (ACTIVE)** — Offline-first architecture. Core npm 18MB → ~800KB. `@opendockit/fonts` companion package for offline rendering, FontResolver + CDN fallback for online. Phase 1-2 complete (45 new tests), Phase 3 in progress (remove base64 bundles). See `docs/plans/FONT_DELIVERY_PLAN.md`.
-- **Phase 0–3.5, Edit, 4 (COMPLETE)** — Full PPTX rendering, editing, PDF/Office unified architecture. **4,630 tests passing** (1,805 core + 331 elements + 208 render + 370 pptx + 1,755 pdf-signer + 129 docx + 24 pdf + 8 fonts).
+- **Font Delivery Redesign (Phase 1-3 COMPLETE, Phase 4-5 remaining)** — Offline-first architecture. Core npm 18MB → ~800KB (done). `@opendockit/fonts` companion package with 45 families/130 variants (3.9MB WOFF2 + 33MB TTF). FontResolver + CDN fallback for online. Phase 4 (CDN polish) and Phase 5 (harfbuzzjs subsetting) remaining. See `docs/plans/FONT_DELIVERY_PLAN.md`.
+- **Phase 0–3.5, Edit, 4 (COMPLETE)** — Full PPTX rendering, editing, PDF/Office unified architecture. **4,512 tests passing** (1,687 core + 331 elements + 208 render + 370 pptx + 1,755 pdf-signer + 129 docx + 24 pdf + 8 fonts).
 - **NativeRenderer Quality** — PDF reading fidelity. Pixel RMSE **0.053** (down from 0.14 — 62% reduction). Structural: **97% text accuracy, 4.4pt position delta**. Canvas Tree Recorder Phase 1+2 complete. See `docs/plans/CANVAS_TREE_PLAN.md`.
 - **DOCX support (scaffold done, 129 tests)** — WordprocessingML parser + DocKit viewport + page layout engine scaffold. See `docs/plans/DOCX_LAYOUT_PLAN.md`.
 - **Still deferred** — CanvasKit WASM, slide transitions, SVG export, full ChartML parser

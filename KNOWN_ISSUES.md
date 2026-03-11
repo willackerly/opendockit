@@ -6,28 +6,27 @@
 
 ### PDF NativeRenderer — Quality (2026-03-11)
 
-**Avg RMSE: 0.069 against pdftoppm ground truth** (USG Briefing, 30 pages). Down from 0.14 — 51% reduction. 24/30 pages FAIR (< 0.08), 6 BAD.
+**Avg RMSE: 0.053 against pdftoppm ground truth** (USG Briefing, 30 pages). Down from 0.14 — 62% reduction. Improvements from font size clamping [16,100]px, per-character remeasure, actual glyph widths, font ascent from FontDescriptor.
 
 **Fixed (13 bugs, 2026-03-10):** ICC stream color space (#1 — backgrounds decoded as gray), JPEG SMask application, Form XObject state isolation, fillStroke path destruction, image mask fill color, horizontal text scaling (Tz), Type 0 sampled function decode, stitching function recursion, tiling patterns, ImageData Node.js crash, per-character text positioning, ICCBased N=2, browser JPEG crosshatch.
 
 **Fixed (2 bugs, 2026-03-11):** Negative fontSize (renderGlyph skips Y-flip), CS/cs color space tracking (evaluator tracks fill/stroke color space from CS/cs operators).
 
-**Element-level structural diffing (2026-03-11):** Infrastructure built — ground-truth-extractor.ts, element-matcher.ts, element-diff-harness.test.ts (55 new tests). First run: 8.2% text accuracy, 29.7pt position delta — needs coordinate tuning.
+**Element-level structural diffing (2026-03-11):** Infrastructure built — ground-truth-extractor.ts, element-matcher.ts, element-diff-harness.test.ts (55 new tests). Canvas Tree Recorder Phase 2 achieves **97% text accuracy, 4.4pt avg position delta** (was 8.2% / 29.7pt before).
 
 **Open issues:**
 
 | Priority | Issue | Details | Effort |
 |----------|-------|---------|--------|
-| **Next** | Element-level diffing tuning | Coordinate calibration to improve text accuracy from 8.2% baseline | Medium |
+| **Next** | Canvas Tree Recorder Phase 3 | Cross-format PPTX↔PDF comparison using trace pipeline | Medium |
 | **P1** | ExtGState SMask | Transparency groups on page 29 — `handleExtGState()` ignores `/SMask` key, requires offscreen compositing | Hard |
 | **P2** | Font substitution | Canvas uses system fonts, not PDF embedded fonts. Infrastructure built (FontExtractor + FontRegistrar) but disabled — causes metric regressions on some pages | Medium |
 | **P3** | Separation/DeviceN | Treated as grayscale instead of evaluating tint transform function | Hard |
 
-### Resolved: Bundled Font Loading Broken in Vite Dev Mode (2026-02-27)
+### Resolved: Bundled Font Loading Broken in Vite Dev Mode (2026-02-27, superseded by Phase 3)
 
-- **ALL 42 bundled WOFF2 fonts silently failed to load** — FIXED: `loadBundledFont()` used `import(/* @vite-ignore */ entry.module)` with relative `.js` paths. In Vite dev mode, workspace packages are served from source (`.ts` files), not compiled output (`.js`). The `@vite-ignore` directive bypassed Vite's module resolution, so the browser tried to fetch `.js` files that didn't exist. Every font silently fell back to generic sans-serif.
-- **Fix:** Use `new URL(path, import.meta.url).href` to construct correct absolute URLs, and detect Vite dev mode (HTTP protocol) to swap `.js → .ts` extension. Production builds and Node.js continue using compiled `.js` files.
-- **Root cause lesson:** Dynamic imports with `@vite-ignore` in workspace packages served via `@fs/` bypass ALL of Vite's module resolution — extension mapping, alias resolution, and transformation. See AGENTS.md "Vite + Workspace Packages" section.
+- **Original issue:** ALL 42 bundled WOFF2 fonts silently failed to load due to Vite dev mode `@vite-ignore` bypass. Was fixed with `new URL(path, import.meta.url).href`.
+- **Superseded:** Phase 3 font delivery redesign removed all base64 font bundles from core. `bundled-font-loader.ts` now delegates to `@opendockit/fonts` companion package via dynamic import, eliminating the Vite issue entirely.
 
 ### Resolved: Font Loading Missed Master/Layout Fonts (2026-02-27)
 
@@ -105,9 +104,10 @@ User-flagged issues from visual diff review (2026-02-24):
 
 - Users won't have Calibri/Cambria on non-Windows systems.
 - Font substitution table maps common Office fonts to system alternatives.
-- **42 families, 130 faces** in ~750KB metrics bundle + ~5MB bundled WOFF2 fonts (100% offline).
-- 5-tier font loading: user-supplied → PPTX embedded (EOT) → bundled WOFF2 → OFL CDN → Google Fonts CDN.
-- Gaps remain for Verdana, Trebuchet MS, Tahoma, Aptos, and C-series Office fonts (Corbel, Candara, Constantia) — no OFL metric-compatible replacements exist.
+- **42 families, 130 faces** in ~750KB metrics bundle (core). Font binaries in `@opendockit/fonts` companion package (3.9MB WOFF2 + 33MB TTF) for 100% offline rendering.
+- **Default cascade**: user-supplied → PPTX embedded (EOT) → companion WOFF2 → OFL CDN → Google Fonts CDN.
+- **Opt-in FontResolver**: 8-source priority chain (memory → companion → base URL → CacheStorage → custom → Fontsource CDN → Google Fonts → system) via `fontConfig` option.
+- Gaps remain for Aptos (Office 2024 default — metrics extractable, binary must be user-supplied).
 - Text measurement now uses Canvas2D directly (includes kerning/shaping when fonts are loaded). Metrics DB used only for vertical metrics (ascent, descent, line height).
 - Line spacing uses the font's declared line height metric (e.g., Barlow lineHeight=1.2), matching PowerPoint's interpretation of "single spacing".
 
