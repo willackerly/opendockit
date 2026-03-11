@@ -765,7 +765,10 @@ export class NativeCanvasGraphics {
   // ================================================================
 
   private paintFormBegin(matrix: number[], bbox: number[]): void {
-    this.ctx.save();
+    // Save both internal GraphicsState AND canvas state so that any
+    // state changes inside the Form XObject (ExtGState alpha, blend mode,
+    // colors, etc.) are fully restored when the form ends.
+    this.save();
 
     // Apply the form's matrix
     if (matrix && matrix.length === 6) {
@@ -783,7 +786,9 @@ export class NativeCanvasGraphics {
   }
 
   private paintFormEnd(): void {
-    this.ctx.restore();
+    // Restore both internal GraphicsState AND canvas state, undoing any
+    // state mutations that occurred inside the Form XObject.
+    this.restore();
   }
 }
 
