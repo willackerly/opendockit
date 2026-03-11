@@ -249,7 +249,7 @@ export class NativeCanvasGraphics {
         this.state.textLeading = args![0];
         break;
       case OPS.setFont:
-        this.setFont(args![0], args![1], args![2]);
+        this.setFont(args![0], args![1], args![2], args![3]);
         break;
       case OPS.setTextRenderingMode:
         this.state.textRenderingMode = args![0];
@@ -494,9 +494,19 @@ export class NativeCanvasGraphics {
     this.inTextBlock = false;
   }
 
-  private setFont(_fontId: string, fontSize: number, css: NativeFont): void {
+  private setFont(
+    _fontId: string,
+    fontSize: number,
+    css: NativeFont,
+    registeredFamily?: string
+  ): void {
     this.state.fontSize = fontSize;
-    this.state.fontFamily = css.family;
+    // If we have a registered embedded font, prefer it over the CSS heuristic
+    if (registeredFamily) {
+      this.state.fontFamily = `'${registeredFamily}'`;
+    } else {
+      this.state.fontFamily = css.family;
+    }
     this.state.fontWeight = css.weight;
     this.state.fontStyle = css.style;
   }
