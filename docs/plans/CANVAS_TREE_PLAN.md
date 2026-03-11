@@ -1,7 +1,7 @@
 # Canvas Object Tree — Structural Rendering Comparison Plan
 
 **Created:** 2026-03-11
-**Status:** Planned
+**Status:** Phase 1+2 Complete, Phase 3-4 Remaining
 **Goal:** Capture every Canvas2D operation from PDF rendering as a structured tree, enabling direct comparison with PPTX TracingBackend output to identify typeface, positioning, and color differences.
 
 ## Motivation
@@ -233,12 +233,18 @@ We should reference their approach for:
 
 ## Success Criteria
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| Text accuracy (vs ground truth) | 8.2% | >90% |
-| Position delta (avg) | 29.7pt | <3pt |
-| Font family match rate | not measured | >80% |
-| Cross-format comparison | not available | functional |
+| Metric | Baseline | Phase 2 Result | Target |
+|--------|----------|---------------|--------|
+| Text accuracy (vs ground truth) | 8.2% | **72.7%** | >90% |
+| Position delta (avg) | 29.7pt | **7.6pt** | <3pt |
+| Position accuracy | 0% | **72.1%** | >90% |
+| Font family match rate | not measured | captured (Barlow, RobotoSlab) | >80% |
+| Cross-format comparison | not available | — | functional |
+
+### Phase 2 Key Discoveries
+- **Page-level cm scaling**: Many PDFs (esp. slide exports) use a `cm` operator to scale coordinates. Font sizes from `fontSize × textMatrixScale` must be further multiplied by `(ctmScale / viewportScale)` to get true PDF-point sizes.
+- **Space characters as word delimiters**: PDF text rendering emits space characters as individual glyphs. Using these as explicit word boundaries gives far better word grouping than gap-detection heuristics.
+- **Ascent estimation**: Y offset from baseline to glyph top ≈ `fontSize × 0.8`. This gives 1-3pt accuracy but could improve with actual font metrics.
 
 ## Files to Create/Modify
 
