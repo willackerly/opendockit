@@ -1543,7 +1543,7 @@ function decodeImageXObject(
     (imageMaskVal && 'booleanValue' in imageMaskVal && (imageMaskVal as any).booleanValue === true);
 
   if (isImageMask || (bpc === 1 && cs === 'DeviceGray')) {
-    return decodeImageMask(data, width, height);
+    return decodeImageMask(data, width, height, this.fillColor);
   }
 
   let image: NativeImage | null;
@@ -1718,11 +1718,21 @@ function extractSMask(
   return alpha;
 }
 
-function decodeImageMask(data: Uint8Array, width: number, height: number): NativeImage {
+export function decodeImageMask(
+  data: Uint8Array,
+  width: number,
+  height: number,
+  fillColor: Color = { r: 0, g: 0, b: 0 },
+): NativeImage {
   const rgba = new Uint8Array(width * height * 4);
   let srcByte = 0;
   let srcBit = 7;
   const rowBytes = Math.ceil(width / 8);
+
+  // Per PDF spec, image masks are stencils painted in the current fill color.
+  const fr = Math.round(fillColor.r * 255);
+  const fg = Math.round(fillColor.g * 255);
+  const fb = Math.round(fillColor.b * 255);
 
   for (let y = 0; y < height; y++) {
     srcByte = y * rowBytes;
@@ -1731,9 +1741,9 @@ function decodeImageMask(data: Uint8Array, width: number, height: number): Nativ
       const bit = (data[srcByte] >> srcBit) & 1;
       const idx = (y * width + x) * 4;
       // Image mask: 0 = painted (opaque), 1 = masked (transparent)
-      rgba[idx] = 0;
-      rgba[idx + 1] = 0;
-      rgba[idx + 2] = 0;
+      rgba[idx] = fr;
+      rgba[idx + 1] = fg;
+      rgba[idx + 2] = fb;
       rgba[idx + 3] = bit === 0 ? 255 : 0;
       srcBit--;
       if (srcBit < 0) {
