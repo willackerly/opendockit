@@ -8,7 +8,7 @@
  *   // User confirms -> apply redaction
  */
 
-import type { PageElement, TextElement, ShapeElement, ImageElement } from './types.js';
+import type { PageElement, ShapeElement, ImageElement } from './types.js';
 import { queryElementsInRect, type Rect } from './spatial.js';
 
 export interface RedactionPreview {

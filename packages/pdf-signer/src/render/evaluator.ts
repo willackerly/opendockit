@@ -203,12 +203,13 @@ class EvalContext {
   private opList: OperatorList;
   private fontCache = new Map<
     string,
-    { decoder: FontDecoder; css: NativeFont; stdWidthFn: ((code: number) => number) | null }
+    { decoder: FontDecoder; css: NativeFont; stdWidthFn: ((code: number) => number) | null; extractedFont: ExtractedFont | undefined }
   >();
   private currentFont: {
     decoder: FontDecoder;
     css: NativeFont;
     stdWidthFn: ((code: number) => number) | null;
+    extractedFont: ExtractedFont | undefined;
   } | null = null;
   private recursionDepth = 0;
 
@@ -901,13 +902,13 @@ class EvalContext {
     this.fontName = fontNameVal;
     this.fontSize = fontSizeVal;
 
-    let fontInfo = this.fontCache.get(fontNameVal);
+    let fontInfo = this.fontCache.get(fontNameVal) ?? null;
     if (!fontInfo) {
       fontInfo = this.resolveFont(fontNameVal);
       if (fontInfo) this.fontCache.set(fontNameVal, fontInfo);
     }
 
-    this.currentFont = fontInfo ?? undefined;
+    this.currentFont = fontInfo;
     const css = fontInfo?.css ?? {
       family: 'Helvetica, Arial, sans-serif',
       weight: 'normal',
@@ -1426,7 +1427,7 @@ class EvalContext {
     if (width <= 0 || height <= 0) return;
 
     try {
-      const image = decodeImageXObject(stream, dict, this.resolve);
+      const image = decodeImageXObject(stream, dict, this.resolve, this.fillColor);
       if (image) {
         this.opList.addOpArgs(OPS.paintImageXObject, [image]);
 
@@ -1473,7 +1474,8 @@ class EvalContext {
 function decodeImageXObject(
   stream: COSStream,
   dict: COSDictionary,
-  resolve: ObjectResolver
+  resolve: ObjectResolver,
+  fillColor: Color = { r: 0, g: 0, b: 0 }
 ): NativeImage | null {
   const width = dict.getInt('Width', 0);
   const height = dict.getInt('Height', 0);
@@ -1543,7 +1545,7 @@ function decodeImageXObject(
     (imageMaskVal && 'booleanValue' in imageMaskVal && (imageMaskVal as any).booleanValue === true);
 
   if (isImageMask || (bpc === 1 && cs === 'DeviceGray')) {
-    return decodeImageMask(data, width, height, this.fillColor);
+    return decodeImageMask(data, width, height, fillColor);
   }
 
   let image: NativeImage | null;
@@ -2498,9 +2500,6 @@ function decodeStitchingFunction(
 
   // Get bounds
   const bounds = getNumberArray(funcDict, 'Bounds', resolve) ?? [];
-  // Encode array (used by PDF spec for mapping — not needed for stop extraction)
-  const _encode = getNumberArray(funcDict, 'Encode', resolve) ?? [];
-
   const stops: ShadingStop[] = [];
   const allBounds = [domain[0], ...bounds, domain[1]];
   const domainRange = domain[1] - domain[0];
@@ -2542,7 +2541,7 @@ function decodeStitchingFunction(
 
 function decodeSampledFunction(
   funcDict: COSDictionary,
-  domain: number[],
+  _domain: number[],
   cs: string,
   resolve: ObjectResolver
 ): ShadingStop[] {
@@ -2616,7 +2615,6 @@ function decodeSampledFunction(
   // Generate gradient stops by sampling at regular intervals
   const numStops = Math.min(size, 16); // cap at 16 stops for performance
   const stops: ShadingStop[] = [];
-  const domainRange = domain[1] - domain[0];
 
   for (let i = 0; i < numStops; i++) {
     const t = numStops === 1 ? 0 : i / (numStops - 1);

@@ -465,7 +465,7 @@ export async function fetchOcspResponse(
     headers: {
       'Content-Type': 'application/ocsp-request',
     },
-    body: reqBody,
+    body: reqBody as unknown as BodyInit,
     signal: AbortSignal.timeout(timeoutMs),
   });
 

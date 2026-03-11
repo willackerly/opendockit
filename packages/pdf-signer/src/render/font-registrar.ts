@@ -109,7 +109,7 @@ export class FontRegistrar {
       for (const entry of this.cache.values()) {
         if (entry.fontFace && typeof document !== 'undefined') {
           try {
-            document.fonts.delete(entry.fontFace);
+            (document.fonts as any).delete(entry.fontFace);
           } catch {
             // Ignore cleanup errors
           }
@@ -151,7 +151,7 @@ export class FontRegistrar {
   private async registerNode(
     family: string,
     fontBytes: Uint8Array,
-    options?: { weight?: string; style?: string }
+    options?: { weight?: string; style?: string; fontType?: string }
   ): Promise<RegisteredFont> {
     const fs = await import('fs');
     const os = await import('os');
@@ -199,13 +199,13 @@ export class FontRegistrar {
       fontBytes.byteOffset + fontBytes.byteLength
     );
 
-    const fontFace = new FontFace(family, buffer, {
+    const fontFace = new FontFace(family, buffer as ArrayBuffer, {
       weight: options?.weight ?? 'normal',
       style: options?.style ?? 'normal',
     });
 
     await fontFace.load();
-    document.fonts.add(fontFace);
+    (document.fonts as any).add(fontFace);
 
     return { family, fontFace };
   }
@@ -295,9 +295,10 @@ f.save(sys.argv[1])
   }
 }
 
-// Unused but kept for reference — pure TS approach that doesn't fully work
+// Reference implementation — pure TS approach that doesn't fully work
 // because FreeType requires more complete table structures than we can easily generate.
-function _patchTrueTypeForRegistration(fontBytes: Uint8Array): Uint8Array {
+/** @internal */
+export function _patchTrueTypeForRegistration(fontBytes: Uint8Array): Uint8Array {
   const view = new DataView(fontBytes.buffer, fontBytes.byteOffset, fontBytes.byteLength);
 
   // Check magic: "true" (0x74727565) or standard (0x00010000)
@@ -393,16 +394,10 @@ function _patchTrueTypeForRegistration(fontBytes: Uint8Array): Uint8Array {
   const newNumTables = numTables + 1;
 
   // Calculate new table directory size and data offset
-  const newDirEnd = 12 + newNumTables * 16;
   const oldDirEnd = 12 + numTables * 16;
-
-  // Align OS/2 data to 4-byte boundary
-  const os2DataOffset = (newDirEnd + 3) & ~3;
   const os2PaddedSize = (os2Size + 3) & ~3;
 
-  // Shift all existing table data by the extra space needed
-  const shift = (os2DataOffset + os2PaddedSize) - oldDirEnd;
-  // Actually, simpler: append OS/2 at the end
+  // Append OS/2 at the end (simpler than shifting existing data)
   const oldDataStart = oldDirEnd;
   const newSize = fontBytes.length + 16 + os2PaddedSize; // 16 for dir entry
   const result = new Uint8Array(newSize);

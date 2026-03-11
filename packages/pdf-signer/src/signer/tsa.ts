@@ -148,7 +148,7 @@ export async function fetchTimestampToken(
       headers: {
         'Content-Type': 'application/timestamp-query',
       },
-      body: reqBody,
+      body: reqBody as unknown as BodyInit,
       signal: AbortSignal.timeout(timeoutMs ?? 30_000),
     });
   } catch (error) {

@@ -271,6 +271,7 @@ export class NativeRenderer {
    * If registration fails (corrupt font, unsupported format), the 4th arg
    * is set to undefined so canvas-graphics falls back to CSS fonts.
    */
+  // @ts-expect-error Disabled pending font metric tuning — called sites commented out
   private async preRegisterFonts(
     opList: OperatorList,
     diagnostics: RenderDiagnosticsCollector,
@@ -405,7 +406,7 @@ export class NativeRenderer {
     diagnostics: RenderDiagnosticsCollector,
   ): Promise<ImageBitmap | null> {
     try {
-      const blob = new Blob([jpegData], { type: 'image/jpeg' });
+      const blob = new Blob([jpegData as BlobPart], { type: 'image/jpeg' });
       return await createImageBitmap(blob);
     } catch (err) {
       diagnostics.warn('image', `Failed to async-decode JPEG (${_width}x${_height})`, {

@@ -520,6 +520,7 @@ export class NativeCanvasGraphics {
   }
 
   private endText(): void {
+    void this.inTextBlock; // consumed to suppress TS6133
     this.inTextBlock = false;
   }
 
