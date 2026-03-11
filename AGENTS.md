@@ -119,17 +119,12 @@ Multiple agents work async on this codebase. Docs drift when agents complete wor
 
 `test-data/` holds PPTX/DOCX/XLSX test fixtures. `docs/` mirrors the project hierarchy.
 
-## Active Workstreams (2026-03-08)
+## Active Workstreams (2026-03-10)
 
-- **Phase 0: Core Foundation (COMPLETE)** — OPC reader, XML parser, units, IR types, theme engine, color resolver, font resolver
-- **Phase 1: DrawingML Pipeline (COMPLETE)** — All parsers, 187 preset geometries, Canvas2D renderers, media cache
-- **Phase 2: PPTX Integration (COMPLETE)** — PresentationML parser, slide renderer, SlideKit API
-- **Phase 3: Progressive Fidelity (COMPLETE)** — Capability registry, WASM loader, tables, connectors, auto-fit, placeholder resolution, style refs, hyperlinks, notes, visual regression pipeline
-- **Phase 3.5: Diagnostics & Polish (COMPLETE)** — DiagnosticEmitter, vert/RTL text, tab stops, table auto-height, spAutoFit, placeholder content inheritance, theme fonts, SmartArt fallback, chart cached image fallback, text outline, underline fill, element inspector
-- **Phase Edit: Mutable Object Model (COMPLETE)** — EditablePresentation, dirty tracking, XML reconstitution, OPC writer, EditableSlideKit, round-trip tests, visual regression for edits
-- **Phase 4: PDF/Office Unified Architecture (Waves 0-4 COMPLETE)** — RenderBackend abstraction (CanvasBackend + PDFBackend), @opendockit/elements (unified element model), @opendockit/render (shared render utilities), @opendockit/pdf (PDF export pipeline), cross-format text search, clipboard serialize/deserialize, batch PPTX→PDF conversion, unified viewer. **3,841 tests passing** (1,570 core + 146 elements + 201 render + 322 pptx + 1,578 pdf-signer + 24 pdf).
-- **Phase 4 remaining (deferred)** — Full ChartML parser, CanvasKit WASM, slide transitions, SVG export
-- **DOCX support (future)** — WordprocessingML parser + page layout engine, reuses ~40% of core
+- **Phase 0–3.5, Edit, 4 (COMPLETE)** — Full PPTX rendering, editing, PDF/Office unified architecture. **4,434+ tests passing** (1,768 core + 331 elements + 208 render + 370 pptx + 1,663 pdf-signer + 129 docx + 24 pdf).
+- **NativeRenderer Quality (ACTIVE)** — PDF reading fidelity. Avg RMSE **0.069** against pdftoppm (down from 0.14 — 51% reduction). 24/30 pages FAIR. 13 rendering bugs fixed. Next: element-level structural diffing (evaluator already emits TextElement/ShapeElement/ImageElement — compare against Poppler ground truth instead of pixel RMSE).
+- **DOCX support (scaffold done, 129 tests)** — WordprocessingML parser + DocKit viewport complete; page layout engine future
+- **Still deferred** — CanvasKit WASM, slide transitions, SVG export, full ChartML parser
 - **XLSX support (future)** — SpreadsheetML parser + grid layout, reuses ~35% of core
 
 ---

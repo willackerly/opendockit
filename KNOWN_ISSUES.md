@@ -4,17 +4,22 @@
 
 ## Active Bugs (Priority)
 
-### PDF NativeRenderer — Image & Text Rendering (2026-03-10)
+### PDF NativeRenderer — Quality (2026-03-10)
 
-**Avg RMSE: 0.14 against pdftoppm ground truth** (USG Briefing, 30 pages). Key issues:
+**Avg RMSE: 0.069 against pdftoppm ground truth** (USG Briefing, 30 pages). Down from 0.14 — 51% reduction. 24/30 pages FAIR (< 0.08), 6 BAD.
 
-1. **~~`ImageData is not defined` in Node.js~~** — FIXED: `canvas-graphics.ts` `paintImage()` used browser-only `new ImageData()`. Changed to `ctx.createImageData()` + `.data.set()`.
-2. **~~Text batched into single `fillText()` call~~** — FIXED: Characters now rendered individually at PDF-specified positions via glyph widths, respecting charSpacing/wordSpacing.
-3. **~~ICCBased image decode crashes~~** — FIXED: `evaluator.ts` COSStream.getInt() → getDictionary().getInt(), plus N=2 ICC profile handler.
-4. **~~Browser JPEG crosshatch~~** — FIXED: Store `ImageBitmap` directly instead of lossy RGBA round-trip.
-5. **Grey/dark background on some elements** — OPEN: Some content renders too dark, possibly ExtGState alpha or z-ordering issue.
-6. **Font mismatch** — OPEN: Canvas renders with system fonts, not PDF embedded fonts. No embedded font decode yet.
-7. **Pattern color spaces** — OPEN: Not implemented, emits diagnostic warning.
+**Fixed this session (13 bugs):** ICC stream color space (#1 — backgrounds decoded as gray), JPEG SMask application, Form XObject state isolation, fillStroke path destruction, image mask fill color, horizontal text scaling (Tz), Type 0 sampled function decode, stitching function recursion, tiling patterns, ImageData Node.js crash, per-character text positioning, ICCBased N=2, browser JPEG crosshatch.
+
+**Open issues:**
+
+| Priority | Issue | Details | Effort |
+|----------|-------|---------|--------|
+| **Next** | Element-level diffing | Shift from pixel RMSE to structural comparison using evaluator's element DOM vs Poppler ground truth | Medium |
+| **P1** | ExtGState SMask | Transparency groups on page 29 — `handleExtGState()` ignores `/SMask` key, requires offscreen compositing | Hard |
+| **P2** | Font substitution | Canvas uses system fonts, not PDF embedded fonts. Infrastructure built (FontExtractor + FontRegistrar) but disabled — causes metric regressions on some pages | Medium |
+| **P2** | Negative fontSize | Flips text upside-down. `renderGlyph()` unconditionally flips Y | Easy |
+| **P3** | CS/cs color space tracking | Operators ignored; colors inferred from component count. Fails for Separation/Lab/CalRGB | Medium |
+| **P3** | Separation/DeviceN | Treated as grayscale instead of evaluating tint transform function | Hard |
 
 ### Resolved: Bundled Font Loading Broken in Vite Dev Mode (2026-02-27)
 

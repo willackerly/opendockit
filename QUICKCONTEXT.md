@@ -31,7 +31,7 @@ OpenDocKit is a progressive-fidelity, 100% client-side OOXML renderer and editor
 
 The full PPTX rendering pipeline is implemented, tested, and visually validated. The editing pipeline (Phase 0-3) is complete. Phase 4 (Waves 0-4) of the PDF/Office unified architecture is complete:
 
-- **4,328 tests** passing (1,733 core + 203 elements + 208 render + 433 pptx + 1,598 pdf-signer + 129 docx + 24 pdf), typecheck clean
+- **4,434 tests** passing (1,768 core + 331 elements + 208 render + 370 pptx + 1,604 pdf-signer + 129 docx + 24 pdf), typecheck clean
 - **Visual regression**: 54-slide real-world PPTX with per-slide RMSE baselines (`pnpm test:visual`) + 10-file corpus (67 slides) with self-referential regression guard (`pnpm test:visual:corpus`) + PDF visual regression with RMSE baselines (`pnpm test:visual:pdf`)
 - **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (42 families, 130 faces) + bundled WOFF2 fonts (42 families, ~5MB, 100% offline), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks, video placeholder detection, field codes, diagram drawing), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation + font-metric-based line height + ascender baseline positioning + text outline + underline fill color, media cache, capability registry, WASM module loader, diagnostics system (DiagnosticEmitter + RenderContext wiring)
 - **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance + table textDefaults), SlideKit viewport API (hyperlinks, notes, element inspector), SmartArt fallback renderer, chart cached image fallback renderer
@@ -86,41 +86,46 @@ Cross-project alignment with pdfbox-ts: EditTracker mirrors COSUpdateTracker pat
 
 ## What's Next
 
-### Phase 4: Charts + Export (partially done)
+### NativeRenderer (PDF Reading) Quality — Active Focus
 
-Complete (Waves 0-4, 2026-03-07/08):
+**RMSE avg 0.069** against pdftoppm on USG Briefing (30 pages). Down from 0.14 — **51% reduction**. 24/30 pages FAIR (< 0.08), 6 pages BAD, worst page 29 at 0.19.
+
+**Completed:** Form XObject state isolation, fillStroke path fix, image mask colors, horizontal text scaling, JPEG SMask application, ICC stream color space (was #1 bug — backgrounds decoded as gray), sampled/stitching gradient functions, tiling patterns, font extraction infrastructure.
+
+**Remaining:** ExtGState SMask transparency groups (page 29 — Hard), font substitution differences, negative fontSize, CS/cs color space tracking, Separation/DeviceN tint transforms.
+
+**Next direction:** Element-level structural diffing (evaluator already emits TextElement/ShapeElement/ImageElement) instead of pixel RMSE — more actionable for remaining issues like font rendering.
+
+**Phase 3:** Tools consolidation — unify diagnostic scripts, streamline comparison infrastructure.
+
+### Phase 4: Charts + Export (complete)
+
+Waves 0-4 complete (2026-03-07/08):
 - RenderBackend abstraction (CanvasBackend + PDFBackend)
 - Unified element model: @opendockit/elements
 - Unified render utilities: @opendockit/render
 - PDF rendering package: @opendockit/pdf
 - PDF export pipeline (shapes/fills + text with custom TrueType font embedding + font subsetting + JPEG/PNG image XObjects + gradient shading + transparency)
-- Cross-format text search
-- Clipboard serialize/deserialize
-- Batch PPTX→PDF conversion script
+- Cross-format text search, clipboard serialize/deserialize, batch PPTX→PDF conversion
 - Unified viewer (PPTX + PDF format detection)
 - Font substitutions for Aptos, Verdana, Trebuchet MS, Corbel, Candara, Constantia
 - NativeRenderer improvements: shading patterns, JPEG images, CropBox, indexed colors
-- 5 synthetic stress test PPTX fixtures (gradients, tables, effects, text, connectors)
-- BDD/Gherkin infrastructure: 16 feature files, 38 scenarios across 4 epics, playwright-bdd integration
-- Enhanced test harness editor UI (`tools/test-harness/`) with toolbar, slide panel, canvas editor, properties panel
-- Performance benchmark infrastructure (`tools/perf/`) with 11 Vitest bench benchmarks across parsing/rendering/system
 - DOCX scaffold: @opendockit/docx package with full WordprocessingML parser + DocKit viewport (129 tests)
+- PDF custom font embedding — 42 bundled font families as subsetted TrueType
 
 Still deferred:
 1. **CanvasKit** WASM integration (3D effects, reflections, advanced filters)
 2. **Slide transitions**
 3. **SVG export**
-4. ~~**PDF custom font embedding**~~ ✅ Complete — 42 bundled font families embedded as subsetted TrueType, per-glyph advance widths for accurate text measurement
 
 Permanently deferred:
 - **ChartML** — cached image fallback renders chart previews. Not worth the complexity.
 
 ### Deferred (not blocking — tackle when needed)
 
-1. **Connector routing** — shape-to-shape endpoint resolution via connection sites (current: connectors render but endpoints are edge-of-bounding-box, not snapped to connection site geometry)
+1. **Connector routing** — shape-to-shape endpoint resolution via connection sites
 2. **Text effects on runs** — `a:effectLst` on `a:rPr` (text shadow/glow/reflection) not parsed
 3. **Multi-column text bodies** — `numCol`/`spcCol` parsed into IR but not consumed
-4. **Synthetic test fixtures** — PPTX files targeting specific features in isolation
 
 ## Key Architecture Decisions
 
@@ -158,7 +163,7 @@ None currently.
 
 ### PDF NativeRenderer Quality (2026-03-10)
 
-Avg RMSE 0.14 against pdftoppm on USG Briefing (30 pages). Fixed this session: ImageData Node.js crash, per-character text positioning, ICCBased image decode, browser JPEG crosshatch. Remaining: grey/dark backgrounds (alpha/z-order), font mismatch (no embedded font decode), pattern colors.
+**Avg RMSE 0.069** against pdftoppm (down from 0.14 — 51% reduction). 24/30 pages FAIR. Fixed: ICC stream color space (#1 bug), JPEG SMask, Form XObject state, fillStroke path, image mask colors, horizontal scaling, sampled gradient functions, tiling patterns. Remaining: ExtGState SMask (transparency groups), font substitution, CS/cs tracking.
 
 **Comparison harness**: `packages/pdf-signer/src/render/__tests__/pdf-compare-harness.test.ts` — generates HTML report at `packages/tmp/pdf-compare/usg-briefing/report.html`.
 **PPTX SBS viewer**: `pnpm sbs -- --pptx <path> --ref-dir <dir>` or `node scripts/generate-sbs-viewer.mjs`.

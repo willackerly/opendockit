@@ -1,6 +1,6 @@
 # TODO
 
-**Last synced:** 2026-03-08
+**Last synced:** 2026-03-10
 
 ## Completed
 
@@ -242,7 +242,9 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [ ] Server-side font metrics extraction service (for users with licensed fonts)
 - [ ] No kerning pairs in metrics bundle (~1-3% width error on long text runs)
 
-### NativeRenderer (PDF Reading) Improvements
+### NativeRenderer (PDF Reading) — Active Focus
+
+**Current state:** Avg RMSE **0.069** against pdftoppm on USG Briefing (30 pages). Down from 0.14 — **51% reduction**. 24/30 pages FAIR (< 0.08), 6 BAD, worst page 29 at 0.19.
 
 **Done (2026-03-08):**
 - [x] Fix curveTo2 (v operator) — correct bezierCurveTo with current point tracking
@@ -261,13 +263,37 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [x] Per-character text rendering — each glyph positioned by PDF-specified widths (was single fillText batch)
 - [x] Browser JPEG ImageBitmap — store bitmap directly, skip lossy RGBA round-trip
 - [x] PDF comparison harness — vitest-based RMSE comparison against pdftoppm with HTML report
+- [x] Form XObject state isolation — `this.save()`/`this.restore()` in paintFormBegin/End
+- [x] fillStroke path fix — `fillStrokePath()` defers `consumeClip()` until after both fill and stroke
+- [x] Image mask fill color — `decodeImageMask()` uses current fill color per PDF spec (not hardcoded black)
+- [x] Horizontal text scaling (Tz) — `renderGlyph()` applies `ctx.scale(hScale, 1)`
+- [x] JPEG SMask application — `paintImage()` applies soft mask alpha to JPEG/bitmap images
+- [x] ICC stream color space — `resolveColorSpace()` handles direct COSStream refs to ICC profiles (**#1 bug** — backgrounds decoded as gray instead of RGB)
+- [x] Type 0 sampled function decode — proper sample table interpolation (was black-to-white stub)
+- [x] Stitching function recursion — Type 3 now recurses into Type 0/3 sub-functions (was grey fallback)
+- [x] Tiling pattern implementation — PatternType 1 colored tiling via offscreen canvas + `ctx.createPattern()`
+- [x] Font extraction infrastructure — FontExtractor + FontRegistrar with fonttools patching (disabled pending metric tuning)
 
-**Remaining (open, avg RMSE 0.14):**
-- [ ] Grey/dark background on some elements — investigate ExtGState alpha, clipping, z-ordering
-- [ ] Embedded font decode — extract font programs from PDF for accurate text rendering
-- [ ] Pattern color spaces — tiling/shading patterns in fill operations
-- [ ] Form XObject rendering improvements — nested form XObjects may have alpha/clipping issues
-- [ ] Text kerning — no kerning pairs used, canvas uses system font kerning which differs from PDF
+**Next: Element-Level Structural Diffing**
+
+Shift from pixel RMSE to structured comparison. The evaluator already emits TextElement/ShapeElement/ImageElement — compare these against Poppler ground truth for actionable per-element scoring.
+
+- [ ] Build `pdftotext -bbox-layout` ground truth extractor (text positions, font sizes, content)
+- [ ] Build element-level diff engine (match our elements to ground truth by position/content)
+- [ ] Per-element scoring: text position accuracy, content correctness, font size match, image placement
+- [ ] HTML diff report with element-level annotations (not just pixel diff)
+- [ ] Integrate as `pnpm test:visual:pdf:elements` alongside pixel RMSE
+
+**Remaining pixel-level issues (lower priority):**
+- [ ] ExtGState SMask transparency groups (page 29 — Hard, requires offscreen compositing)
+- [ ] Negative fontSize flips text upside-down (Easy)
+- [ ] CS/cs color space operator tracking (Medium — colors inferred from component count)
+- [ ] Separation/DeviceN tint transform evaluation (Hard)
+- [ ] Font registration metric alignment (infra built, disabled — causes regressions on some pages)
+
+**Tools consolidation:**
+- [ ] Unify diagnostic/comparison scripts (check-fonts, diagnose-fonts, diagnose-slide, measure-line-heights)
+- [ ] Streamline SBS viewer and comparison infrastructure
 
 ### pdfbox-ts Integration Items (FYI from prior team)
 
