@@ -468,76 +468,222 @@ function scoreClass(score: PageScore): string {
   return 'bad';
 }
 
+/** Map a 0-1 ratio to a four-tier severity CSS class. */
+function metricSeverity(
+  value: number,
+  thresholds: { green: number; yellow: number; orange: number }
+): string {
+  if (value >= thresholds.green) return 'sev-green';
+  if (value >= thresholds.yellow) return 'sev-yellow';
+  if (value >= thresholds.orange) return 'sev-orange';
+  return 'sev-red';
+}
+
+/** Map a position delta (lower is better) to a severity class. */
+function deltaSeverity(
+  delta: number,
+  thresholds: { green: number; yellow: number; orange: number }
+): string {
+  if (delta <= thresholds.green) return 'sev-green';
+  if (delta <= thresholds.yellow) return 'sev-yellow';
+  if (delta <= thresholds.orange) return 'sev-orange';
+  return 'sev-red';
+}
+
 /**
  * Generate a self-contained HTML report showing element-level diff results
  * for one or more pages.
+ *
+ * Features:
+ * - Overall aggregate summary at top with color-coded metrics
+ * - Per-page summary table with text accuracy, position delta, match rate
+ * - Collapsible per-page detail sections with:
+ *   - Each matched element pair showing text, position, font family, deltas
+ *   - Unmatched elements listed separately
+ *
+ * Note: pdftotext -bbox-layout does not emit font family information,
+ * so font comparison is one-sided (our font family only).
  */
 export function generateElementDiffReport(pages: PageDiffResult[]): string {
+  // ── Aggregate stats ──────────────────────────────────────
+  const totalGround = pages.reduce((s, p) => s + p.score.totalGroundWords, 0);
+  const totalOurs = pages.reduce((s, p) => s + p.score.totalOurRuns, 0);
+  const totalMatched = pages.reduce((s, p) => s + p.score.matchedCount, 0);
+  const totalUnmatchedGT = pages.reduce(
+    (s, p) => s + p.score.unmatchedGroundCount,
+    0
+  );
+  const totalUnmatchedOurs = pages.reduce(
+    (s, p) => s + p.score.unmatchedOursCount,
+    0
+  );
+  const avgTextAcc =
+    pages.length > 0
+      ? pages.reduce((s, p) => s + p.score.textAccuracy, 0) / pages.length
+      : 0;
+  const avgPosAcc =
+    pages.length > 0
+      ? pages.reduce((s, p) => s + p.score.positionAccuracy, 0) / pages.length
+      : 0;
+  const avgPosDelta =
+    pages.length > 0
+      ? pages.reduce((s, p) => s + p.score.avgPositionDelta, 0) / pages.length
+      : 0;
+  const avgFontSizeDelta =
+    pages.length > 0
+      ? pages.reduce((s, p) => s + p.score.avgFontSizeDelta, 0) / pages.length
+      : 0;
+  const matchRate = totalGround > 0 ? totalMatched / totalGround : 0;
+
+  // ── Per-page summary rows ────────────────────────────────
   const pageRows = pages
     .map((p) => {
-      const cls = scoreClass(p.score);
-      return `<tr class="${cls}">
-        <td>${p.pageNum}</td>
+      const textAccPct = p.score.textAccuracy * 100;
+      const posAccPct = p.score.positionAccuracy * 100;
+      const posDelta = p.score.avgPositionDelta;
+      const fontSzDelta = p.score.avgFontSizeDelta;
+      const localMatchRate =
+        p.score.totalGroundWords > 0
+          ? p.score.matchedCount / p.score.totalGroundWords
+          : 0;
+
+      const textAccCls = metricSeverity(p.score.textAccuracy, {
+        green: 0.9,
+        yellow: 0.7,
+        orange: 0.5,
+      });
+      const posAccCls = metricSeverity(p.score.positionAccuracy, {
+        green: 0.8,
+        yellow: 0.6,
+        orange: 0.4,
+      });
+      const posDeltaCls = deltaSeverity(posDelta, {
+        green: 3,
+        yellow: 6,
+        orange: 12,
+      });
+      const matchRateCls = metricSeverity(localMatchRate, {
+        green: 0.95,
+        yellow: 0.8,
+        orange: 0.6,
+      });
+      const fontSzCls = deltaSeverity(fontSzDelta, {
+        green: 0.5,
+        yellow: 1,
+        orange: 2,
+      });
+
+      return `<tr>
+        <td><a href="#page-${p.pageNum}">${p.pageNum}</a></td>
         <td>${p.score.totalGroundWords}</td>
         <td>${p.score.totalOurRuns}</td>
-        <td>${p.score.matchedCount}</td>
+        <td class="${matchRateCls}">${p.score.matchedCount} (${(localMatchRate * 100).toFixed(0)}%)</td>
         <td>${p.score.unmatchedGroundCount}</td>
         <td>${p.score.unmatchedOursCount}</td>
-        <td>${p.score.avgPositionDelta.toFixed(2)}</td>
-        <td>${p.score.avgTextSimilarity.toFixed(3)}</td>
-        <td>${(p.score.textAccuracy * 100).toFixed(1)}%</td>
-        <td>${(p.score.positionAccuracy * 100).toFixed(1)}%</td>
+        <td class="${textAccCls}">${textAccPct.toFixed(1)}%</td>
+        <td class="${posAccCls}">${posAccPct.toFixed(1)}%</td>
+        <td class="${posDeltaCls}">${posDelta.toFixed(2)}pt</td>
+        <td class="${fontSzCls}">${fontSzDelta.toFixed(2)}pt</td>
       </tr>`;
     })
     .join('\n');
 
+  // ── Per-page detail sections ─────────────────────────────
   const pageDetails = pages
     .map((p) => {
+      // Match rows with position, font family, and delta highlighting
       const matchRows = p.matches
-        .map(
-          (m) =>
-            `<tr>
+        .map((m) => {
+          const textCls =
+            m.textSimilarity < 0.01
+              ? 'sev-green'
+              : m.textSimilarity < 0.1
+                ? 'sev-yellow'
+                : m.textSimilarity < 0.3
+                  ? 'sev-orange'
+                  : 'sev-red';
+          const posCls = deltaSeverity(m.positionDelta, {
+            green: 3,
+            yellow: 6,
+            orange: 12,
+          });
+          const fontSzCls = deltaSeverity(m.fontSizeDelta, {
+            green: 0.5,
+            yellow: 1,
+            orange: 2,
+          });
+
+          return `<tr>
           <td class="text">${escapeHtml(m.ground.text)}</td>
           <td class="text">${escapeHtml(m.ours.text)}</td>
-          <td>${m.positionDelta.toFixed(1)}</td>
-          <td>${m.textSimilarity.toFixed(3)}</td>
-          <td>${m.fontSizeDelta.toFixed(1)}</td>
-          <td>${m.widthDelta.toFixed(1)}</td>
-        </tr>`
-        )
+          <td class="${textCls}">${m.textSimilarity < 0.01 ? 'exact' : m.textSimilarity.toFixed(3)}</td>
+          <td class="pos-cell">(${m.ground.x.toFixed(1)}, ${m.ground.y.toFixed(1)})</td>
+          <td class="pos-cell">(${m.ours.x.toFixed(1)}, ${m.ours.y.toFixed(1)})</td>
+          <td class="${posCls}">${m.positionDelta.toFixed(1)}pt</td>
+          <td class="${fontSzCls}">${m.fontSizeDelta.toFixed(1)}pt</td>
+          <td class="font-cell">${escapeHtml(m.ours.fontFamily)}</td>
+          <td>${m.widthDelta.toFixed(1)}pt</td>
+        </tr>`;
+        })
         .join('\n');
 
       const unmatchedGroundRows = p.unmatchedGround
         .map(
           (w) =>
-            `<tr class="unmatched-ground"><td class="text">${escapeHtml(w.text)}</td>
-          <td>(${w.x.toFixed(0)}, ${w.y.toFixed(0)})</td>
-          <td>${w.width.toFixed(0)}x${w.height.toFixed(0)}</td></tr>`
+            `<tr class="unmatched-ground">
+          <td class="text">${escapeHtml(w.text)}</td>
+          <td class="pos-cell">(${w.x.toFixed(1)}, ${w.y.toFixed(1)})</td>
+          <td>${w.width.toFixed(0)} x ${w.height.toFixed(0)}</td>
+          <td>${w.fontSize?.toFixed(1) ?? '-'}</td>
+        </tr>`
         )
         .join('\n');
 
       const unmatchedOursRows = p.unmatchedOurs
         .map(
           (r) =>
-            `<tr class="unmatched-ours"><td class="text">${escapeHtml(r.text)}</td>
-          <td>(${r.x.toFixed(0)}, ${r.y.toFixed(0)})</td>
-          <td>${r.width.toFixed(0)}x${r.height.toFixed(0)}</td></tr>`
+            `<tr class="unmatched-ours">
+          <td class="text">${escapeHtml(r.text)}</td>
+          <td class="pos-cell">(${r.x.toFixed(1)}, ${r.y.toFixed(1)})</td>
+          <td>${r.width.toFixed(0)} x ${r.height.toFixed(0)}</td>
+          <td>${r.fontSize.toFixed(1)}</td>
+          <td class="font-cell">${escapeHtml(r.fontFamily)}</td>
+        </tr>`
         )
         .join('\n');
+
+      const cls = scoreClass(p.score);
+      const textAccPct = (p.score.textAccuracy * 100).toFixed(0);
+      const posAccPct = (p.score.positionAccuracy * 100).toFixed(0);
 
       return `
       <div class="page-detail" id="page-${p.pageNum}">
         <h3 class="page-header" onclick="toggleDetail(${p.pageNum})">
           Page ${p.pageNum}
-          <span class="badge ${scoreClass(p.score)}">${(p.score.textAccuracy * 100).toFixed(0)}% text</span>
+          <span class="badge ${cls}">${textAccPct}% text</span>
+          <span class="badge ${metricSeverity(p.score.positionAccuracy, { green: 0.8, yellow: 0.6, orange: 0.4 }).replace('sev-', '')}">${posAccPct}% pos</span>
+          <span class="badge-delta">${p.score.avgPositionDelta.toFixed(1)}pt avg delta</span>
           <span class="toggle">[expand]</span>
         </h3>
         <div class="detail-content" id="detail-${p.pageNum}" style="display:none">
+          <div class="detail-summary">
+            <span>Ground: ${p.score.totalGroundWords}</span>
+            <span>Ours: ${p.score.totalOurRuns}</span>
+            <span>Matched: ${p.score.matchedCount}</span>
+            <span>Text Acc: ${textAccPct}%</span>
+            <span>Pos Acc: ${posAccPct}%</span>
+            <span>Avg Pos Delta: ${p.score.avgPositionDelta.toFixed(2)}pt</span>
+            <span>Avg Font Size Delta: ${p.score.avgFontSizeDelta.toFixed(2)}pt</span>
+          </div>
           ${
             p.matches.length > 0
               ? `<h4>Matched Elements (${p.matches.length})</h4>
           <table class="match-table">
-            <thead><tr><th>Ground</th><th>Ours</th><th>Pos &Delta;</th><th>Text Sim</th><th>Size &Delta;</th><th>Width &Delta;</th></tr></thead>
+            <thead><tr>
+              <th>Ground Text</th><th>Our Text</th><th>Text Dist</th>
+              <th>Ground Pos</th><th>Our Pos</th><th>Pos Delta</th>
+              <th>Size Delta</th><th>Our Font</th><th>Width Delta</th>
+            </tr></thead>
             <tbody>${matchRows}</tbody>
           </table>`
               : ''
@@ -546,7 +692,7 @@ export function generateElementDiffReport(pages: PageDiffResult[]): string {
             p.unmatchedGround.length > 0
               ? `<h4>Unmatched Ground Truth (${p.unmatchedGround.length})</h4>
           <table class="unmatched-table">
-            <thead><tr><th>Text</th><th>Position</th><th>Size</th></tr></thead>
+            <thead><tr><th>Text</th><th>Position</th><th>Size</th><th>Font Size</th></tr></thead>
             <tbody>${unmatchedGroundRows}</tbody>
           </table>`
               : ''
@@ -555,7 +701,7 @@ export function generateElementDiffReport(pages: PageDiffResult[]): string {
             p.unmatchedOurs.length > 0
               ? `<h4>Unmatched Our Runs (${p.unmatchedOurs.length})</h4>
           <table class="unmatched-table">
-            <thead><tr><th>Text</th><th>Position</th><th>Size</th></tr></thead>
+            <thead><tr><th>Text</th><th>Position</th><th>Size</th><th>Font Size</th><th>Font Family</th></tr></thead>
             <tbody>${unmatchedOursRows}</tbody>
           </table>`
               : ''
@@ -565,17 +711,29 @@ export function generateElementDiffReport(pages: PageDiffResult[]): string {
     })
     .join('\n');
 
-  // Compute overall summary
-  const totalGround = pages.reduce((s, p) => s + p.score.totalGroundWords, 0);
-  const totalMatched = pages.reduce((s, p) => s + p.score.matchedCount, 0);
-  const avgTextAcc =
-    pages.length > 0
-      ? pages.reduce((s, p) => s + p.score.textAccuracy, 0) / pages.length
-      : 0;
-  const avgPosAcc =
-    pages.length > 0
-      ? pages.reduce((s, p) => s + p.score.positionAccuracy, 0) / pages.length
-      : 0;
+  // ── Severity color classes for aggregate stats ───────────
+  const aggTextAccCls = metricSeverity(avgTextAcc, {
+    green: 0.9,
+    yellow: 0.7,
+    orange: 0.5,
+  });
+  const aggPosAccCls = metricSeverity(avgPosAcc, {
+    green: 0.8,
+    yellow: 0.6,
+    orange: 0.4,
+  });
+  const aggPosDeltaCls = deltaSeverity(avgPosDelta, {
+    green: 3,
+    yellow: 6,
+    orange: 12,
+  });
+  const aggMatchRateCls = metricSeverity(matchRate, {
+    green: 0.95,
+    yellow: 0.8,
+    orange: 0.6,
+  });
+
+  const timestamp = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, ' UTC');
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -585,60 +743,114 @@ export function generateElementDiffReport(pages: PageDiffResult[]): string {
 <title>Element-Level Diff Report</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; background: #f5f5f5; color: #333; }
-  h1 { margin-bottom: 10px; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; background: #f5f5f5; color: #333; max-width: 1400px; margin: 0 auto; }
+  h1 { margin-bottom: 4px; }
   h2 { margin: 20px 0 10px; }
-  .summary { background: #fff; padding: 16px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-  .summary-stats { display: flex; gap: 24px; margin-top: 10px; }
-  .stat { text-align: center; }
+  .timestamp { font-size: 12px; color: #999; margin-bottom: 16px; }
+
+  /* Aggregate summary */
+  .summary { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-top: 12px; }
+  .stat { text-align: center; padding: 12px 8px; border-radius: 6px; }
   .stat .value { font-size: 28px; font-weight: bold; }
-  .stat .label { font-size: 12px; color: #666; }
+  .stat .label { font-size: 11px; color: #666; margin-top: 2px; }
+
+  /* Severity color classes */
+  .sev-green { background: #e8f5e9; color: #2e7d32; }
+  .sev-yellow { background: #fff8e1; color: #f57f17; }
+  .sev-orange { background: #fff3e0; color: #e65100; }
+  .sev-red { background: #ffebee; color: #c62828; }
+  .stat.sev-green .value { color: #2e7d32; }
+  .stat.sev-yellow .value { color: #f57f17; }
+  .stat.sev-orange .value { color: #e65100; }
+  .stat.sev-red .value { color: #c62828; }
+  td.sev-green { font-weight: 600; }
+  td.sev-yellow { font-weight: 600; }
+  td.sev-orange { font-weight: 600; }
+  td.sev-red { font-weight: 600; }
+
+  /* Tables */
   table { width: 100%; border-collapse: collapse; margin-bottom: 16px; background: #fff; }
   th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #eee; font-size: 13px; }
-  th { background: #f9f9f9; font-weight: 600; }
-  td.text { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  tr.good { background: #e8f5e9; }
-  tr.fair { background: #fff8e1; }
-  tr.bad { background: #ffebee; }
+  th { background: #f0f0f0; font-weight: 600; position: sticky; top: 0; }
+  td.text { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td.pos-cell { font-family: 'SF Mono', Menlo, monospace; font-size: 11px; white-space: nowrap; color: #555; }
+  td.font-cell { font-size: 11px; color: #666; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .summary-table { border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .summary-table th { background: #37474f; color: #fff; font-size: 12px; }
+  .summary-table td { font-size: 13px; }
+  .summary-table tr:hover { background: #f5f5f5; }
+  .summary-table a { color: #1565c0; text-decoration: none; }
+  .summary-table a:hover { text-decoration: underline; }
+
+  /* Unmatched element colors */
   .unmatched-ground td { color: #c62828; }
   .unmatched-ours td { color: #1565c0; }
+
+  /* Page detail cards */
   .page-detail { background: #fff; margin-bottom: 8px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
-  .page-header { padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
-  .page-header:hover { background: #f5f5f5; }
-  .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; color: #fff; }
+  .page-header { padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none; }
+  .page-header:hover { background: #fafafa; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; color: #fff; font-weight: 600; }
   .badge.good { background: #4caf50; }
   .badge.fair { background: #ff9800; }
   .badge.bad { background: #f44336; }
+  .badge.green { background: #4caf50; }
+  .badge.yellow { background: #ffc107; color: #333; }
+  .badge.orange { background: #ff9800; }
+  .badge.red { background: #f44336; }
+  .badge-delta { font-size: 11px; color: #666; font-family: 'SF Mono', Menlo, monospace; }
   .toggle { font-size: 12px; color: #999; margin-left: auto; }
   .detail-content { padding: 0 16px 16px; }
+  .detail-summary { display: flex; flex-wrap: wrap; gap: 16px; padding: 8px 0 12px; font-size: 12px; color: #555; border-bottom: 1px solid #eee; margin-bottom: 8px; }
+  .detail-summary span { white-space: nowrap; }
   .match-table, .unmatched-table { font-size: 12px; }
+  .match-table th { background: #f5f5f5; color: #333; font-size: 11px; }
+  .unmatched-table th { background: #f5f5f5; color: #333; font-size: 11px; }
   h4 { margin: 12px 0 6px; font-size: 14px; }
+
+  /* Expand/collapse all controls */
+  .controls { margin: 8px 0; font-size: 13px; }
+  .controls a { color: #1565c0; cursor: pointer; text-decoration: none; margin-right: 12px; }
+  .controls a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
 <h1>Element-Level Diff Report</h1>
+<div class="timestamp">Generated: ${timestamp}</div>
+
 <div class="summary">
-  <div class="summary-stats">
+  <h2 style="margin:0 0 4px">Aggregate Summary</h2>
+  <div class="summary-grid">
     <div class="stat"><div class="value">${pages.length}</div><div class="label">Pages</div></div>
     <div class="stat"><div class="value">${totalGround}</div><div class="label">Ground Words</div></div>
-    <div class="stat"><div class="value">${totalMatched}</div><div class="label">Matched</div></div>
-    <div class="stat"><div class="value">${(avgTextAcc * 100).toFixed(1)}%</div><div class="label">Avg Text Accuracy</div></div>
-    <div class="stat"><div class="value">${(avgPosAcc * 100).toFixed(1)}%</div><div class="label">Avg Position Accuracy</div></div>
+    <div class="stat"><div class="value">${totalOurs}</div><div class="label">Our Runs</div></div>
+    <div class="stat ${aggMatchRateCls}"><div class="value">${totalMatched}</div><div class="label">Matched (${(matchRate * 100).toFixed(1)}%)</div></div>
+    <div class="stat"><div class="value">${totalUnmatchedGT}</div><div class="label">Unmatched GT</div></div>
+    <div class="stat"><div class="value">${totalUnmatchedOurs}</div><div class="label">Unmatched Ours</div></div>
+    <div class="stat ${aggTextAccCls}"><div class="value">${(avgTextAcc * 100).toFixed(1)}%</div><div class="label">Avg Text Accuracy</div></div>
+    <div class="stat ${aggPosAccCls}"><div class="value">${(avgPosAcc * 100).toFixed(1)}%</div><div class="label">Avg Position Accuracy</div></div>
+    <div class="stat ${aggPosDeltaCls}"><div class="value">${avgPosDelta.toFixed(2)}</div><div class="label">Avg Pos Delta (pt)</div></div>
+    <div class="stat"><div class="value">${avgFontSizeDelta.toFixed(2)}</div><div class="label">Avg Font Size Delta (pt)</div></div>
   </div>
 </div>
 
 <h2>Per-Page Summary</h2>
-<table>
+<table class="summary-table">
   <thead><tr>
     <th>Page</th><th>Ground</th><th>Ours</th><th>Matched</th>
-    <th>Unmatched GT</th><th>Unmatched Ours</th>
-    <th>Avg Pos &Delta;</th><th>Avg Text Sim</th>
+    <th>Unmatch GT</th><th>Unmatch Ours</th>
     <th>Text Acc</th><th>Pos Acc</th>
+    <th>Avg Pos Delta</th><th>Avg Font Size Delta</th>
   </tr></thead>
   <tbody>${pageRows}</tbody>
 </table>
 
 <h2>Page Details</h2>
+<div class="controls">
+  <a onclick="toggleAll(true)">Expand all</a>
+  <a onclick="toggleAll(false)">Collapse all</a>
+</div>
 ${pageDetails}
 
 <script>
@@ -651,6 +863,14 @@ function toggleDetail(pageNum) {
   } else {
     el.style.display = 'none';
     toggle.textContent = '[expand]';
+  }
+}
+function toggleAll(expand) {
+  var details = document.querySelectorAll('.detail-content');
+  for (var i = 0; i < details.length; i++) {
+    details[i].style.display = expand ? 'block' : 'none';
+    var toggle = details[i].parentElement.querySelector('.toggle');
+    toggle.textContent = expand ? '[collapse]' : '[expand]';
   }
 }
 </script>
