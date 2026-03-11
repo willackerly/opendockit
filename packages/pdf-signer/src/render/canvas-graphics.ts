@@ -508,21 +508,14 @@ export class NativeCanvasGraphics {
     this.inTextBlock = false;
   }
 
-  private setFont(
-    _fontId: string,
-    fontSize: number,
-    css: NativeFont,
-    registeredFamily?: string
-  ): void {
+  private setFont(_fontId: string, fontSize: number, css: NativeFont, registeredFamily?: string): void {
     this.state.fontSize = fontSize;
-    // If we have a registered embedded font, prefer it over the CSS heuristic
-    if (registeredFamily) {
-      this.state.fontFamily = `'${registeredFamily}'`;
-    } else {
-      this.state.fontFamily = css.family;
-    }
-    this.state.fontWeight = css.weight;
-    this.state.fontStyle = css.style;
+    // Use registered (embedded) font family if available, fall back to CSS
+    this.state.fontFamily = registeredFamily
+      ? `'${registeredFamily}'`
+      : css.family;
+    this.state.fontWeight = registeredFamily ? 'normal' : css.weight;
+    this.state.fontStyle = registeredFamily ? 'normal' : css.style;
   }
 
   private moveText(tx: number, ty: number): void {

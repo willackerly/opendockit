@@ -26,8 +26,10 @@ import type { COSDictionary } from '../pdfbox/cos/COSTypes.js';
 import { COSArray, COSFloat, COSInteger, COSObjectReference } from '../pdfbox/cos/COSTypes.js';
 import type { ObjectResolver } from '../document/extraction/FontDecoder.js';
 import type { NativeImage } from './evaluator.js';
+import type { ExtractedFont } from '../document/extraction/FontExtractor.js';
 import type { OperatorList } from './operator-list.js';
 import { OPS } from './ops.js';
+import { FontRegistrar } from './font-registrar.js';
 
 const DEFAULT_SCALE = 1.5;
 
@@ -38,10 +40,12 @@ const DEFAULT_SCALE = 1.5;
 export class NativeRenderer {
   private pages: Array<{ pageDict: COSDictionary }>;
   private resolve: ObjectResolver;
+  private fontRegistrar: FontRegistrar;
 
   private constructor(pages: Array<{ pageDict: COSDictionary }>, resolve: ObjectResolver) {
     this.pages = pages;
     this.resolve = resolve;
+    this.fontRegistrar = new FontRegistrar();
   }
 
   /**
@@ -132,6 +136,9 @@ export class NativeRenderer {
 
     const opList = evaluatePage(pageDict, this.resolve, diagnostics);
 
+    // Pre-register embedded fonts before execution
+    await this.preRegisterFonts(opList, diagnostics);
+
     // Pre-decode JPEG images in browser (createImageBitmap is async)
     await this.preDecodeJpegs(opList, diagnostics);
 
@@ -190,6 +197,9 @@ export class NativeRenderer {
     // Evaluate page content stream → OperatorList
     const opList = evaluatePage(pageDict, this.resolve, diagnostics);
 
+    // Pre-register embedded fonts before execution
+    await this.preRegisterFonts(opList, diagnostics);
+
     // Pre-decode JPEG images in browser (createImageBitmap is async)
     await this.preDecodeJpegs(opList, diagnostics);
 
@@ -236,6 +246,65 @@ export class NativeRenderer {
     const pageDict = this.pages[pageIndex].pageDict;
     const { elements } = evaluatePageWithElements(pageDict, this.resolve);
     return elements;
+  }
+
+  /**
+   * Clean up resources (temp font files, etc.).
+   * Call this when done rendering to free resources.
+   */
+  async dispose(): Promise<void> {
+    await this.fontRegistrar.cleanup();
+  }
+
+  // -----------------------------------------------------------------------
+  // Font pre-registration
+  // -----------------------------------------------------------------------
+
+  /**
+   * Walk the OperatorList and pre-register any embedded fonts.
+   *
+   * For each OPS.setFont with an ExtractedFont 4th arg (rawBytes),
+   * registers the font with the canvas system and replaces the 4th arg
+   * with the registered family name string.
+   *
+   * If registration fails (corrupt font, unsupported format), the 4th arg
+   * is set to undefined so canvas-graphics falls back to CSS fonts.
+   */
+  private async preRegisterFonts(
+    opList: OperatorList,
+    diagnostics: RenderDiagnosticsCollector,
+  ): Promise<void> {
+    const { fnArray, argsArray } = opList;
+
+    for (let i = 0; i < fnArray.length; i++) {
+      if (fnArray[i] !== OPS.setFont || !argsArray[i]) continue;
+
+      const args = argsArray[i]!;
+      const embeddedFont = args[3] as ExtractedFont | string | undefined;
+
+      // Skip if no embedded font, or if already registered (string = family name)
+      if (!embeddedFont || typeof embeddedFont === 'string') continue;
+      if (!embeddedFont.rawBytes || embeddedFont.rawBytes.length === 0) {
+        args[3] = undefined;
+        continue;
+      }
+
+      try {
+        const family = await this.fontRegistrar.register(
+          embeddedFont.fontName,
+          embeddedFont.rawBytes,
+        );
+        // Replace ExtractedFont object with the registered family name string
+        args[3] = family;
+      } catch (err) {
+        diagnostics.warn('font', `Failed to register embedded font "${embeddedFont.fontName}"`, {
+          error: String(err),
+          fontType: embeddedFont.fontType,
+        });
+        // Fall back to CSS — clear the 4th arg
+        args[3] = undefined;
+      }
+    }
   }
 
   // -----------------------------------------------------------------------
