@@ -208,22 +208,18 @@ export class NativeCanvasGraphics {
         this.fillPath('evenodd');
         break;
       case OPS.fillStroke:
-        this.fillPath('nonzero');
-        this.strokePath();
+        this.fillStrokePath('nonzero');
         break;
       case OPS.eoFillStroke:
-        this.fillPath('evenodd');
-        this.strokePath();
+        this.fillStrokePath('evenodd');
         break;
       case OPS.closeFillStroke:
         this.ctx.closePath();
-        this.fillPath('nonzero');
-        this.strokePath();
+        this.fillStrokePath('nonzero');
         break;
       case OPS.closeEOFillStroke:
         this.ctx.closePath();
-        this.fillPath('evenodd');
-        this.strokePath();
+        this.fillStrokePath('evenodd');
         break;
       case OPS.endPath:
         this.endPath();
@@ -462,6 +458,25 @@ export class NativeCanvasGraphics {
     this.ctx.globalAlpha = this.state.strokeAlpha;
     this.ctx.stroke();
     this.ctx.globalAlpha = 1;
+    this.consumeClip();
+  }
+
+  /**
+   * Combined fill+stroke: performs both operations before consuming
+   * the clip. This avoids the bug where fillPath()'s consumeClip()
+   * calls beginPath(), destroying the path before stroke can use it.
+   */
+  private fillStrokePath(rule: CanvasFillRule): void {
+    this.applyFillColor();
+    this.ctx.globalAlpha = this.state.fillAlpha;
+    this.ctx.fill(rule);
+    this.ctx.globalAlpha = 1;
+
+    this.applyStrokeColor();
+    this.ctx.globalAlpha = this.state.strokeAlpha;
+    this.ctx.stroke();
+    this.ctx.globalAlpha = 1;
+
     this.consumeClip();
   }
 
