@@ -29,6 +29,10 @@ import {
 } from '../document/extraction/FontDecoder.js';
 import { getDecompressedStreamData } from '../document/extraction/StreamDecoder.js';
 import {
+  extractEmbeddedFont,
+  type ExtractedFont,
+} from '../document/extraction/FontExtractor.js';
+import {
   COSName,
   COSArray,
   COSInteger,
@@ -897,7 +901,8 @@ class EvalContext {
       weight: 'normal',
       style: 'normal',
     };
-    this.opList.addOpArgs(OPS.setFont, [fontNameVal, fontSizeVal, css]);
+    const embeddedFont = fontInfo?.extractedFont ?? undefined;
+    this.opList.addOpArgs(OPS.setFont, [fontNameVal, fontSizeVal, css, embeddedFont]);
   }
 
   private resolveFont(
@@ -906,6 +911,7 @@ class EvalContext {
     decoder: FontDecoder;
     css: NativeFont;
     stdWidthFn: ((code: number) => number) | null;
+    extractedFont: ExtractedFont | undefined;
   } | null {
     if (!this.resources) return null;
 
@@ -919,7 +925,16 @@ class EvalContext {
       const decoder = buildFontDecoder(fontDict, this.resolve);
       const css = cssForPdfFont(decoder.fontName);
       const stdWidthFn = buildStdWidthFn(decoder.fontName);
-      return { decoder, css, stdWidthFn };
+
+      // Extract embedded font program (if present)
+      let extractedFont: ExtractedFont | undefined;
+      try {
+        extractedFont = extractEmbeddedFont(fontDict, this.resolve);
+      } catch {
+        // Non-critical — fall back to CSS fonts
+      }
+
+      return { decoder, css, stdWidthFn, extractedFont };
     } catch (err) {
       this.diagnostics?.warn('font', `Failed to build font decoder for "${fontName}"`, {
         error: String(err),
