@@ -14,7 +14,13 @@
 
 import { OPS } from './ops.js';
 import type { OperatorList } from './operator-list.js';
-import type { NativeFont, Glyph, NativeImage, NativeShading } from './evaluator.js';
+import type {
+  NativeFont,
+  Glyph,
+  NativeImage,
+  NativeShading,
+  NativeTilingPattern,
+} from './evaluator.js';
 import type { RenderDiagnosticsCollector } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -22,8 +28,8 @@ import type { RenderDiagnosticsCollector } from './types.js';
 // ---------------------------------------------------------------------------
 
 interface GraphicsState {
-  fillColor: string;
-  strokeColor: string;
+  fillColor: string | CanvasPattern;
+  strokeColor: string | CanvasPattern;
   lineWidth: number;
   lineCap: CanvasLineCap;
   lineJoin: CanvasLineJoin;
@@ -332,6 +338,14 @@ export class NativeCanvasGraphics {
       // ---- Shading ----
       case OPS.shadingFill:
         this.shadingFill(args![0]);
+        break;
+
+      // ---- Pattern fills ----
+      case OPS.setFillPattern:
+        this.setFillPattern(args![0]);
+        break;
+      case OPS.setStrokePattern:
+        this.setStrokePattern(args![0]);
         break;
 
       // ---- XObjects ----
@@ -700,6 +714,72 @@ export class NativeCanvasGraphics {
     }
 
     ctx.restore();
+  }
+
+  // ================================================================
+  // Tiling Patterns
+  // ================================================================
+
+  private setFillPattern(pattern: NativeTilingPattern): void {
+    const canvasPattern = this.createTilingPattern(pattern);
+    if (canvasPattern) {
+      this.state.fillColor = canvasPattern;
+      this.ctx.fillStyle = canvasPattern;
+    }
+  }
+
+  private setStrokePattern(pattern: NativeTilingPattern): void {
+    const canvasPattern = this.createTilingPattern(pattern);
+    if (canvasPattern) {
+      this.state.strokeColor = canvasPattern;
+      this.ctx.strokeStyle = canvasPattern;
+    }
+  }
+
+  private createTilingPattern(pattern: NativeTilingPattern): CanvasPattern | null {
+    const { bbox, xStep, yStep, matrix, opList } = pattern;
+
+    // Pattern cell dimensions (use xStep/yStep for tile size, bbox for drawing area)
+    const cellWidth = Math.abs(xStep) || Math.abs(bbox[2] - bbox[0]) || 1;
+    const cellHeight = Math.abs(yStep) || Math.abs(bbox[3] - bbox[1]) || 1;
+
+    // Create offscreen canvas for the pattern tile
+    const tileCanvas = createOffscreenCanvas(
+      Math.ceil(cellWidth),
+      Math.ceil(cellHeight)
+    );
+    if (!tileCanvas) {
+      this.diagnostics?.warn('pattern', 'Could not create offscreen canvas for tiling pattern');
+      return null;
+    }
+
+    const tileCtx = (tileCanvas as any).getContext('2d') as CanvasRenderingContext2D;
+    if (!tileCtx) return null;
+
+    // Set up coordinate system: translate so bbox origin maps to (0, 0)
+    tileCtx.translate(-bbox[0], -bbox[1]);
+
+    // Execute the pattern's sub-operations on the tile canvas
+    const subGraphics = new NativeCanvasGraphics(tileCtx, this.diagnostics);
+    subGraphics.execute(opList);
+
+    // Create a repeating pattern from the tile
+    try {
+      const canvasPattern = this.ctx.createPattern(tileCanvas as any, 'repeat');
+      if (canvasPattern && matrix) {
+        // Apply the pattern's matrix transform
+        // DOMMatrix expects [a, b, c, d, e, f]
+        canvasPattern.setTransform(
+          new DOMMatrix([matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]])
+        );
+      }
+      return canvasPattern;
+    } catch (err) {
+      this.diagnostics?.warn('pattern', 'Failed to create canvas pattern', {
+        error: String(err),
+      });
+      return null;
+    }
   }
 
   // ================================================================

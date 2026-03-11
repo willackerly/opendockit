@@ -96,6 +96,18 @@ export interface NativeShading {
   stops: ShadingStop[];
 }
 
+/** Decoded tiling pattern for canvas rendering. */
+export interface NativeTilingPattern {
+  type: 'tiling';
+  paintType: number; // 1 = colored, 2 = uncolored
+  tilingType: number; // 1 = constant spacing, 2 = no distortion, 3 = faster
+  bbox: number[]; // [x0, y0, x1, y1]
+  xStep: number;
+  yStep: number;
+  matrix: number[]; // 6-element transform matrix
+  opList: OperatorList; // Sub-operations to render the pattern cell
+}
+
 // ---------------------------------------------------------------------------
 // Matrix math helpers (for element extraction)
 // ---------------------------------------------------------------------------
@@ -1190,6 +1202,14 @@ class EvalContext {
       .filter((t) => t.type === 'number')
       .map((t) => t.numValue ?? parseFloat(t.value));
 
+    // Check for pattern name operand (name token with no numeric components, or
+    // name token as last operand after numeric components for uncolored patterns)
+    const nameToken = operands.find((t) => t.type === 'name');
+    if (nameToken) {
+      this.handlePatternColor(nameToken.value, isStroke);
+      return;
+    }
+
     if (components.length === 1) {
       const color: Color = { r: components[0], g: components[0], b: components[0] };
       if (isStroke) this.strokeColor = color;
@@ -1209,11 +1229,123 @@ class EvalContext {
       // Pattern color space — operand is a name, not a number
       const patternName = operands.find((t) => t.type === 'name');
       if (patternName) {
-        this.diagnostics?.warn('color', `Pattern color space not implemented: /${patternName.value}`, {
-          isStroke,
-          operands: operands.map((t) => t.value),
-        });
+        this.handlePatternColor(patternName.value, isStroke);
       }
+    }
+  }
+
+  private handlePatternColor(patternName: string, isStroke: boolean): void {
+    if (!this.resources) {
+      this.diagnostics?.warn('pattern', `No resources for pattern /${patternName}`);
+      return;
+    }
+
+    const patternRes = resolveItem(this.resources, 'Pattern', this.resolve);
+    if (!(patternRes instanceof COSDictionary)) {
+      this.diagnostics?.warn('pattern', `Pattern resource dict not found for /${patternName}`);
+      return;
+    }
+
+    const patternObj = resolveItem(patternRes, patternName, this.resolve);
+    if (!patternObj) {
+      this.diagnostics?.warn('pattern', `Pattern /${patternName} not found in resources`);
+      return;
+    }
+
+    // Get the pattern dictionary
+    let patternDict: COSDictionary;
+    if (patternObj instanceof COSStream) {
+      patternDict = patternObj.getDictionary?.() ?? (patternObj as unknown as COSDictionary);
+    } else if (patternObj instanceof COSDictionary) {
+      patternDict = patternObj;
+    } else {
+      this.diagnostics?.warn('pattern', `Pattern /${patternName} is not a dictionary or stream`);
+      return;
+    }
+
+    const patternType = patternDict.getInt('PatternType', 0);
+
+    if (patternType === 2) {
+      // Shading pattern — decode using existing gradient infrastructure
+      let shadingEntry = resolveItem(patternDict, 'Shading', this.resolve);
+      if (shadingEntry instanceof COSDictionary) {
+        const shading = decodeShadingPattern(shadingEntry, this.resolve);
+        if (shading) {
+          // Emit as a shading fill (reuse existing gradient rendering)
+          this.opList.addOpArgs(OPS.shadingFill, [shading]);
+          return;
+        }
+      }
+      this.diagnostics?.warn('pattern', `Could not decode shading pattern /${patternName}`);
+    } else if (patternType === 1) {
+      // Tiling pattern
+      const paintType = patternDict.getInt('PaintType', 1);
+      const tilingType = patternDict.getInt('TilingType', 1);
+      const xStep = numVal(resolveItem(patternDict, 'XStep', this.resolve)) || 0;
+      const yStep = numVal(resolveItem(patternDict, 'YStep', this.resolve)) || 0;
+
+      // Get BBox
+      let bbox = [0, 0, 1, 1];
+      const bboxArr = patternDict.getItem('BBox');
+      if (bboxArr instanceof COSArray && bboxArr.size() >= 4) {
+        bbox = [];
+        for (let i = 0; i < 4; i++) bbox.push(cosNum(bboxArr, i));
+      }
+
+      // Get Matrix (default identity)
+      let matrix = [1, 0, 0, 1, 0, 0];
+      const matrixArr = patternDict.getItem('Matrix');
+      if (matrixArr instanceof COSArray && matrixArr.size() >= 6) {
+        matrix = [];
+        for (let i = 0; i < 6; i++) matrix.push(cosNum(matrixArr, i));
+      }
+
+      if (paintType === 2) {
+        // Uncolored tiling pattern — needs current color compositing
+        this.diagnostics?.warn(
+          'pattern',
+          `Uncolored tiling pattern (PaintType 2) not yet supported: /${patternName}`
+        );
+        return;
+      }
+
+      // Recursively evaluate the pattern's content stream
+      const patternOpList = new OperatorList();
+      if (patternObj instanceof COSStream) {
+        const data = getDecompressedStreamData(patternObj);
+        if (data && data.length > 0) {
+          let patResources = resolveItem(patternDict, 'Resources', this.resolve) as
+            | COSDictionary
+            | undefined;
+          if (!(patResources instanceof COSDictionary)) patResources = this.resources;
+
+          const tokens = tokenizeContentStream(data);
+          const operations = parseOperations(tokens);
+
+          const patCtx = new EvalContext(patResources, this.resolve, patternOpList, this.diagnostics);
+          patCtx.fontCache = new Map(this.fontCache);
+          patCtx.recursionDepth = this.recursionDepth + 1;
+          patCtx.processOperations(operations);
+        }
+      }
+
+      const tilingPattern: NativeTilingPattern = {
+        type: 'tiling',
+        paintType,
+        tilingType,
+        bbox,
+        xStep,
+        yStep,
+        matrix,
+        opList: patternOpList,
+      };
+
+      this.opList.addOpArgs(
+        isStroke ? OPS.setStrokePattern : OPS.setFillPattern,
+        [tilingPattern]
+      );
+    } else {
+      this.diagnostics?.warn('pattern', `Unknown PatternType ${patternType} for /${patternName}`);
     }
   }
 

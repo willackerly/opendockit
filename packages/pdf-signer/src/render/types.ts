@@ -30,7 +30,7 @@ export interface RenderResult {
 
 export interface RenderDiagnostic {
   type: 'warning' | 'error';
-  category: 'font' | 'image' | 'shading' | 'operator' | 'color';
+  category: 'font' | 'image' | 'shading' | 'operator' | 'color' | 'pattern';
   message: string;
   details?: Record<string, unknown>;
 }

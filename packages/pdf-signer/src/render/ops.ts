@@ -131,6 +131,10 @@ export const OPS = {
   // Transparency helpers
   setStrokeTransparent: 92,
   setFillTransparent: 93,
+
+  // Pattern fills (tiling patterns from SCN/scn)
+  setFillPattern: 94,
+  setStrokePattern: 95,
 } as const;
 
 export type OPSCode = (typeof OPS)[keyof typeof OPS];
