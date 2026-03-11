@@ -653,10 +653,14 @@ export class NativeCanvasGraphics {
       ctx.scale(hScale, 1);
     }
 
-    // Flip Y for text (PDF Y-up vs canvas Y-down after our viewport flip)
-    ctx.scale(1, -1);
+    // Flip Y for text (PDF Y-up vs canvas Y-down after our viewport flip).
+    // When fontSize is negative, the text matrix already encodes the Y-flip,
+    // so applying ctx.scale(1, -1) would double-flip and render upside-down.
+    if (fontSize >= 0) {
+      ctx.scale(1, -1);
+    }
 
-    // Set font
+    // Set font — always use absolute fontSize for the actual glyph size
     const fontStr = `${this.state.fontStyle} ${this.state.fontWeight} ${Math.abs(fontSize)}px ${this.state.fontFamily}`;
     ctx.font = fontStr;
 

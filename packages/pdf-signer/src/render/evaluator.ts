@@ -228,6 +228,8 @@ class EvalContext {
   private fontName = '';
   private fillColor: Color = { r: 0, g: 0, b: 0 };
   private strokeColor: Color = { r: 0, g: 0, b: 0 };
+  private fillColorSpace = '';
+  private strokeColorSpace = '';
   private lineWidth = 1;
 
   // Path accumulation
@@ -548,8 +550,10 @@ class EvalContext {
         break;
       }
       case 'CS':
-        break; // Color space set — tracked for SC/sc
+        this.strokeColorSpace = this.resolveCSOperand(operands);
+        break;
       case 'cs':
+        this.fillColorSpace = this.resolveCSOperand(operands);
         break;
       case 'SC':
       case 'SCN':
@@ -1198,6 +1202,64 @@ class EvalContext {
 
   // ---- Color ----
 
+  /**
+   * Resolve the color space name from a CS/cs operator's operand.
+   * The operand is a name like /DeviceRGB, /DeviceCMYK, or a resource name
+   * that maps to a color space in the page's ColorSpace resource dictionary.
+   */
+  private resolveCSOperand(operands: CSToken[]): string {
+    const nameToken = operands.find((t) => t.type === 'name');
+    if (!nameToken) return '';
+
+    const csName = nameToken.value;
+
+    // Device color spaces are used directly
+    if (
+      csName === 'DeviceGray' ||
+      csName === 'DeviceRGB' ||
+      csName === 'DeviceCMYK' ||
+      csName === 'Pattern'
+    ) {
+      return csName;
+    }
+
+    // Look up in the page's ColorSpace resource dictionary to resolve
+    // ICCBased, Separation, Indexed, DeviceN, etc.
+    if (this.resources) {
+      const csRes = resolveItem(this.resources, 'ColorSpace', this.resolve);
+      if (csRes instanceof COSDictionary) {
+        let csObj: COSBase | undefined = csRes.getItem(csName);
+        if (csObj instanceof COSObjectReference) csObj = this.resolve(csObj);
+
+        if (csObj instanceof COSArray && csObj.size() > 0) {
+          let first: COSBase | undefined = csObj.get(0);
+          if (first instanceof COSObjectReference) first = this.resolve(first);
+          if (first instanceof COSName) {
+            const resolvedName = first.getName();
+            if (resolvedName === 'ICCBased' && csObj.size() > 1) {
+              let iccObj: COSBase | undefined = csObj.get(1);
+              if (iccObj instanceof COSObjectReference) iccObj = this.resolve(iccObj);
+              if (iccObj instanceof COSDictionary || iccObj instanceof COSStream) {
+                const iccDict =
+                  iccObj instanceof COSStream ? iccObj.getDictionary() : iccObj;
+                const n = iccDict.getInt('N', 3);
+                if (n === 1) return 'DeviceGray';
+                if (n === 3) return 'DeviceRGB';
+                if (n === 4) return 'DeviceCMYK';
+              }
+            }
+            return resolvedName;
+          }
+        } else if (csObj instanceof COSName) {
+          return csObj.getName();
+        }
+      }
+    }
+
+    // Return the raw name as fallback
+    return csName;
+  }
+
   private handleSetColor(operands: CSToken[], isStroke: boolean): void {
     const components = operands
       .filter((t) => t.type === 'number')
@@ -1211,7 +1273,36 @@ class EvalContext {
       return;
     }
 
-    if (components.length === 1) {
+    const trackedCS = isStroke ? this.strokeColorSpace : this.fillColorSpace;
+
+    // Use the tracked color space from CS/cs operators to correctly interpret
+    // color components. This avoids misinterpreting Separation (1 component)
+    // as DeviceGray, or Lab (3 components) as DeviceRGB.
+    if (trackedCS === 'DeviceCMYK' && components.length === 4) {
+      const color = cmykToRgb(components[0], components[1], components[2], components[3]);
+      if (isStroke) this.strokeColor = color;
+      else this.fillColor = color;
+      this.opList.addOpArgs(isStroke ? OPS.setStrokeCMYKColor : OPS.setFillCMYKColor, components);
+    } else if (trackedCS === 'DeviceRGB' && components.length === 3) {
+      const color: Color = { r: components[0], g: components[1], b: components[2] };
+      if (isStroke) this.strokeColor = color;
+      else this.fillColor = color;
+      this.opList.addOpArgs(isStroke ? OPS.setStrokeRGBColor : OPS.setFillRGBColor, components);
+    } else if (trackedCS === 'DeviceGray' && components.length === 1) {
+      const color: Color = { r: components[0], g: components[0], b: components[0] };
+      if (isStroke) this.strokeColor = color;
+      else this.fillColor = color;
+      this.opList.addOpArgs(isStroke ? OPS.setStrokeGray : OPS.setFillGray, components);
+    } else if (trackedCS === 'Separation' && components.length === 1) {
+      // Separation color space — single tint value. Approximate as grayscale
+      // (correct rendering requires evaluating the tint transform function).
+      const tint = components[0];
+      const color: Color = { r: 1 - tint, g: 1 - tint, b: 1 - tint };
+      if (isStroke) this.strokeColor = color;
+      else this.fillColor = color;
+      this.opList.addOpArgs(isStroke ? OPS.setStrokeGray : OPS.setFillGray, [1 - tint]);
+    } else if (components.length === 1) {
+      // Fallback: infer from component count
       const color: Color = { r: components[0], g: components[0], b: components[0] };
       if (isStroke) this.strokeColor = color;
       else this.fillColor = color;
