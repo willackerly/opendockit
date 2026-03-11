@@ -37,7 +37,7 @@ OpenDocKit is a progressive-fidelity, **offline-first**, 100% client-side OOXML 
 
 The full PPTX rendering pipeline is implemented, tested, and visually validated. The editing pipeline (Phase 0-3) is complete. Phase 4 (Waves 0-4) of the PDF/Office unified architecture is complete:
 
-- **4,630 tests** passing (1,805 core + 331 elements + 208 render + 370 pptx + 1,755 pdf-signer + 129 docx + 24 pdf + 8 fonts), typecheck clean
+- **4,512 tests** passing (1,687 core + 331 elements + 208 render + 370 pptx + 1,755 pdf-signer + 129 docx + 24 pdf + 8 fonts), typecheck clean
 - **Visual regression**: 54-slide real-world PPTX with per-slide RMSE baselines (`pnpm test:visual`) + 10-file corpus (67 slides) with self-referential regression guard (`pnpm test:visual:corpus`) + PDF visual regression with RMSE baselines (`pnpm test:visual:pdf`)
 - **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (42 families, 130 faces) + bundled WOFF2 fonts (42 families, ~5MB, 100% offline), all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks, video placeholder detection, field codes, diagram drawing), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation + font-metric-based line height + ascender baseline positioning + text outline + underline fill color, media cache, capability registry, WASM module loader, diagnostics system (DiagnosticEmitter + RenderContext wiring)
 - **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance + table textDefaults), SlideKit viewport API (hyperlinks, notes, element inspector), SmartArt fallback renderer, chart cached image fallback renderer
@@ -100,9 +100,7 @@ Cross-project alignment with pdfbox-ts: EditTracker mirrors COSUpdateTracker pat
 
 Core npm drops from **18MB → ~800KB**. Font binaries move to companion package (`@opendockit/fonts`) for offline rendering, with CDN fallback for online apps. Metrics-only bundle (750KB) stays in core for instant text layout.
 
-**Completed (2026-03-11):** Phase 1 (`@opendockit/fonts` companion package, 8 tests), Phase 2 (FontResolver + CDNFetcher + FontCache + SUBSTITUTION_REGISTRY in core, 37 tests), Phase 2b (SlideKit `fontConfig` opt-in wiring). Total 4,630 tests passing.
-
-**In Progress:** Phase 3 (remove 17MB base64 from core), Phase 3b (generate real font files via `pnpm fonts:package`).
+**Completed (2026-03-11):** Phase 1 (`@opendockit/fonts` companion package, 8 tests), Phase 2 (FontResolver + CDNFetcher + FontCache + SUBSTITUTION_REGISTRY in core, 37 tests), Phase 2b (SlideKit `fontConfig` opt-in wiring), Phase 3 (removed 17MB base64 from core — bundled-font-loader/ttf-loader now delegate to companion via dynamic import), Phase 3b (generate-font-package.py populates companion with real WOFF2/TTF). Total 4,512 tests passing.
 
 **Remaining:** Phase 4 (CDN polish), Phase 5 (harfbuzzjs PDF subsetting).
 

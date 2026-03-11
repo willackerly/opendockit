@@ -322,8 +322,8 @@ Core npm drops from 18MB → ~800KB. Fonts become optional companion package + C
 - [x] Phase 1: Create `@opendockit/fonts` companion package (scaffold, generate-font-package.py, registerOfflineFonts API, 8 tests) (2026-03-11)
 - [x] Phase 2: Add `FontResolver` to core (unified resolution pipeline, CDN fetcher, font cache, FontConfig types, SUBSTITUTION_REGISTRY — 37 tests) (2026-03-11)
 - [x] Phase 2b: Wire FontResolver into SlideKit as opt-in `fontConfig` option, re-export `FontConfig` type (2026-03-11)
-- [ ] Phase 3: Remove base64 WOFF2/TTF from core (**BREAKING** — 17MB deleted, companion becomes offline source) — IN PROGRESS
-- [ ] Phase 3b: Generate actual font files (`pnpm fonts:package` → populate companion with real WOFF2/TTF) — IN PROGRESS
+- [x] Phase 3: Remove base64 WOFF2/TTF from core (17MB deleted, bundled-font-loader/ttf-loader delegate to companion via dynamic import) (2026-03-11)
+- [x] Phase 3b: Generate actual font files (`scripts/generate-font-package.py` → populate companion with real WOFF2/TTF) (2026-03-11)
 - [ ] Phase 4: CDN fallback polish (timeouts, retry, progress events, remove hardcoded Google Fonts allowlist)
 - [ ] Phase 5: harfbuzzjs PDF subsetting (lazy WASM, subset to used glyphs only)
 
