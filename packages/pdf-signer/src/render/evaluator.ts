@@ -665,8 +665,18 @@ class EvalContext {
     const tm = multiplyMatrices(this.textMatrix, this.ctm);
     const [tx, ty] = [tm[4], tm[5]];
 
-    // Approximate font height from fontSize (ascent + descent ~ 1.2 * fontSize)
-    const fontHeight = this.fontSize * 1.2;
+    // Effective font size in user space: extract scale from combined matrix.
+    // The raw fontSize from Tf may be 1.0 when scaling is done via CTM/Tm.
+    // Y-scale = sqrt(tm[2]^2 + tm[3]^2) gives the effective vertical size.
+    const effectiveFontSize =
+      Math.sqrt(tm[2] * tm[2] + tm[3] * tm[3]) || this.fontSize;
+
+    // Scale advanceWidth by the same factor (x-scale from combined matrix)
+    const xScale = Math.sqrt(tm[0] * tm[0] + tm[1] * tm[1]) || 1;
+    const effectiveAdvanceWidth = (totalWidth / 1000) * xScale;
+
+    // Approximate font height from effective fontSize (ascent + descent ~ 1.2)
+    const fontHeight = effectiveFontSize * 1.2;
 
     // CSS info for the run
     const css = this.currentFont?.css ?? {
@@ -680,7 +690,7 @@ class EvalContext {
       type: 'text',
       x: tx,
       y: ty,
-      width: advanceWidth,
+      width: effectiveAdvanceWidth,
       height: fontHeight,
       rotation: 0,
       opacity: 1,
@@ -693,13 +703,13 @@ class EvalContext {
             {
               text,
               fontFamily: css.family,
-              fontSize: this.fontSize,
+              fontSize: effectiveFontSize,
               bold: css.weight === 'bold',
               italic: css.style === 'italic',
               color: { ...this.fillColor },
               x: 0,
               y: 0,
-              width: advanceWidth,
+              width: effectiveAdvanceWidth,
               height: fontHeight,
             },
           ],

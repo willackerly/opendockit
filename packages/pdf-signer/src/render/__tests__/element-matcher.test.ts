@@ -3,7 +3,9 @@ import { describe, it, expect } from 'vitest';
 import {
   levenshteinDistance,
   editDistanceRatio,
+  normalizeText,
   flattenTextRuns,
+  splitRunsIntoWords,
   groupRunsIntoWords,
   matchTextElements,
   scorePageElements,
@@ -288,13 +290,86 @@ describe('groupRunsIntoWords', () => {
     expect(words).toHaveLength(2);
   });
 
-  it('does not merge runs with different fonts', () => {
+  it('merges adjacent runs with different fonts (font-agnostic)', () => {
     const runs: FlatTextRun[] = [
       makeFlatRun('Hello', 10, 100, 30, 12, 12, 'Helvetica'),
       makeFlatRun('World', 40, 100, 30, 12, 12, 'Times'),
     ];
     const words = groupRunsIntoWords(runs);
-    expect(words).toHaveLength(2);
+    expect(words).toHaveLength(1);
+    expect(words[0].text).toBe('HelloWorld');
+  });
+
+  it('splits phrase-level runs into individual words', () => {
+    const runs: FlatTextRun[] = [
+      makeFlatRun('Hello World Test', 10, 100, 90),
+    ];
+    const words = groupRunsIntoWords(runs);
+    expect(words).toHaveLength(3);
+    expect(words[0].text).toBe('Hello');
+    expect(words[1].text).toBe('World');
+    expect(words[2].text).toBe('Test');
+    // Positions should be proportionally distributed
+    expect(words[0].x).toBeCloseTo(10, 0);
+    expect(words[1].x).toBeGreaterThan(words[0].x);
+    expect(words[2].x).toBeGreaterThan(words[1].x);
+  });
+});
+
+// ─── splitRunsIntoWords ─────────────────────────────────────────────
+
+describe('splitRunsIntoWords', () => {
+  it('returns empty for empty input', () => {
+    expect(splitRunsIntoWords([])).toEqual([]);
+  });
+
+  it('preserves single-word runs', () => {
+    const runs = [makeFlatRun('Hello', 10, 100, 30)];
+    const result = splitRunsIntoWords(runs);
+    expect(result).toHaveLength(1);
+    expect(result[0].text).toBe('Hello');
+  });
+
+  it('splits multi-word run into individual words', () => {
+    const runs = [makeFlatRun('Hello World', 10, 100, 60)];
+    const result = splitRunsIntoWords(runs);
+    expect(result).toHaveLength(2);
+    expect(result[0].text).toBe('Hello');
+    expect(result[1].text).toBe('World');
+    // Check proportional x positions
+    expect(result[0].x).toBeCloseTo(10, 0);
+    expect(result[0].width).toBeCloseTo(60 * 5 / 11, 0); // "Hello" is 5 of 11 chars
+  });
+
+  it('handles multiple spaces', () => {
+    const runs = [makeFlatRun('  A   B  ', 10, 100, 50)];
+    const result = splitRunsIntoWords(runs);
+    expect(result).toHaveLength(2);
+    expect(result[0].text).toBe('A');
+    expect(result[1].text).toBe('B');
+  });
+
+  it('skips whitespace-only runs', () => {
+    const runs = [makeFlatRun('   ', 10, 100, 20)];
+    const result = splitRunsIntoWords(runs);
+    expect(result).toHaveLength(0);
+  });
+});
+
+// ─── normalizeText ──────────────────────────────────────────────────
+
+describe('normalizeText', () => {
+  it('lowercases text', () => {
+    expect(normalizeText('Hello World')).toBe('hello world');
+  });
+
+  it('normalizes smart quotes and dashes', () => {
+    expect(normalizeText('\u201CHello\u201D')).toBe('"hello"');
+    expect(normalizeText('a\u2014b')).toBe('a-b');
+  });
+
+  it('collapses whitespace', () => {
+    expect(normalizeText('  hello   world  ')).toBe('hello world');
   });
 });
 

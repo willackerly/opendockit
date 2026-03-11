@@ -66,8 +66,9 @@ describe('Element-level structural diff', () => {
         const elements = renderer.getPageElements(i);
         const gt = groundTruth[i];
 
-        // Flatten our elements into text runs, then group into words
-        const runs = flattenTextRuns(elements);
+        // Flatten our elements into text runs (flip Y to top-left origin),
+        // then group into words for matching against ground truth
+        const runs = flattenTextRuns(elements, gt.height);
         const words = groupRunsIntoWords(runs);
 
         // Match against ground truth

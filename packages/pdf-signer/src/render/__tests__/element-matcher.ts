@@ -90,6 +90,25 @@ export interface PageDiffResult {
   unmatchedOurs: FlatTextRun[];
 }
 
+// ─── Text Normalization ─────────────────────────────────────────────
+
+/**
+ * Normalize text for comparison: lowercase, collapse whitespace,
+ * normalize unicode (NFC), strip diacritics.
+ */
+export function normalizeText(text: string): string {
+  return text
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/[\u00AD\u200B-\u200D\uFEFF]/g, '') // zero-width chars
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'") // smart single quotes
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"') // smart double quotes
+    .replace(/[\u2013\u2014]/g, '-') // en/em dash to hyphen
+    .replace(/\u2026/g, '...') // ellipsis
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // ─── Levenshtein Distance ───────────────────────────────────────────
 
 /**
@@ -133,8 +152,17 @@ export function levenshteinDistance(a: string, b: string): number {
 
 /**
  * Normalized edit distance ratio: 0 = identical, 1 = completely different.
+ * When normalize=true, applies normalizeText() before comparison.
  */
-export function editDistanceRatio(a: string, b: string): number {
+export function editDistanceRatio(
+  a: string,
+  b: string,
+  normalize = false
+): number {
+  if (normalize) {
+    a = normalizeText(a);
+    b = normalizeText(b);
+  }
   const maxLen = Math.max(a.length, b.length);
   if (maxLen === 0) return 0;
   return levenshteinDistance(a, b) / maxLen;
@@ -145,8 +173,16 @@ export function editDistanceRatio(a: string, b: string): number {
 /**
  * Flatten TextElement trees into individual text runs with absolute positions.
  * Run x/y are offsets from the element origin, so we add the element's x/y.
+ *
+ * PDF content streams use bottom-left origin (Y increases upward), but
+ * pdftotext ground truth uses top-left origin (Y increases downward).
+ * When `pageHeight` is provided, Y coordinates are flipped to match
+ * the top-left origin convention used by pdftotext -bbox-layout.
  */
-export function flattenTextRuns(elements: PageElement[]): FlatTextRun[] {
+export function flattenTextRuns(
+  elements: PageElement[],
+  pageHeight?: number
+): FlatTextRun[] {
   const runs: FlatTextRun[] = [];
 
   for (const el of elements) {
@@ -156,10 +192,23 @@ export function flattenTextRuns(elements: PageElement[]): FlatTextRun[] {
     for (const para of textEl.paragraphs) {
       for (const run of para.runs) {
         if (!run.text || run.text.trim().length === 0) continue;
+        const absX = textEl.x + run.x;
+        let absY = textEl.y + run.y;
+
+        // Flip Y from PDF bottom-left origin to top-left origin.
+        // PDF text Y is the baseline. pdftotext yMin is the top of the
+        // glyph bounding box. After flipping, we subtract the ascent
+        // (baseline to top-of-glyph) rather than the full height.
+        // Typical font ascent ~ 80% of fontSize.
+        if (pageHeight !== undefined) {
+          const ascent = run.fontSize * 0.8;
+          absY = pageHeight - absY - ascent;
+        }
+
         runs.push({
           text: run.text,
-          x: textEl.x + run.x,
-          y: textEl.y + run.y,
+          x: absX,
+          y: absY,
           width: run.width,
           height: run.height,
           fontSize: run.fontSize,
@@ -173,9 +222,65 @@ export function flattenTextRuns(elements: PageElement[]): FlatTextRun[] {
 }
 
 /**
+ * Split phrase-level runs into individual words. Our evaluator often emits
+ * entire sentences as single runs; pdftotext gives individual words.
+ * We split on whitespace and estimate per-word x/width proportionally.
+ */
+export function splitRunsIntoWords(runs: FlatTextRun[]): FlatTextRun[] {
+  const result: FlatTextRun[] = [];
+
+  for (const run of runs) {
+    const trimmed = run.text.trim();
+    if (!trimmed) continue;
+
+    // Split on whitespace boundaries
+    const wordTexts = trimmed.split(/\s+/);
+    if (wordTexts.length <= 1) {
+      result.push({ ...run, text: trimmed });
+      continue;
+    }
+
+    // Estimate character-proportional positions
+    const totalChars = wordTexts.reduce((s, w) => s + w.length, 0);
+    // Account for spaces in proportional layout
+    const fullLen = trimmed.length;
+    let charOffset = 0;
+
+    for (const word of wordTexts) {
+      if (!word) continue;
+      // Find where this word starts in the original trimmed string
+      const wordStart = trimmed.indexOf(word, charOffset);
+      const wordEnd = wordStart + word.length;
+
+      const xStart = run.x + (wordStart / fullLen) * run.width;
+      const xEnd = run.x + (wordEnd / fullLen) * run.width;
+
+      result.push({
+        text: word,
+        x: xStart,
+        y: run.y,
+        width: xEnd - xStart,
+        height: run.height,
+        fontSize: run.fontSize,
+        fontFamily: run.fontFamily,
+      });
+
+      charOffset = wordEnd;
+    }
+  }
+
+  return result;
+}
+
+/**
  * Group consecutive same-line runs into word-level chunks for better matching
- * against pdftotext words. Runs on the same line (similar y, adjacent x)
- * with no whitespace gap are concatenated.
+ * against pdftotext words.
+ *
+ * Pipeline:
+ * 1. First merge adjacent glyph-level runs on the same line into phrases
+ *    (font-agnostic — our CSS font names differ from PDF internal names).
+ * 2. Then split any multi-word phrases into individual words by whitespace,
+ *    estimating per-word positions proportionally.
  */
 export function groupRunsIntoWords(
   runs: FlatTextRun[],
@@ -184,36 +289,37 @@ export function groupRunsIntoWords(
 ): FlatTextRun[] {
   if (runs.length === 0) return [];
 
-  // Sort by y then x
+  // Step 1: Merge adjacent same-line glyph runs into phrases
   const sorted = [...runs].sort((a, b) => {
     const dy = a.y - b.y;
     if (Math.abs(dy) > yTolerance) return dy;
     return a.x - b.x;
   });
 
-  const words: FlatTextRun[] = [];
+  const phrases: FlatTextRun[] = [];
   let current = { ...sorted[0] };
 
   for (let i = 1; i < sorted.length; i++) {
     const run = sorted[i];
     const sameLine = Math.abs(run.y - current.y) <= yTolerance;
     const adjacent = run.x - (current.x + current.width) <= xGapTolerance;
-    const sameFont = run.fontFamily === current.fontFamily;
+    // No font family check — our CSS names differ from PDF names
 
-    if (sameLine && adjacent && sameFont) {
-      // Merge into current word
+    if (sameLine && adjacent) {
+      // Merge into current phrase
       current.text += run.text;
       current.width = run.x + run.width - current.x;
       current.height = Math.max(current.height, run.height);
       current.fontSize = Math.max(current.fontSize, run.fontSize);
     } else {
-      words.push(current);
+      phrases.push(current);
       current = { ...run };
     }
   }
-  words.push(current);
+  phrases.push(current);
 
-  return words;
+  // Step 2: Split phrases into individual words
+  return splitRunsIntoWords(phrases);
 }
 
 // ─── Match Text Elements ────────────────────────────────────────────
@@ -275,7 +381,7 @@ export function matchTextElements(
         ours: ourRun,
         ground: gw,
         positionDelta: bestDist,
-        textSimilarity: editDistanceRatio(ourRun.text, gw.text),
+        textSimilarity: editDistanceRatio(ourRun.text, gw.text, true),
         fontSizeDelta: Math.abs(ourRun.fontSize - (gw.fontSize ?? ourRun.fontSize)),
         widthDelta: Math.abs(ourRun.width - gw.width),
       });
