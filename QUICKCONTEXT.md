@@ -1,6 +1,6 @@
 # Quick Context
 
-**Last updated:** 2026-03-10
+**Last updated:** 2026-03-11
 **Branch:** main
 **Phase:** Phase 4 (Waves 0-4) complete — PDF/Office unified architecture
 
@@ -90,11 +90,11 @@ Cross-project alignment with pdfbox-ts: EditTracker mirrors COSUpdateTracker pat
 
 **RMSE avg 0.069** against pdftoppm on USG Briefing (30 pages). Down from 0.14 — **51% reduction**. 24/30 pages FAIR (< 0.08), 6 pages BAD, worst page 29 at 0.19.
 
-**Completed:** Form XObject state isolation, fillStroke path fix, image mask colors, horizontal text scaling, JPEG SMask application, ICC stream color space (was #1 bug — backgrounds decoded as gray), sampled/stitching gradient functions, tiling patterns, font extraction infrastructure.
+**Completed:** Form XObject state isolation, fillStroke path fix, image mask colors, horizontal text scaling, JPEG SMask application, ICC stream color space (was #1 bug — backgrounds decoded as gray), sampled/stitching gradient functions, tiling patterns, font extraction infrastructure, negative fontSize fix (2026-03-11), CS/cs color space tracking (2026-03-11).
 
-**Remaining:** ExtGState SMask transparency groups (page 29 — Hard), font substitution differences, negative fontSize, CS/cs color space tracking, Separation/DeviceN tint transforms.
+**Remaining:** ExtGState SMask transparency groups (page 29 — Hard), font substitution differences, Separation/DeviceN tint transforms.
 
-**Next direction:** Element-level structural diffing (evaluator already emits TextElement/ShapeElement/ImageElement) instead of pixel RMSE — more actionable for remaining issues like font rendering.
+**Element-level structural diffing (2026-03-11):** Infrastructure built — ground-truth-extractor.ts, element-matcher.ts, element-diff-harness.test.ts (55 new tests). First run: 8.2% text accuracy, 29.7pt position delta. Next: coordinate tuning to improve accuracy.
 
 **Phase 3:** Tools consolidation — unify diagnostic scripts, streamline comparison infrastructure.
 
@@ -161,9 +161,9 @@ None currently.
 
 ## Active Bugs
 
-### PDF NativeRenderer Quality (2026-03-10)
+### PDF NativeRenderer Quality (2026-03-11)
 
-**Avg RMSE 0.069** against pdftoppm (down from 0.14 — 51% reduction). 24/30 pages FAIR. Fixed: ICC stream color space (#1 bug), JPEG SMask, Form XObject state, fillStroke path, image mask colors, horizontal scaling, sampled gradient functions, tiling patterns. Remaining: ExtGState SMask (transparency groups), font substitution, CS/cs tracking.
+**Avg RMSE 0.069** against pdftoppm (down from 0.14 — 51% reduction). 24/30 pages FAIR. Fixed 15 bugs total including negative fontSize and CS/cs color space tracking (2026-03-11). Element-level structural diffing infrastructure built (55 new tests). Remaining: ExtGState SMask (transparency groups), font substitution, Separation/DeviceN.
 
 **Comparison harness**: `packages/pdf-signer/src/render/__tests__/pdf-compare-harness.test.ts` — generates HTML report at `packages/tmp/pdf-compare/usg-briefing/report.html`.
 **PPTX SBS viewer**: `pnpm sbs -- --pptx <path> --ref-dir <dir>` or `node scripts/generate-sbs-viewer.mjs`.

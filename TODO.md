@@ -1,6 +1,6 @@
 # TODO
 
-**Last synced:** 2026-03-10
+**Last synced:** 2026-03-11
 
 ## Completed
 
@@ -274,20 +274,22 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 - [x] Tiling pattern implementation — PatternType 1 colored tiling via offscreen canvas + `ctx.createPattern()`
 - [x] Font extraction infrastructure — FontExtractor + FontRegistrar with fonttools patching (disabled pending metric tuning)
 
-**Next: Element-Level Structural Diffing**
+**Element-Level Structural Diffing (infrastructure built 2026-03-11)**
 
-Shift from pixel RMSE to structured comparison. The evaluator already emits TextElement/ShapeElement/ImageElement — compare these against Poppler ground truth for actionable per-element scoring.
+Shift from pixel RMSE to structured comparison. The evaluator emits TextElement/ShapeElement/ImageElement — compare against Poppler ground truth for actionable per-element scoring.
 
-- [ ] Build `pdftotext -bbox-layout` ground truth extractor (text positions, font sizes, content)
-- [ ] Build element-level diff engine (match our elements to ground truth by position/content)
-- [ ] Per-element scoring: text position accuracy, content correctness, font size match, image placement
-- [ ] HTML diff report with element-level annotations (not just pixel diff)
+- [x] Build `pdftotext -bbox-layout` ground truth extractor (text positions, font sizes, content) — `ground-truth-extractor.ts` (10 tests)
+- [x] Build element-level diff engine (match our elements to ground truth by position/content) — `element-matcher.ts` (42 tests)
+- [x] Per-element scoring: text position accuracy, content correctness, font size match
+- [x] HTML diff report with element-level annotations
+- [x] Integration test harness — `element-diff-harness.test.ts` (3 tests)
+- [ ] Coordinate tuning — first run: 8.2% text accuracy, 29.7pt position delta (needs calibration)
 - [ ] Integrate as `pnpm test:visual:pdf:elements` alongside pixel RMSE
 
 **Remaining pixel-level issues (lower priority):**
 - [ ] ExtGState SMask transparency groups (page 29 — Hard, requires offscreen compositing)
-- [ ] Negative fontSize flips text upside-down (Easy)
-- [ ] CS/cs color space operator tracking (Medium — colors inferred from component count)
+- [x] Negative fontSize — `renderGlyph()` skips Y-flip for negative fontSize (2026-03-11)
+- [x] CS/cs color space tracking — evaluator tracks fill/stroke color space from CS/cs operators (2026-03-11)
 - [ ] Separation/DeviceN tint transform evaluation (Hard)
 - [ ] Font registration metric alignment (infra built, disabled — causes regressions on some pages)
 

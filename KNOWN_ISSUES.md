@@ -1,24 +1,26 @@
 # Known Issues
 
-**Last updated:** 2026-03-10
+**Last updated:** 2026-03-11
 
 ## Active Bugs (Priority)
 
-### PDF NativeRenderer — Quality (2026-03-10)
+### PDF NativeRenderer — Quality (2026-03-11)
 
 **Avg RMSE: 0.069 against pdftoppm ground truth** (USG Briefing, 30 pages). Down from 0.14 — 51% reduction. 24/30 pages FAIR (< 0.08), 6 BAD.
 
-**Fixed this session (13 bugs):** ICC stream color space (#1 — backgrounds decoded as gray), JPEG SMask application, Form XObject state isolation, fillStroke path destruction, image mask fill color, horizontal text scaling (Tz), Type 0 sampled function decode, stitching function recursion, tiling patterns, ImageData Node.js crash, per-character text positioning, ICCBased N=2, browser JPEG crosshatch.
+**Fixed (13 bugs, 2026-03-10):** ICC stream color space (#1 — backgrounds decoded as gray), JPEG SMask application, Form XObject state isolation, fillStroke path destruction, image mask fill color, horizontal text scaling (Tz), Type 0 sampled function decode, stitching function recursion, tiling patterns, ImageData Node.js crash, per-character text positioning, ICCBased N=2, browser JPEG crosshatch.
+
+**Fixed (2 bugs, 2026-03-11):** Negative fontSize (renderGlyph skips Y-flip), CS/cs color space tracking (evaluator tracks fill/stroke color space from CS/cs operators).
+
+**Element-level structural diffing (2026-03-11):** Infrastructure built — ground-truth-extractor.ts, element-matcher.ts, element-diff-harness.test.ts (55 new tests). First run: 8.2% text accuracy, 29.7pt position delta — needs coordinate tuning.
 
 **Open issues:**
 
 | Priority | Issue | Details | Effort |
 |----------|-------|---------|--------|
-| **Next** | Element-level diffing | Shift from pixel RMSE to structural comparison using evaluator's element DOM vs Poppler ground truth | Medium |
+| **Next** | Element-level diffing tuning | Coordinate calibration to improve text accuracy from 8.2% baseline | Medium |
 | **P1** | ExtGState SMask | Transparency groups on page 29 — `handleExtGState()` ignores `/SMask` key, requires offscreen compositing | Hard |
 | **P2** | Font substitution | Canvas uses system fonts, not PDF embedded fonts. Infrastructure built (FontExtractor + FontRegistrar) but disabled — causes metric regressions on some pages | Medium |
-| **P2** | Negative fontSize | Flips text upside-down. `renderGlyph()` unconditionally flips Y | Easy |
-| **P3** | CS/cs color space tracking | Operators ignored; colors inferred from component count. Fails for Separation/Lab/CalRGB | Medium |
 | **P3** | Separation/DeviceN | Treated as grayscale instead of evaluating tint transform function | Hard |
 
 ### Resolved: Bundled Font Loading Broken in Vite Dev Mode (2026-02-27)
