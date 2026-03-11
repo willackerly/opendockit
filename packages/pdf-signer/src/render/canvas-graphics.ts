@@ -646,6 +646,12 @@ export class NativeCanvasGraphics {
     // Apply CTM-relative text positioning
     ctx.transform(a, b, c, d, x, y);
 
+    // Apply horizontal scaling (Tz operator) to glyph visual width
+    const hScale = this.state.horizontalScaling / 100;
+    if (hScale !== 1) {
+      ctx.scale(hScale, 1);
+    }
+
     // Flip Y for text (PDF Y-up vs canvas Y-down after our viewport flip)
     ctx.scale(1, -1);
 

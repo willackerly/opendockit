@@ -519,6 +519,106 @@ describe('complex path operations', () => {
 // Loaded PDF rendering with images
 // =========================================================================
 
+// =========================================================================
+// Horizontal scaling (Tz operator) applied to glyph visual width
+// =========================================================================
+
+describe('horizontal scaling (Tz) glyph rendering', () => {
+  it('applies Tz 50 — renders glyphs at 50% visual width', () => {
+    const canvas = createCanvas(400, 100);
+    const ctx = canvas.getContext('2d');
+
+    // Spy on ctx.scale to capture horizontal scaling calls
+    const scaleCalls: [number, number][] = [];
+    const origScale = ctx.scale.bind(ctx);
+    ctx.scale = ((sx: number, sy: number) => {
+      scaleCalls.push([sx, sy]);
+      origScale(sx, sy);
+    }) as any;
+
+    const opList = new OperatorList();
+    opList.addOp(OPS.beginText);
+    opList.addOpArgs(OPS.setFont, [
+      'Helv',
+      24,
+      { family: 'Helvetica, Arial, sans-serif', weight: 'normal', style: 'normal' },
+    ]);
+    opList.addOpArgs(OPS.setHScale, [50]); // 50% horizontal scaling
+    opList.addOpArgs(OPS.moveText, [10, 50]);
+    opList.addOpArgs(OPS.showText, [[{ unicode: 'W', width: 944 }]]);
+    opList.addOp(OPS.endText);
+
+    const graphics = new NativeCanvasGraphics(ctx as any);
+    graphics.execute(opList);
+
+    // Should have called ctx.scale(0.5, 1) for horizontal scaling
+    const hScaleCall = scaleCalls.find(([sx, sy]) => sx === 0.5 && sy === 1);
+    expect(hScaleCall).toBeDefined();
+  });
+
+  it('default hScale (100%) does not add extra scale call', () => {
+    const canvas = createCanvas(400, 100);
+    const ctx = canvas.getContext('2d');
+
+    const scaleCalls: [number, number][] = [];
+    const origScale = ctx.scale.bind(ctx);
+    ctx.scale = ((sx: number, sy: number) => {
+      scaleCalls.push([sx, sy]);
+      origScale(sx, sy);
+    }) as any;
+
+    const opList = new OperatorList();
+    opList.addOp(OPS.beginText);
+    opList.addOpArgs(OPS.setFont, [
+      'Helv',
+      24,
+      { family: 'Helvetica, Arial, sans-serif', weight: 'normal', style: 'normal' },
+    ]);
+    // No setHScale — default is 100%
+    opList.addOpArgs(OPS.moveText, [10, 50]);
+    opList.addOpArgs(OPS.showText, [[{ unicode: 'A', width: 722 }]]);
+    opList.addOp(OPS.endText);
+
+    const graphics = new NativeCanvasGraphics(ctx as any);
+    graphics.execute(opList);
+
+    // Should NOT have a non-unity horizontal scale call (only Y-flip scale(1, -1))
+    const hScaleCall = scaleCalls.find(([sx, sy]) => sx !== 1 && sy === 1);
+    expect(hScaleCall).toBeUndefined();
+  });
+
+  it('applies Tz 200 — renders glyphs at 200% visual width', () => {
+    const canvas = createCanvas(400, 100);
+    const ctx = canvas.getContext('2d');
+
+    const scaleCalls: [number, number][] = [];
+    const origScale = ctx.scale.bind(ctx);
+    ctx.scale = ((sx: number, sy: number) => {
+      scaleCalls.push([sx, sy]);
+      origScale(sx, sy);
+    }) as any;
+
+    const opList = new OperatorList();
+    opList.addOp(OPS.beginText);
+    opList.addOpArgs(OPS.setFont, [
+      'Helv',
+      24,
+      { family: 'Helvetica, Arial, sans-serif', weight: 'normal', style: 'normal' },
+    ]);
+    opList.addOpArgs(OPS.setHScale, [200]); // 200% horizontal scaling
+    opList.addOpArgs(OPS.moveText, [10, 50]);
+    opList.addOpArgs(OPS.showText, [[{ unicode: 'I', width: 278 }]]);
+    opList.addOp(OPS.endText);
+
+    const graphics = new NativeCanvasGraphics(ctx as any);
+    graphics.execute(opList);
+
+    // Should have called ctx.scale(2, 1) for 200% horizontal scaling
+    const hScaleCall = scaleCalls.find(([sx, sy]) => sx === 2 && sy === 1);
+    expect(hScaleCall).toBeDefined();
+  });
+});
+
 describe('loaded PDF with images', () => {
   it('renders Google Docs PDF with images', async () => {
     const fs = await import('node:fs');
