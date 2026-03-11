@@ -136,8 +136,9 @@ export class NativeRenderer {
 
     const opList = evaluatePage(pageDict, this.resolve, diagnostics);
 
-    // Pre-register embedded fonts before execution
-    await this.preRegisterFonts(opList, diagnostics);
+    // Font registration disabled for now — subsetted PDF fonts cause metric shifts
+    // that regress some pages. Infrastructure is in place for future enablement.
+    // await this.preRegisterFonts(opList, diagnostics);
 
     // Pre-decode JPEG images in browser (createImageBitmap is async)
     await this.preDecodeJpegs(opList, diagnostics);
@@ -197,8 +198,8 @@ export class NativeRenderer {
     // Evaluate page content stream → OperatorList
     const opList = evaluatePage(pageDict, this.resolve, diagnostics);
 
-    // Pre-register embedded fonts before execution
-    await this.preRegisterFonts(opList, diagnostics);
+    // Font registration disabled — see renderPageToCanvas comment
+    // await this.preRegisterFonts(opList, diagnostics);
 
     // Pre-decode JPEG images in browser (createImageBitmap is async)
     await this.preDecodeJpegs(opList, diagnostics);
@@ -289,17 +290,26 @@ export class NativeRenderer {
         continue;
       }
 
+      // Only register TrueType fonts — CFF (raw CFF, not OTF-wrapped) and Type1 (PFB)
+      // are not directly supported by node-canvas registerFont
+      if (embeddedFont.fontType !== 'TrueType') {
+        args[3] = undefined;
+        continue;
+      }
+
       try {
         const family = await this.fontRegistrar.register(
           embeddedFont.fontName,
           embeddedFont.rawBytes,
+          { fontType: embeddedFont.fontType },
         );
         // Replace ExtractedFont object with the registered family name string
         args[3] = family;
       } catch (err) {
-        diagnostics.warn('font', `Failed to register embedded font "${embeddedFont.fontName}"`, {
+        diagnostics.warn('font', `Failed to register embedded font "${embeddedFont.fontName}": ${err instanceof Error ? err.message : String(err)}`, {
           error: String(err),
           fontType: embeddedFont.fontType,
+          byteLength: embeddedFont.rawBytes.length,
         });
         // Fall back to CSS — clear the 4th arg
         args[3] = undefined;
