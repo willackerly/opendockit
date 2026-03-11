@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import crypto from 'node:crypto';
 import forge from 'node-forge';
 import { buildTimeStampReq, parseTimeStampResp, fetchTimestampToken, TSAError } from '../tsa';
-import { computeRsaSignature, buildPdfBoxCmsSignature } from '../pdfbox-signer';
+import { computeRsaSignature, buildPdfBoxCmsSignature, extractCertInfo } from '../pdfbox-signer';
+import type { CertInfo } from '../pdfbox-signer';
 
 // Helper: forge binary string <-> Uint8Array
 function binaryStringToUint8Array(str: string): Uint8Array {
@@ -268,12 +269,12 @@ describe('fetchTimestampToken', () => {
 describe('CMS with timestamp unsigned attributes', () => {
   // Generate a test keypair
   let keypair: forge.pki.rsa.KeyPair;
-  let cert: forge.pki.Certificate;
   let certDer: Uint8Array;
+  let certInfo: CertInfo;
 
   beforeEach(() => {
     keypair = forge.pki.rsa.generateKeyPair({ bits: 2048 });
-    cert = forge.pki.createCertificate();
+    const cert = forge.pki.createCertificate();
     cert.publicKey = keypair.publicKey;
     cert.serialNumber = '01';
     cert.validity.notBefore = new Date();
@@ -287,6 +288,7 @@ describe('CMS with timestamp unsigned attributes', () => {
     const certAsn1 = forge.pki.certificateToAsn1(cert);
     const certDerStr = forge.asn1.toDer(certAsn1).getBytes();
     certDer = binaryStringToUint8Array(certDerStr);
+    certInfo = extractCertInfo(certDer);
   });
 
   it('CMS without timestamp produces no unsigned attributes', () => {
@@ -295,7 +297,7 @@ describe('CMS with timestamp unsigned attributes', () => {
 
     const cmsBytes = buildPdfBoxCmsSignature({
       contentToSign,
-      cert,
+      certInfo,
       rawCertificateDer: certDer,
       privateKey: keypair.privateKey,
       signingDate,
@@ -327,7 +329,7 @@ describe('CMS with timestamp unsigned attributes', () => {
 
     const cmsBytes = buildPdfBoxCmsSignature({
       contentToSign,
-      cert,
+      certInfo,
       rawCertificateDer: certDer,
       privateKey: keypair.privateKey,
       signingDate,
@@ -367,7 +369,7 @@ describe('CMS with timestamp unsigned attributes', () => {
     // Build without precomputed
     const cms1 = buildPdfBoxCmsSignature({
       contentToSign,
-      cert,
+      certInfo,
       rawCertificateDer: certDer,
       privateKey: keypair.privateKey,
       signingDate,
@@ -382,7 +384,7 @@ describe('CMS with timestamp unsigned attributes', () => {
     });
     const cms2 = buildPdfBoxCmsSignature({
       contentToSign,
-      cert,
+      certInfo,
       rawCertificateDer: certDer,
       privateKey: keypair.privateKey,
       signingDate,

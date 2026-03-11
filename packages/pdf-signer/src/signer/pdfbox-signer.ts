@@ -71,6 +71,98 @@ import { UnsupportedPdfFeatureError } from '../errors/UnsupportedPdfFeatureError
 import { fetchTimestampToken } from './tsa.js';
 
 /**
+ * Certificate info extracted from raw DER without forge.pki.certificateFromAsn1().
+ * forge.pki.certificateFromAsn1() chokes on ECDSA certs because forge only
+ * supports RSA public keys. We only need subject CN, issuer, and serial —
+ * none of which require inspecting the public key.
+ */
+export interface CertInfo {
+  subjectCN: string;
+  issuerAsn1: forge.asn1.Asn1;
+  serialHex: string;
+}
+
+/**
+ * Extract certificate info by walking the ASN.1 tree directly.
+ * Uses forge.asn1.fromDer() which succeeds for any cert (it just parses TLV),
+ * unlike forge.pki.certificateFromAsn1() which fails on non-RSA public keys.
+ *
+ * X.509 TBSCertificate structure:
+ *   SEQUENCE {
+ *     [0] version (optional, context-specific tag 0)
+ *     serialNumber INTEGER
+ *     signatureAlgorithm SEQUENCE
+ *     issuer SEQUENCE (DN)
+ *     validity SEQUENCE
+ *     subject SEQUENCE (DN)
+ *     subjectPublicKeyInfo  ← forge chokes here for ECDSA
+ *     ...
+ *   }
+ */
+export function extractCertInfo(certDer: Uint8Array): CertInfo {
+  const derString = String.fromCharCode(...Array.from(certDer));
+  const certAsn1 = forge.asn1.fromDer(derString);
+
+  // certAsn1 is the top-level SEQUENCE (Certificate)
+  // First child is tbsCertificate SEQUENCE
+  const tbs = (certAsn1.value as forge.asn1.Asn1[])[0];
+  const tbsChildren = tbs.value as forge.asn1.Asn1[];
+
+  // Determine offset: if first child is context-specific [0] (version), skip it
+  let idx = 0;
+  if (tbsChildren[0].tagClass === forge.asn1.Class.CONTEXT_SPECIFIC) {
+    idx = 1; // skip version
+  }
+
+  // serialNumber is at idx
+  const serialNode = tbsChildren[idx];
+  const serialBytes = forge.asn1.toDer(serialNode).getBytes();
+  // Strip tag (0x02) and length bytes to get raw integer value
+  const serialAsn1 = forge.asn1.fromDer(serialBytes);
+  const serialRaw = serialAsn1.value as string;
+  const serialHex = forge.util.bytesToHex(serialRaw);
+
+  // signatureAlgorithm at idx+1 (skip)
+  // issuer at idx+2
+  const issuerAsn1 = tbsChildren[idx + 2];
+
+  // validity at idx+3 (skip)
+  // subject at idx+4
+  const subjectAsn1 = tbsChildren[idx + 4];
+
+  // Extract CN from subject DN
+  const subjectCN = extractCNFromDN(subjectAsn1);
+
+  return { subjectCN, issuerAsn1, serialHex };
+}
+
+/**
+ * Walk a DN (SEQUENCE of SETs of SEQUENCE { OID, value }) to find CN (2.5.4.3).
+ */
+function extractCNFromDN(dnAsn1: forge.asn1.Asn1): string {
+  const OID_CN = forge.asn1.oidToDer('2.5.4.3').getBytes();
+  try {
+    const sets = dnAsn1.value as forge.asn1.Asn1[];
+    for (const rdn of sets) {
+      const attrs = rdn.value as forge.asn1.Asn1[];
+      for (const attr of attrs) {
+        const pair = attr.value as forge.asn1.Asn1[];
+        if (pair.length >= 2) {
+          const oidNode = pair[0];
+          const oidPayload = (oidNode.value as string);
+          if (oidPayload === OID_CN) {
+            return (pair[1].value as string) || 'Unknown';
+          }
+        }
+      }
+    }
+  } catch {
+    // Fall through
+  }
+  return 'Unknown';
+}
+
+/**
  * Sign PDF using PDFBox approach
  *
  * Steps:
@@ -240,15 +332,10 @@ async function preparePdfWithRewrite(
   ensureValidObjectRef(catalogObjectNumber, 'catalog');
   ensureValidObjectRef(pageObjectNumber, 'page');
 
-  // Extract signer name from certificate
+  // Extract signer name from certificate (forge-free — works with ECDSA certs)
   const certChain = await signer.getCertificate();
-  const certBinary = String.fromCharCode(...Array.from(certChain.cert));
-  const certAsn1 = forge.asn1.fromDer(certBinary);
-  const cert = forge.pki.certificateFromAsn1(certAsn1);
-  let signerName = 'Unknown';
-  try {
-    signerName = cert.subject.getField('CN')?.value || 'Unknown';
-  } catch { /* ignore */ }
+  const certInfo = extractCertInfo(certChain.cert);
+  const signerName = certInfo.subjectCN;
 
   const fieldName = options.signatureAppearance?.fieldName ?? undefined;
   const deterministicId = computeDeterministicDocumentId(pdfWithAppearance);
@@ -331,15 +418,10 @@ async function preparePdfIncremental(
   ensureValidObjectRef(catalogObjectNumber, 'catalog');
   ensureValidObjectRef(pageObjectNumber, 'page');
 
-  // Extract signer name from certificate
+  // Extract signer name from certificate (forge-free — works with ECDSA certs)
   const certChain = await signer.getCertificate();
-  const certBinary = String.fromCharCode(...Array.from(certChain.cert));
-  const certAsn1 = forge.asn1.fromDer(certBinary);
-  const cert = forge.pki.certificateFromAsn1(certAsn1);
-  let signerName = 'Unknown';
-  try {
-    signerName = cert.subject.getField('CN')?.value || 'Unknown';
-  } catch { /* ignore */ }
+  const certInfo = extractCertInfo(certChain.cert);
+  const signerName = certInfo.subjectCN;
 
   const imageData = options.signatureAppearance?.imageData;
   const fieldName = options.signatureAppearance?.fieldName ?? undefined;
@@ -488,9 +570,7 @@ export async function signPreparedPdfWithPDFBox(
   );
 
   const certChain = await signer.getCertificate();
-  const certString = String.fromCharCode(...Array.from(certChain.cert));
-  const certAsn1 = forge.asn1.fromDer(certString);
-  const cert = forge.pki.certificateFromAsn1(certAsn1);
+  const certInfo = extractCertInfo(certChain.cert);
 
   // =========================================================================
   // STEP 2: Create signature objects using PDFBox port
@@ -940,22 +1020,51 @@ export async function signPreparedPdfWithPDFBox(
 
   console.log(`   Content to sign: ${contentToSign.length} bytes`);
 
-  const privateKey = (globalThis as any).__forgePrivateKey;
-  if (!privateKey) {
-    throw new Error('Forge private key not found. Did you call signer.unlock()?');
-  }
+  const signerAlgorithm = signer.getAlgorithm();
+  const isEcdsa = signerAlgorithm.signature === 'ECDSA';
 
   // BER (indefinite-length) encoding for parity with Java PDFBox in Node.js;
   // DER in browser because node-forge's asn1.fromDer() can't parse BER for verification
   const useBerIndefiniteLength = typeof process !== 'undefined' && !process.env?.PDFBOX_TS_CMS_DER;
   console.log(`   CMS encoding: ${useBerIndefiniteLength ? 'BER (indefinite)' : 'DER (definite)'}`);
+  console.log(`   Signature algorithm: ${isEcdsa ? 'ECDSA P-256' : 'RSA'}`);
 
-  // Compute RSA signature first so we can timestamp it before CMS assembly
-  const precomputedSig = computeRsaSignature({
-    contentToSign,
-    privateKey,
-    signingDate: cmsSigningDate,
-  });
+  let precomputedSig: string;
+  let privateKey: forge.pki.rsa.PrivateKey | undefined;
+
+  if (isEcdsa) {
+    // ECDSA path: use signer.sign() (WebCrypto ECDSA → DER signature)
+    // Build authenticated attributes to sign
+    const contentDigest = sha256Digest(contentToSign);
+    const authenticatedAttributesList = buildAuthenticatedAttributes({
+      signingTime: formatSigningTime(cmsSigningDate),
+      contentDigest,
+      signatureAlgorithm: 'ECDSA',
+    });
+    const attributeSetForDigest = forge.asn1.create(
+      forge.asn1.Class.UNIVERSAL,
+      forge.asn1.Type.SET,
+      true,
+      authenticatedAttributesList
+    );
+    const attributeDer = forge.asn1.toDer(attributeSetForDigest).getBytes();
+    // signer.sign() receives the raw authenticated attributes DER —
+    // the signer is responsible for hashing (SHA-256) and signing (ECDSA).
+    // Do NOT pre-hash here: @noble/curves p256.sign() hashes internally.
+    const ecdsaSigBytes = await signer.sign(byteStringToUint8Array(attributeDer));
+    precomputedSig = uint8ArrayToBinaryString(ecdsaSigBytes);
+  } else {
+    // RSA path: use globalThis.__forgePrivateKey (existing behavior)
+    privateKey = (globalThis as any).__forgePrivateKey;
+    if (!privateKey) {
+      throw new Error('Forge private key not found. Did you call signer.unlock()?');
+    }
+    precomputedSig = computeRsaSignature({
+      contentToSign,
+      privateKey,
+      signingDate: cmsSigningDate,
+    });
+  }
 
   let timestampToken: Uint8Array | undefined;
   if (options.timestampURL) {
@@ -967,7 +1076,7 @@ export async function signPreparedPdfWithPDFBox(
 
   const signatureBytes = buildPdfBoxCmsSignature({
     contentToSign,
-    cert,
+    certInfo,
     rawCertificateDer: certChain.cert,
     privateKey,
     signingDate: cmsSigningDate,
@@ -975,6 +1084,7 @@ export async function signPreparedPdfWithPDFBox(
     precomputedSignature: precomputedSig,
     timestampToken,
     chainCertsDer: certChain.chain.length > 0 ? certChain.chain : undefined,
+    signatureAlgorithm: isEcdsa ? 'ECDSA' : 'RSA',
   });
   const signatureHex = uint8ArrayToHex(signatureBytes);
 
@@ -1165,19 +1275,26 @@ function createDocMdpPermsDictionary(sigKey: COSObjectKey): COSDictionary {
   return dict;
 }
 
+/** OID for ecdsaWithSHA256 (1.2.840.10045.4.3.2) — not in forge.pki.oids */
+const OID_ECDSA_WITH_SHA256 = '1.2.840.10045.4.3.2';
+
 interface PdfBoxCmsInputs {
   contentToSign: Uint8Array;
-  cert: forge.pki.Certificate;
+  /** Certificate info extracted from raw DER (forge-free, works with ECDSA). */
+  certInfo: CertInfo;
   rawCertificateDer: Uint8Array;
-  privateKey: forge.pki.rsa.PrivateKey;
+  /** RSA private key. Required when signatureAlgorithm is 'RSA' and no precomputedSignature. */
+  privateKey?: forge.pki.rsa.PrivateKey;
   signingDate: Date;
   useBerIndefiniteLength?: boolean;
-  /** Pre-computed RSA signature (forge binary string). Skips signing when provided. */
+  /** Pre-computed signature (forge binary string). Skips signing when provided. */
   precomputedSignature?: string;
   /** Pre-fetched RFC 3161 TimeStampToken DER bytes. Added as unsigned attribute. */
   timestampToken?: Uint8Array;
   /** Additional certificate chain (DER). Embedded in CMS certificates field for LTV. */
   chainCertsDer?: Uint8Array[];
+  /** Signature algorithm. Default: 'RSA'. */
+  signatureAlgorithm?: 'RSA' | 'ECDSA';
 }
 
 interface IndefiniteAsn1 extends forge.asn1.Asn1 {
@@ -1188,6 +1305,8 @@ interface IndefiniteAsn1 extends forge.asn1.Asn1 {
 interface AuthenticatedAttributeInputs {
   signingTime: string;
   contentDigest: Uint8Array;
+  /** Signature algorithm for cmsAlgorithmProtection attribute. Default: 'RSA'. */
+  signatureAlgorithm?: 'RSA' | 'ECDSA';
 }
 
 /**
@@ -1220,7 +1339,7 @@ export function computeRsaSignature(inputs: {
 }
 
 export function buildPdfBoxCmsSignature(inputs: PdfBoxCmsInputs): Uint8Array {
-  const { contentToSign, cert, rawCertificateDer, privateKey, signingDate } = inputs;
+  const { contentToSign, certInfo, rawCertificateDer, signingDate } = inputs;
   const asn1 = forge.asn1;
 
   const digestAlgorithmSet = asn1.create(asn1.Class.UNIVERSAL, asn1.Type.SET, true, [
@@ -1231,20 +1350,15 @@ export function buildPdfBoxCmsSignature(inputs: PdfBoxCmsInputs): Uint8Array {
     createObjectIdentifier(forge.pki.oids.data),
   ]);
 
-  let certAsn1;
-  if (rawCertificateDer) {
-    certAsn1 = {
-      tagClass: forge.asn1.Class.UNIVERSAL,
-      type: forge.asn1.Type.SEQUENCE,
-      constructed: true,
-      value: [],
-      rawBytes: rawCertificateDer,
-    } as unknown as IndefiniteAsn1;
-  } else {
-    certAsn1 = forge.pki.certificateToAsn1(cert);
-  }
+  const certAsn1Node = {
+    tagClass: forge.asn1.Class.UNIVERSAL,
+    type: forge.asn1.Type.SEQUENCE,
+    constructed: true,
+    value: [],
+    rawBytes: rawCertificateDer,
+  } as unknown as IndefiniteAsn1;
   // Build certificates list: signing cert + chain certs (for LTV)
-  const certNodes: forge.asn1.Asn1[] = [certAsn1];
+  const certNodes: forge.asn1.Asn1[] = [certAsn1Node];
   if (inputs.chainCertsDer && inputs.chainCertsDer.length > 0) {
     for (const chainDer of inputs.chainCertsDer) {
       certNodes.push({
@@ -1260,17 +1374,18 @@ export function buildPdfBoxCmsSignature(inputs: PdfBoxCmsInputs): Uint8Array {
     certNodes,
   ) as IndefiniteAsn1;
 
-  const issuerAsn1 = forge.pki.distinguishedNameToAsn1(cert.issuer);
-  const serialHex = cert.serialNumber.replace(/:/g, '') || '00';
+  // Use issuer + serial from certInfo (forge-free — works with ECDSA certs)
   const signerIdentifier = asn1.create(asn1.Class.UNIVERSAL, asn1.Type.SEQUENCE, true, [
-    issuerAsn1,
-    createIntegerFromHex(serialHex),
+    certInfo.issuerAsn1,
+    createIntegerFromHex(certInfo.serialHex),
   ]);
 
+  const sigAlgo = inputs.signatureAlgorithm || 'RSA';
   const contentDigest = sha256Digest(contentToSign);
   const authenticatedAttributesList = buildAuthenticatedAttributes({
     signingTime: formatSigningTime(signingDate),
     contentDigest,
+    signatureAlgorithm: sigAlgo,
   });
   const authenticatedAttributes = asn1.create(
     asn1.Class.CONTEXT_SPECIFIC,
@@ -1283,6 +1398,9 @@ export function buildPdfBoxCmsSignature(inputs: PdfBoxCmsInputs): Uint8Array {
   if (inputs.precomputedSignature !== undefined) {
     encryptedDigestBytes = inputs.precomputedSignature;
   } else {
+    if (!inputs.privateKey) {
+      throw new Error('privateKey required when precomputedSignature is not provided');
+    }
     const attributeSetForDigest = asn1.create(
       asn1.Class.UNIVERSAL,
       asn1.Type.SET,
@@ -1292,15 +1410,19 @@ export function buildPdfBoxCmsSignature(inputs: PdfBoxCmsInputs): Uint8Array {
     const attributeDer = asn1.toDer(attributeSetForDigest).getBytes();
     const md = forge.md.sha256.create();
     md.update(attributeDer, 'raw');
-    encryptedDigestBytes = privateKey.sign(md);
+    encryptedDigestBytes = inputs.privateKey.sign(md);
   }
+
+  // SignerInfo signature algorithm: ECDSA omits NULL parameter (RFC 5754)
+  const sigAlgOid = sigAlgo === 'ECDSA' ? OID_ECDSA_WITH_SHA256 : forge.pki.oids.sha256WithRSAEncryption;
+  const includeNull = sigAlgo !== 'ECDSA';
 
   const signerInfoChildren: (forge.asn1.Asn1 | IndefiniteAsn1)[] = [
     createInteger(1),
     signerIdentifier,
     buildAlgorithmIdentifier(forge.pki.oids.sha256, false),
     authenticatedAttributes,
-    buildAlgorithmIdentifier(forge.pki.oids.sha256WithRSAEncryption, true),
+    buildAlgorithmIdentifier(sigAlgOid, includeNull),
     asn1.create(asn1.Class.UNIVERSAL, asn1.Type.OCTETSTRING, false, encryptedDigestBytes),
   ];
 
@@ -1356,13 +1478,20 @@ function buildAuthenticatedAttributes(
     ),
   ]);
 
+  const isEcdsa = inputs.signatureAlgorithm === 'ECDSA';
+  const sigAlgOid = isEcdsa ? OID_ECDSA_WITH_SHA256 : forge.pki.oids.sha256WithRSAEncryption;
+
+  // ECDSA algorithm identifiers omit the NULL parameter (RFC 5754 §3.2)
+  // RSA algorithm identifiers include explicit NULL (RFC 4055)
+  const sigAlgChildren: forge.asn1.Asn1[] = [createObjectIdentifier(sigAlgOid)];
+  if (!isEcdsa) {
+    sigAlgChildren.push(asn1.create(asn1.Class.UNIVERSAL, asn1.Type.NULL, false, ''));
+  }
+
   const cmsAlgorithmProtectionAttr = createAttribute('1.2.840.113549.1.9.52', [
     asn1.create(asn1.Class.UNIVERSAL, asn1.Type.SEQUENCE, true, [
       buildAlgorithmIdentifier(forge.pki.oids.sha256, false),
-      asn1.create(asn1.Class.CONTEXT_SPECIFIC, 1, true, [
-        createObjectIdentifier(forge.pki.oids.sha256WithRSAEncryption),
-        asn1.create(asn1.Class.UNIVERSAL, asn1.Type.NULL, false, ''),
-      ]),
+      asn1.create(asn1.Class.CONTEXT_SPECIFIC, 1, true, sigAlgChildren),
     ]),
   ]);
 
@@ -1674,10 +1803,10 @@ function buildInfoBoxContentStream(params: {
   const brandSize = Math.min(5.5, Math.max(4, h * 0.065));
   const footerH = (showFooter !== false) ? brandSize + 4 : 0;
   const contentH = h - footerH;  // usable height for image + text
-  const imgFraction = hasImage ? 0.48 : 0;
+  const imgFraction = hasImage ? 0.38 : 0;
   const imgAreaW = Math.round(w * imgFraction);
   const textX = imgAreaW + (hasImage ? 2 : 6);
-  const rightPad = 2;  // minimal right margin — reduce whitespace
+  const rightPad = 4;
   const textW = w - textX - rightPad;
 
   // ── 0. White background for text area (snug — minimal right margin) ──

@@ -14,6 +14,7 @@
 
 import forge from 'node-forge';
 import { p256, p384, p521 } from '@noble/curves/nist.js';
+import { extractCertInfo } from './pdfbox-signer.js';
 import { parsePdfTrailer } from '../pdfbox/parser/trailer.js';
 import { parseCOSDictionary } from '../pdfbox/parser/cosParser.js';
 import { COSDocumentState } from '../pdfbox/writer/COSDocumentState.js';
@@ -209,7 +210,6 @@ function verifySignatureField(
 
     if (integrityValid) {
       const result = verifySignatureOverAuthAttrs(
-        cmsInfo.cert,
         cmsInfo.signerCertDer,
         cmsInfo.authAttrsDer,
         cmsInfo.encryptedDigest,
@@ -234,7 +234,7 @@ function verifySignatureField(
       );
     }
 
-    const signedBy = extractCertCn(cmsInfo.cert) || nameValue || 'Unknown';
+    const signedBy = cmsInfo.signerCn || nameValue || 'Unknown';
     const signedAt = cmsInfo.signingTime || parsePdfDate(mValue);
 
     return {
@@ -281,7 +281,7 @@ interface CmsParseResult {
   signingTime: Date | null;
   authAttrsDer: Uint8Array;
   encryptedDigest: Uint8Array;
-  cert: forge.pki.Certificate;
+  signerCn: string;
   signerCertDer: Uint8Array;
   allCertificatesDer: Uint8Array[];
   signatureAlgorithmOid: string;
@@ -348,9 +348,9 @@ function parseCmsSignedData(cmsBytes: Uint8Array): CmsParseResult {
   }
 
   // Use first cert as signer cert (typical CMS convention)
-  const firstCertAsn1 = certSequences[0];
   const signerCertDer = allCertificatesDer[0];
-  const cert = forge.pki.certificateFromAsn1(firstCertAsn1);
+  // Extract CN from DER directly — forge.pki.certificateFromAsn1() fails on ECDSA certs
+  const signerCn = extractCertInfo(signerCertDer).subjectCN;
 
   // Parse first SignerInfo
   const signerInfos = signerInfosNode.value as forge.asn1.Asn1[];
@@ -457,8 +457,8 @@ function parseCmsSignedData(cmsBytes: Uint8Array): CmsParseResult {
     signingTime,
     authAttrsDer,
     encryptedDigest,
-    cert,
-    signerCertDer: signerCertDer,
+    signerCn,
+    signerCertDer,
     allCertificatesDer,
     signatureAlgorithmOid,
     hasTimestamp,
@@ -537,20 +537,21 @@ function detectAlgorithm(algOid: string): 'RSA' | 'ECDSA' | 'unknown' {
 }
 
 function verifySignatureOverAuthAttrs(
-  cert: forge.pki.Certificate,
   certDer: Uint8Array,
   authAttrsDer: Uint8Array,
   encryptedDigest: Uint8Array,
   algOid: string
 ): { valid: boolean; algorithm: 'RSA' | 'ECDSA' | 'unknown' } {
   if (ECDSA_OIDS[algOid]) {
-    const hashAlg = ECDSA_OIDS[algOid];
-    const valid = verifyEcdsaSignature(certDer, authAttrsDer, encryptedDigest, hashAlg);
+    const valid = verifyEcdsaSignature(certDer, authAttrsDer, encryptedDigest);
     return { valid, algorithm: 'ECDSA' };
   }
 
   if (RSA_OIDS[algOid] || algOid === '') {
-    // Default to RSA (our signing code uses rsaEncryption OID)
+    // Parse forge certificate from DER for RSA verification
+    // (forge.pki.certificateFromAsn1 only works for RSA certs, which is fine here)
+    const asn1 = forge.asn1.fromDer(uint8ArrayToBinaryString(certDer));
+    const cert = forge.pki.certificateFromAsn1(asn1);
     const valid = verifyRsaSignature(cert, authAttrsDer, encryptedDigest);
     return { valid, algorithm: 'RSA' };
   }
@@ -579,23 +580,22 @@ function verifyEcdsaSignature(
   certDer: Uint8Array,
   authAttrsDer: Uint8Array,
   signature: Uint8Array,
-  hashAlg: string
 ): boolean {
   try {
     const pubKeyBytes = extractEcPublicKeyFromCert(certDer);
     const curveOid = extractCurveOidFromCert(certDer);
-    const hash = computeHash(authAttrsDer, hashAlg);
 
-    // CMS signatures are DER-encoded; @noble/curves v2 expects compact (r||s)
+    // @noble/curves sign/verify hash internally — pass raw authAttrsDer, NOT a pre-hash.
+    // CMS signatures are DER-encoded; @noble/curves expects compact (r||s).
     if (curveOid === CURVE_P256) {
       const compact = derSignatureToCompact(signature, 32);
-      return p256.verify(compact, hash, pubKeyBytes);
+      return p256.verify(compact, authAttrsDer, pubKeyBytes);
     } else if (curveOid === CURVE_P384) {
       const compact = derSignatureToCompact(signature, 48);
-      return p384.verify(compact, hash, pubKeyBytes);
+      return p384.verify(compact, authAttrsDer, pubKeyBytes);
     } else if (curveOid === CURVE_P521) {
       const compact = derSignatureToCompact(signature, 66);
-      return p521.verify(compact, hash, pubKeyBytes);
+      return p521.verify(compact, authAttrsDer, pubKeyBytes);
     }
     return false;
   } catch {
@@ -986,14 +986,14 @@ function parseAndVerifyTimestampToken(
     tsaSigValid = verifyTsaSignature(tsSignerInfosNode, tsCertNode);
   }
 
-  // Extract TSA signer CN
+  // Extract TSA signer CN (forge-free — works with ECDSA certs too)
   let signerCn = 'Unknown TSA';
   if (tsCertNode) {
     try {
       const tsCertSequences = tsCertNode.value as forge.asn1.Asn1[];
       if (tsCertSequences && tsCertSequences.length > 0) {
-        const tsaCert = forge.pki.certificateFromAsn1(tsCertSequences[0]);
-        signerCn = extractCertCn(tsaCert) || 'Unknown TSA';
+        const tsaCertDer = byteStringToUint8Array(forge.asn1.toDer(tsCertSequences[0]).getBytes());
+        signerCn = extractCertInfo(tsaCertDer).subjectCN || 'Unknown TSA';
       }
     } catch {
       // Ignore
@@ -1146,10 +1146,9 @@ function verifyTsaSignature(
     if (!certSequences || certSequences.length === 0) return false;
 
     const tsaCertAsn1 = certSequences[0];
-    const tsaCert = forge.pki.certificateFromAsn1(tsaCertAsn1);
     const tsaCertDer = byteStringToUint8Array(forge.asn1.toDer(tsaCertAsn1).getBytes());
 
-    const result = verifySignatureOverAuthAttrs(tsaCert, tsaCertDer, authAttrsDer, encDigest, algOid);
+    const result = verifySignatureOverAuthAttrs(tsaCertDer, authAttrsDer, encDigest, algOid);
     return result.valid;
   } catch {
     return false;
@@ -1342,11 +1341,6 @@ function berTlvLengthInternal(data: Uint8Array, offset: number): number {
     // Definite short form
     return offset - start + lengthByte;
   }
-}
-
-function extractCertCn(cert: forge.pki.Certificate): string | null {
-  const cn = cert.subject.getField('CN');
-  return cn ? (cn.value as string) : null;
 }
 
 function parseAsn1Time(node: forge.asn1.Asn1): Date | null {

@@ -19,6 +19,7 @@ import {
   signPreparedPdfWithPDFBox,
 } from '../pdfbox-signer';
 import { getFixtureSigner } from '../../testing/fixture-signer';
+import type { BrowserKeypairSigner, CertificateChain } from '../../types';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
@@ -308,6 +309,113 @@ describe('verifySignatures', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ECDSA end-to-end: sign with ECDSA P-256, then verify
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ECDSA P-256 sign + verify round-trip', () => {
+  let ecdsaSigner: BrowserKeypairSigner;
+  let simplePdf: Uint8Array;
+
+  beforeAll(async () => {
+    simplePdf = loadTestPdf('test-pdfs/working/simple-test.pdf');
+    ecdsaSigner = await buildEcdsaFixtureSigner();
+  });
+
+  it('verifies an ECDSA-signed PDF (the "OID is not RSA" bug)', async () => {
+    const { signedData } = await signPDFWithPDFBox(simplePdf, ecdsaSigner, {
+      reason: 'ECDSA Test',
+      location: 'Unit Test',
+    });
+
+    const results = verifySignatures(signedData);
+    expect(results).toHaveLength(1);
+
+    const r = results[0];
+    expect(r.error).toBeUndefined();
+    expect(r.integrityValid).toBe(true);
+    expect(r.signatureValid).toBe(true);
+    expect(r.algorithm).toBe('ECDSA');
+    expect(r.signedBy).toBeTruthy();
+    expect(r.signedBy).not.toBe('Unknown');
+  });
+
+  it('reports algorithm=ECDSA for ECDSA-signed PDFs', async () => {
+    const { signedData } = await signPDFWithPDFBox(simplePdf, ecdsaSigner);
+    const results = verifySignatures(signedData);
+    expect(results).toHaveLength(1);
+    expect(results[0].algorithm).toBe('ECDSA');
+  });
+
+  it('detects tampered content in ECDSA-signed PDF', async () => {
+    const { signedData } = await signPDFWithPDFBox(simplePdf, ecdsaSigner);
+    const tampered = new Uint8Array(signedData);
+    tampered[100] ^= 0xff;
+
+    const results = verifySignatures(tampered);
+    expect(results).toHaveLength(1);
+    expect(results[0].integrityValid).toBe(false);
+  });
+
+  it('verifies ECDSA visual signature', async () => {
+    const { signedData } = await signPDFWithPDFBox(simplePdf, ecdsaSigner, {
+      signatureAppearance: {
+        position: { page: 0, x: 50, y: 50, width: 200, height: 50 },
+        text: 'ECDSA Visual Test',
+      },
+    });
+
+    const results = verifySignatures(signedData);
+    expect(results).toHaveLength(1);
+    expect(results[0].integrityValid).toBe(true);
+    expect(results[0].signatureValid).toBe(true);
+    expect(results[0].algorithm).toBe('ECDSA');
+  });
+
+  it('verifies ECDSA signature in DER encoding mode', async () => {
+    const origEnv = process.env.PDFBOX_TS_CMS_DER;
+    try {
+      process.env.PDFBOX_TS_CMS_DER = '1';
+      const { signedData } = await signPDFWithPDFBox(simplePdf, ecdsaSigner);
+      const results = verifySignatures(signedData);
+      expect(results).toHaveLength(1);
+      expect(results[0].integrityValid).toBe(true);
+      expect(results[0].signatureValid).toBe(true);
+      expect(results[0].algorithm).toBe('ECDSA');
+    } finally {
+      if (origEnv === undefined) {
+        delete process.env.PDFBOX_TS_CMS_DER;
+      } else {
+        process.env.PDFBOX_TS_CMS_DER = origEnv;
+      }
+    }
+  });
+
+  it('verifies ECDSA via prepare+sign two-phase workflow', async () => {
+    const prepared = await preparePdfWithAppearance(simplePdf, ecdsaSigner, {
+      signatureAppearance: {
+        position: { page: 0, x: 50, y: 50, width: 200, height: 50 },
+      },
+    });
+    const { signedData } = await signPreparedPdfWithPDFBox(prepared, ecdsaSigner);
+
+    const results = verifySignatures(signedData);
+    expect(results).toHaveLength(1);
+    expect(results[0].integrityValid).toBe(true);
+    expect(results[0].signatureValid).toBe(true);
+    expect(results[0].algorithm).toBe('ECDSA');
+  });
+
+  it('reports chainStatus for ECDSA fixture signer', async () => {
+    const { signedData } = await signPDFWithPDFBox(simplePdf, ecdsaSigner);
+    const results = verifySignatures(signedData);
+    expect(results).toHaveLength(1);
+    // Stub cert can't be verified as self-signed by forge (which only handles RSA certs),
+    // so chainStatus is 'unknown' — this is expected for ECDSA until we add EC chain validation
+    expect(['self-signed', 'unknown']).toContain(results[0].chainStatus);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ECDSA verification unit tests
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -482,6 +590,120 @@ describe.skipIf(!tsaUrl)('timestamp verification (live TSA)', () => {
     expect(ts.serialNumber).toBeTruthy();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P1363 to DER conversion (inline for test independence)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function p1363ToDer(p1363: Uint8Array): Uint8Array {
+  const half = p1363.length / 2;
+  const r = p1363.subarray(0, half);
+  const s = p1363.subarray(half);
+
+  const derR = derInteger(r);
+  const derS = derInteger(s);
+
+  const seqLen = derR.length + derS.length;
+  const result = new Uint8Array(1 + 1 + seqLen); // tag + len + content (len < 128)
+  result[0] = 0x30;
+  result[1] = seqLen;
+  result.set(derR, 2);
+  result.set(derS, 2 + derR.length);
+  return result;
+}
+
+function derInteger(value: Uint8Array): Uint8Array {
+  let start = 0;
+  while (start < value.length - 1 && value[start] === 0) start++;
+  const stripped = value.subarray(start);
+  const needsPadding = stripped[0] & 0x80;
+  const len = stripped.length + (needsPadding ? 1 : 0);
+  const result = new Uint8Array(2 + len);
+  result[0] = 0x02;
+  result[1] = len;
+  if (needsPadding) {
+    result[2] = 0x00;
+    result.set(stripped, 3);
+  } else {
+    result.set(stripped, 2);
+  }
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ECDSA fixture signer (P-256 via @noble/curves + self-signed cert)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function buildEcdsaFixtureSigner(): Promise<BrowserKeypairSigner> {
+  const { p256 } = await import('@noble/curves/nist.js');
+
+  const privateKey = p256.utils.randomSecretKey();
+  const publicKeyUncompressed = p256.getPublicKey(privateKey, false); // 65 bytes
+
+  // Build a self-signed X.509 certificate with our EC public key
+  const realCertDer = buildEcCertWithKey(publicKeyUncompressed, 'ECDSA Test Signer');
+
+  return {
+    async getCertificate(): Promise<CertificateChain> {
+      return { cert: realCertDer, chain: [] };
+    },
+
+    async sign(data: Uint8Array): Promise<Uint8Array> {
+      // p256.sign() hashes internally (SHA-256) — pass raw data, do NOT pre-hash.
+      // The CMS builder passes authenticated attributes DER to sign().
+      const sig = p256.sign(data, privateKey); // Returns compact r||s (64 bytes)
+      // Convert P1363 (r||s) to DER (SEQUENCE { INTEGER r, INTEGER s })
+      return p1363ToDer(sig);
+    },
+
+    getEmail(): string {
+      return 'ecdsa-test@pdfbox-ts.dev';
+    },
+
+    getAlgorithm() {
+      return {
+        hash: 'sha256',
+        signature: 'ECDSA',
+        keySize: 256,
+      };
+    },
+  };
+}
+
+function buildEcCertWithKey(publicKey: Uint8Array, cn: string): Uint8Array {
+  // EC public key algorithm OID: 1.2.840.10045.2.1
+  const ecPubKeyOid = new Uint8Array([0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01]);
+  // P-256 curve OID: 1.2.840.10045.3.1.7
+  const curveOidBytes = new Uint8Array([0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07]);
+
+  // Algorithm SEQUENCE: { ecPublicKey OID, curve OID }
+  const algContent = concatBytes(ecPubKeyOid, curveOidBytes);
+  const algSeq = wrapDer(0x30, algContent);
+
+  // BIT STRING: 0x00 (unused bits) || public key point
+  const bitStringContent = concatBytes(new Uint8Array([0x00]), publicKey);
+  const bitString = wrapDer(0x03, bitStringContent);
+
+  // SubjectPublicKeyInfo: SEQUENCE { algorithm, bitString }
+  const spki = wrapDer(0x30, concatBytes(algSeq, bitString));
+
+  // Build minimal tbsCertificate
+  const version = new Uint8Array([0xa0, 0x03, 0x02, 0x01, 0x02]); // v3
+  const serialNumber = wrapDer(0x02, new Uint8Array([0x01]));
+  // ecdsaWithSHA256 — RFC 5754: no NULL parameter for ECDSA
+  const sigAlg = wrapDer(0x30, new Uint8Array([
+    0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x02, // ecdsaWithSHA256
+  ]));
+  const name = buildRdnSequence(cn);
+  const validity = wrapDer(0x30, concatBytes(
+    wrapDer(0x17, new Uint8Array([0x32, 0x36, 0x30, 0x31, 0x30, 0x31, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x5a])),
+    wrapDer(0x17, new Uint8Array([0x33, 0x36, 0x30, 0x31, 0x30, 0x31, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x5a])),
+  ));
+
+  const tbsCert = wrapDer(0x30, concatBytes(version, serialNumber, sigAlg, name, validity, name, spki));
+  const stubSig = wrapDer(0x03, new Uint8Array([0x00, 0x00]));
+  return wrapDer(0x30, concatBytes(tbsCert, sigAlg, stubSig));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock EC certificate builder (for unit tests)
