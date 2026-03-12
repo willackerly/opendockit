@@ -10,7 +10,7 @@
  */
 
 import type { ThemeIR } from '@opendockit/core';
-import type { EnrichedSlideData, ColorMapOverride } from '../../model/index.js';
+import type { EnrichedSlideData, ColorMapOverride } from '../model/index.js';
 
 // ---------------------------------------------------------------------------
 // Main → Worker messages
