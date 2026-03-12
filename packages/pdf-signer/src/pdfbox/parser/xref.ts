@@ -530,11 +530,25 @@ export function extractStreamObject(pdfBytes: Uint8Array, offset: number): {
   if (ltltInKeyword >= 0) {
     cursor -= keyword.length - ltltInKeyword;
   } else {
-    // Scan forward for dictionary start <<
+    // Scan forward for dictionary start <<, but bail out if we hit "endobj"
+    // first — that means this object is NOT a stream (e.g., it's an array or
+    // simple value) and we must not accidentally read the next object's dict.
     while (
       cursor < pdfBytes.length - 1 &&
       !(pdfBytes[cursor] === 0x3c && pdfBytes[cursor + 1] === 0x3c)
     ) {
+      // Check for "endobj" keyword — 7 bytes: 0x65 0x6e 0x64 0x6f 0x62 0x6a
+      if (
+        pdfBytes[cursor] === 0x65 &&     // 'e'
+        cursor + 5 < pdfBytes.length &&
+        pdfBytes[cursor + 1] === 0x6e &&  // 'n'
+        pdfBytes[cursor + 2] === 0x64 &&  // 'd'
+        pdfBytes[cursor + 3] === 0x6f &&  // 'o'
+        pdfBytes[cursor + 4] === 0x62 &&  // 'b'
+        pdfBytes[cursor + 5] === 0x6a     // 'j'
+      ) {
+        throw new Error('Object is not a stream (endobj found before dictionary)');
+      }
       cursor++;
     }
     if (cursor >= pdfBytes.length - 1) {
