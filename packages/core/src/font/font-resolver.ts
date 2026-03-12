@@ -24,6 +24,12 @@ import type {
   FontSource,
   FontResolutionStatus,
 } from './font-config.js';
+import {
+  isVariableFontFilename,
+  styleToVariationAxes,
+  variationSettingsCSS,
+} from './variable-font.js';
+import type { VariationAxes } from './variable-font.js';
 
 /** Companion package shape (dynamic import result). */
 interface CompanionModule {
@@ -139,10 +145,19 @@ export class FontResolver {
 
     // 2. Companion package
     if (this._companionManifest) {
-      const buffer = await this._loadFromCompanion(family, weight, style);
-      if (buffer) {
-        await this._register(family, buffer, weight, style);
-        await this._cache.put(family, weight, style, buffer);
+      const companionResult = await this._loadFromCompanion(
+        family,
+        weight,
+        style,
+      );
+      if (companionResult) {
+        const axes = this._buildVariationAxes(
+          companionResult.filename,
+          weight,
+          style,
+        );
+        await this._register(family, companionResult.buffer, weight, style, axes);
+        await this._cache.put(family, weight, style, companionResult.buffer);
         this._recordStatus(key, family, true, 'companion', start);
         return true;
       }
@@ -239,7 +254,7 @@ export class FontResolver {
     family: string,
     weight: number,
     style: string,
-  ): Promise<ArrayBuffer | null> {
+  ): Promise<{ buffer: ArrayBuffer; filename: string } | null> {
     if (!this._companionManifest || !this._companionBasePath) return null;
     const key = family.toLowerCase();
     const entry = this._companionManifest.families[key];
@@ -252,7 +267,8 @@ export class FontResolver {
     try {
       const url = new URL(variant.file, this._companionBasePath).href;
       const response = await fetch(url);
-      return response.ok ? response.arrayBuffer() : null;
+      if (!response.ok) return null;
+      return { buffer: await response.arrayBuffer(), filename: variant.file };
     } catch {
       return null;
     }
@@ -291,10 +307,17 @@ export class FontResolver {
     buffer: ArrayBuffer,
     weight: number,
     style: string,
+    variableAxes?: VariationAxes,
   ): Promise<void> {
     const descriptors: Record<string, string> = {};
     if (weight !== 400) descriptors.weight = String(weight);
     if (style !== 'normal') descriptors.style = style;
+    if (variableAxes) {
+      const settings = variationSettingsCSS(variableAxes);
+      if (settings) {
+        (descriptors as Record<string, string>).variationSettings = settings;
+      }
+    }
     await loadFont(family, buffer, descriptors as FontFaceDescriptors);
   }
 
@@ -312,6 +335,20 @@ export class FontResolver {
       loadTimeMs:
         typeof performance !== 'undefined' ? performance.now() - startMs : 0,
     });
+  }
+
+  /**
+   * Build variation axes when preferVariableFonts is enabled and the
+   * source filename indicates a variable font.
+   */
+  private _buildVariationAxes(
+    filename: string | undefined,
+    weight: number,
+    style: string,
+  ): VariationAxes | undefined {
+    if (!this._config.preferVariableFonts) return undefined;
+    if (!filename || !isVariableFontFilename(filename)) return undefined;
+    return styleToVariationAxes(weight, style === 'italic');
   }
 
   private _emitProgress(

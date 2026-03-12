@@ -23,6 +23,8 @@ export interface FontConfig {
   cacheName?: string;
   /** Progress callback for font loading. */
   onFontProgress?: (event: FontProgressEvent) => void;
+  /** Prefer variable font files over static instances. Default: false. */
+  preferVariableFonts?: boolean;
 }
 
 /** A font binary to register directly. */

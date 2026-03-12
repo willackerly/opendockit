@@ -54,3 +54,9 @@ export {
   SUBSTITUTION_REGISTRY,
   type SubstitutionEntry,
 } from './substitution-table.js';
+export {
+  variationSettingsCSS,
+  styleToVariationAxes,
+  isVariableFontFilename,
+} from './variable-font.js';
+export type { VariationAxes } from './variable-font.js';
