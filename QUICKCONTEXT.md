@@ -108,15 +108,15 @@ See `docs/plans/FONT_DELIVERY_PLAN.md` for architecture and `docs/plans/FONT_DEL
 
 ### NativeRenderer (PDF Reading) Quality — Active Focus
 
-**Pixel RMSE avg 0.053** against pdftoppm on USG Briefing (30 pages). Down from 0.14 — **62% reduction**. Improvements from font size clamping [16,100]px, per-character remeasure system, actual glyph widths, and font ascent from FontDescriptor.
+**Pixel RMSE avg 0.055** against pdftoppm on USG Briefing (30 pages). Down from 0.14 — **61% reduction**. Now rendering with **correct embedded typefaces** via font registration + cmap rebuild. Improvements from font size clamping [16,100]px, per-character remeasure system, actual glyph widths, and font ascent from FontDescriptor.
 
 **Structural accuracy (trace pipeline):** 97% text accuracy, 4.4pt avg position delta (was 8.2% / 29.7pt before Canvas Tree Recorder).
 
 **Canvas Tree Recorder — Phase 1+2 Complete (2026-03-11):** CanvasTreeRecorder instruments canvas-graphics.ts to emit TraceEvent[] with shadow CTM stack for world-space coordinates. Phase 2 wires trace output through traceToFlatRuns → groupGlyphsIntoWords → matchTextElements for ground truth comparison. See `docs/plans/CANVAS_TREE_PLAN.md`.
 
-**Completed (2026-03-11):** All prior fixes + font size clamping, remeasure system (ctx.measureText per-char), actual glyph widths from PDF font metrics, font ascent from FontDescriptor (/Ascent), Canvas Tree Recorder Phase 1+2.
+**Completed (2026-03-12):** All prior fixes + font size clamping, remeasure system, actual glyph widths, font ascent from FontDescriptor, Canvas Tree Recorder Phase 1+2, **embedded font rendering** (font extraction + fonttools cmap rebuild + registration).
 
-**Remaining:** ExtGState SMask transparency groups (page 29 — Hard), font substitution differences, Separation/DeviceN tint transforms. Canvas Tree Recorder Phase 3 (cross-format PPTX↔PDF comparison) and Phase 4 (diagnostic HTML report).
+**Remaining:** ExtGState SMask transparency groups (page 29 — Hard), Separation/DeviceN tint transforms. Canvas Tree Recorder Phase 3 (cross-format PPTX↔PDF comparison) and Phase 4 (diagnostic HTML report).
 
 **pdf-signer-web migration (COMPLETE 2026-03-11):** Swapped vendored pdfbox-ts tarball for @opendockit/pdf-signer. 2 source files + 2 package.json + 2 vitest configs updated. All 101 tests pass, typecheck clean.
 

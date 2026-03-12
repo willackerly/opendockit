@@ -6,7 +6,7 @@
 
 ### PDF NativeRenderer — Quality (2026-03-11)
 
-**Avg RMSE: 0.053 against pdftoppm ground truth** (USG Briefing, 30 pages). Down from 0.14 — 62% reduction. Improvements from font size clamping [16,100]px, per-character remeasure, actual glyph widths, font ascent from FontDescriptor.
+**Avg RMSE: 0.055 against pdftoppm ground truth** (USG Briefing, 30 pages). Down from 0.14 — 61% reduction. Now rendering with **correct embedded typefaces** (Barlow, RobotoSlab) via font registration + cmap rebuild. Only 2/30 BAD pages remain.
 
 **Fixed (13 bugs, 2026-03-10):** ICC stream color space (#1 — backgrounds decoded as gray), JPEG SMask application, Form XObject state isolation, fillStroke path destruction, image mask fill color, horizontal text scaling (Tz), Type 0 sampled function decode, stitching function recursion, tiling patterns, ImageData Node.js crash, per-character text positioning, ICCBased N=2, browser JPEG crosshatch.
 
@@ -20,7 +20,7 @@
 |----------|-------|---------|--------|
 | **Next** | Canvas Tree Recorder Phase 3 | Cross-format PPTX↔PDF comparison using trace pipeline | Medium |
 | **P1** | ExtGState SMask | Transparency groups on page 29 — `handleExtGState()` ignores `/SMask` key, requires offscreen compositing | Hard |
-| **P2** | Font substitution | Canvas uses system fonts, not PDF embedded fonts. Infrastructure built (FontExtractor + FontRegistrar) but disabled — causes metric regressions on some pages | Medium |
+| ~~**P2**~~ | ~~Font substitution~~ | **DONE** — Embedded TrueType fonts registered via fonttools cmap rebuild. Correct typefaces render (Barlow, RobotoSlab). RMSE 0.055. | ~~Medium~~ |
 | **P3** | Separation/DeviceN | Treated as grayscale instead of evaluating tint transform function | Hard |
 
 ### Resolved: Bundled Font Loading Broken in Vite Dev Mode (2026-02-27, superseded by Phase 3)
