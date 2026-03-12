@@ -27,7 +27,6 @@ import type {
   CharacterPropertiesIR,
   FillIR,
   SpacingIR,
-  ResolvedColor,
   RgbaColor,
   TabStopIR,
 } from '../../ir/index.js';
@@ -37,6 +36,7 @@ import { hundredthsPtToPt } from '../../units/index.js';
 import { resolveThemeFont } from '../../theme/font-resolver.js';
 import type { ThemeIR } from '../../ir/index.js';
 import type { RenderBackend } from './render-backend.js';
+import { colorToRgba } from '../../color/index.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -131,11 +131,6 @@ function resolveFieldText(run: RunIR, rctx: RenderContext): string {
   return run.text;
 }
 
-/** Format a ResolvedColor as a CSS rgba() string. */
-function colorToRgba(c: ResolvedColor): string {
-  return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
-}
-
 /**
  * Resolve the underline color from an underlineFill.
  *
@@ -212,26 +207,26 @@ function resolveFontSizePt(
  * intended result, not blindly layer "bold" on top of a Light family.
  */
 const WEIGHT_SUFFIX_MAP: Record<string, number> = {
-  'thin': 100,
-  'hairline': 100,
-  'extralight': 200,
+  thin: 100,
+  hairline: 100,
+  extralight: 200,
   'extra light': 200,
-  'ultralight': 200,
+  ultralight: 200,
   'ultra light': 200,
-  'light': 300,
-  'regular': 400,
-  'medium': 500,
-  'semibold': 600,
+  light: 300,
+  regular: 400,
+  medium: 500,
+  semibold: 600,
   'semi bold': 600,
-  'demibold': 600,
+  demibold: 600,
   'demi bold': 600,
-  'bold': 700,
-  'extrabold': 800,
+  bold: 700,
+  extrabold: 800,
   'extra bold': 800,
-  'ultrabold': 800,
+  ultrabold: 800,
   'ultra bold': 800,
-  'black': 900,
-  'heavy': 900,
+  black: 900,
+  heavy: 900,
 };
 
 /**
@@ -239,7 +234,10 @@ const WEIGHT_SUFFIX_MAP: Record<string, number> = {
  * as a suffix (e.g. "Barlow Light" → { weight: 300, hasWeightSuffix: true }).
  * Returns null weight if no weight suffix detected.
  */
-function extractWeightFromFamily(family: string): { weight: number | null; hasWeightSuffix: boolean } {
+function extractWeightFromFamily(family: string): {
+  weight: number | null;
+  hasWeightSuffix: boolean;
+} {
   const lower = family.toLowerCase().trim();
   // Check longest suffixes first to avoid partial matches
   const suffixes = Object.keys(WEIGHT_SUFFIX_MAP).sort((a, b) => b.length - a.length);
@@ -1018,9 +1016,9 @@ function wrapParagraph(
     const scaledSizePt = fontScale != null ? endParaSizePt * (fontScale / 100) : endParaSizePt;
     const endParaSizePx = ptToCanvasPx(scaledSizePt, dpiScale);
     const endParaFamily = resolveThemeFontFamily(
-      paragraph.endParaProperties.fontFamily
-        ?? paragraph.endParaProperties.latin
-        ?? getParagraphFontFamily(paragraph, rctx),
+      paragraph.endParaProperties.fontFamily ??
+        paragraph.endParaProperties.latin ??
+        getParagraphFontFamily(paragraph, rctx),
       rctx.theme
     );
     const endParaLhMul = getFontLineHeightMultiplier(
@@ -2002,8 +2000,7 @@ export function renderTextBody(
 
         // Draw underline.
         if (frag.props.underline && frag.props.underline !== 'none') {
-          const ulColor =
-            resolveUnderlineFillColor(frag.props.underlineFill) ?? frag.fillStyle;
+          const ulColor = resolveUnderlineFillColor(frag.props.underlineFill) ?? frag.fillStyle;
           drawUnderline(
             backend,
             drawX,
@@ -2059,4 +2056,3 @@ export function renderTextBody(
 
   backend.restore();
 }
-

@@ -8,21 +8,13 @@
  * Reference: ECMA-376 5th Edition, Part 1 ss 21.1.3.13 (CT_Table)
  */
 
-import type { TableIR, LineIR, ResolvedColor } from '../../ir/index.js';
+import type { TableIR, LineIR } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
 import type { RenderBackend } from './render-backend.js';
 import { applyFill } from './fill-renderer.js';
 import { renderTextBody, measureTextBodyHeight } from './text-renderer.js';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Format a ResolvedColor as a CSS rgba() string. */
-function colorToRgba(c: ResolvedColor): string {
-  return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
-}
+import { colorToRgba } from '../../color/index.js';
 
 /**
  * Draw a single border line on the canvas.

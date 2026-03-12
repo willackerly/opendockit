@@ -6,3 +6,4 @@ export * from './capability/index.js';
 export * from './wasm/index.js';
 export * from './diagnostics/index.js';
 export * from './edit/index.js';
+export * from './color/index.js';

@@ -61,6 +61,10 @@
     "./edit": {
       "types": "./dist/edit/index.d.ts",
       "import": "./dist/edit/index.js"
+    },
+    "./color": {
+      "types": "./dist/color/index.d.ts",
+      "import": "./dist/color/index.js"
     }
   },
   "scripts": {
@@ -80,7 +84,9 @@
     "@opendockit/fonts": "workspace:*"
   },
   "peerDependenciesMeta": {
-    "@opendockit/fonts": { "optional": true }
+    "@opendockit/fonts": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "typescript": "^5.7.0",
