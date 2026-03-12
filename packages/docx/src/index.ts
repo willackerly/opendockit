@@ -18,6 +18,16 @@ export type {
   RunIR,
   ParagraphStyleIR,
   StyleMap,
+  BorderIR,
+  BordersIR,
+  CellMarginsIR,
+  CellVerticalAlignment,
+  TableCellIR,
+  TableRowIR,
+  TableIR,
+  BlockElement,
+  ParagraphBlock,
+  TableBlock,
 } from './model/index.js';
 
 // Parsers
@@ -33,6 +43,7 @@ export {
   parseDocDefaults,
   parseNumbering,
   getBulletChar,
+  parseTable,
 } from './parser/index.js';
 export type { NumberingDef, NumberingLevelDef, NumberingMap } from './parser/index.js';
 
@@ -60,6 +71,14 @@ export type {
   LayoutRun,
   LayoutLine,
   LayoutBlock,
+  LayoutParagraphBlock,
+  LayoutTableBlock,
+  LayoutTableCell,
+  LayoutTableRow,
+  TableLayoutResult,
   LayoutPage,
   LayoutDocument,
 } from './layout/index.js';
+
+// Table layout
+export { layoutTable } from './layout/index.js';

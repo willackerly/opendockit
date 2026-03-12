@@ -17,7 +17,15 @@
 import type { DocumentIR, SectionIR } from '../model/document-ir.js';
 import { computePageDimensions } from './page-layout.js';
 import { breakParagraphIntoLines } from './line-breaker.js';
-import type { LayoutDocument, LayoutPage, LayoutBlock, TextMeasurer } from './types.js';
+import { layoutTable, DEFAULT_TABLE_SPACING_AFTER } from './table-layout.js';
+import type {
+  LayoutDocument,
+  LayoutPage,
+  LayoutBlock,
+  LayoutParagraphBlock,
+  LayoutTableBlock,
+  TextMeasurer,
+} from './types.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -94,44 +102,85 @@ export function layoutSectionPages(
     y = 0;
   }
 
-  for (const para of section.paragraphs) {
-    // Resolve spacing
-    const spacingBefore = para.spacingBefore ?? 0;
-    const spacingAfter = para.spacingAfter ?? DEFAULT_SPACING_AFTER;
+  // Use blocks if available, otherwise fall back to paragraphs only
+  const blockElements =
+    section.blocks && section.blocks.length > 0
+      ? section.blocks
+      : section.paragraphs.map((p) => ({ kind: 'paragraph' as const, paragraph: p }));
 
-    // Break paragraph into lines
-    const lines = breakParagraphIntoLines(para, contentWidth, measurer);
+  for (const blockEl of blockElements) {
+    if (blockEl.kind === 'paragraph') {
+      const para = blockEl.paragraph;
+      // Resolve spacing
+      const spacingBefore = para.spacingBefore ?? 0;
+      const spacingAfter = para.spacingAfter ?? DEFAULT_SPACING_AFTER;
 
-    // Compute block height (sum of line heights)
-    const blockHeight = lines.reduce((sum, line) => sum + line.height, 0);
+      // Break paragraph into lines
+      const lines = breakParagraphIntoLines(para, contentWidth, measurer);
 
-    // Apply spacing before (skip at top of page)
-    const effectiveSpacingBefore = currentBlocks.length > 0 ? spacingBefore : 0;
+      // Compute block height (sum of line heights)
+      const blockHeight = lines.reduce((sum, line) => sum + line.height, 0);
 
-    // Check if block fits on the current page
-    const totalNeeded = y + effectiveSpacingBefore + blockHeight;
-    if (totalNeeded > contentHeight && currentBlocks.length > 0) {
-      // Doesn't fit — commit current page and start new one
-      commitPage();
+      // Apply spacing before (skip at top of page)
+      const effectiveSpacingBefore = currentBlocks.length > 0 ? spacingBefore : 0;
+
+      // Check if block fits on the current page
+      const totalNeeded = y + effectiveSpacingBefore + blockHeight;
+      if (totalNeeded > contentHeight && currentBlocks.length > 0) {
+        // Doesn't fit — commit current page and start new one
+        commitPage();
+      }
+
+      // Apply spacing before (recalculate — may have changed after page break)
+      const actualSpacingBefore = currentBlocks.length > 0 ? spacingBefore : 0;
+      y += actualSpacingBefore;
+
+      // Create the block
+      const block: LayoutParagraphBlock = {
+        kind: 'paragraph',
+        lines,
+        y,
+        height: blockHeight,
+        paragraph: para,
+        spacingBefore: actualSpacingBefore,
+        spacingAfter,
+      };
+
+      currentBlocks.push(block);
+      y += blockHeight + spacingAfter;
+    } else if (blockEl.kind === 'table') {
+      const tableIR = blockEl.table;
+      const spacingBefore = 0;
+      const spacingAfter = DEFAULT_TABLE_SPACING_AFTER;
+
+      // Lay out the table
+      const tableResult = layoutTable(tableIR, contentWidth, measurer);
+
+      // Apply spacing before (skip at top of page)
+      const effectiveSpacingBefore = currentBlocks.length > 0 ? spacingBefore : 0;
+
+      // Check if table fits on the current page
+      const totalNeeded = y + effectiveSpacingBefore + tableResult.height;
+      if (totalNeeded > contentHeight && currentBlocks.length > 0) {
+        commitPage();
+      }
+
+      const actualSpacingBefore = currentBlocks.length > 0 ? spacingBefore : 0;
+      y += actualSpacingBefore;
+
+      const block: LayoutTableBlock = {
+        kind: 'table',
+        y,
+        height: tableResult.height,
+        tableLayout: tableResult,
+        table: tableIR,
+        spacingBefore: actualSpacingBefore,
+        spacingAfter,
+      };
+
+      currentBlocks.push(block);
+      y += tableResult.height + spacingAfter;
     }
-
-    // Apply spacing before (recalculate — may have changed after page break)
-    const actualSpacingBefore = currentBlocks.length > 0 ? spacingBefore : 0;
-    y += actualSpacingBefore;
-
-    // Create the block
-    const block: LayoutBlock = {
-      kind: 'paragraph',
-      lines,
-      y,
-      height: blockHeight,
-      paragraph: para,
-      spacingBefore: actualSpacingBefore,
-      spacingAfter,
-    };
-
-    currentBlocks.push(block);
-    y += blockHeight + spacingAfter;
   }
 
   // Commit the last page (or create an empty page for empty sections)

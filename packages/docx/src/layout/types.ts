@@ -14,7 +14,7 @@
  * onto a Canvas2D context.
  */
 
-import type { ParagraphIR, RunIR } from '../model/document-ir.js';
+import type { ParagraphIR, RunIR, TableIR, BorderIR } from '../model/document-ir.js';
 import type { ContentArea } from './page-layout.js';
 
 // ---------------------------------------------------------------------------
@@ -137,8 +137,8 @@ export interface LayoutLine {
  * within the page's content area. Spacing before/after is resolved
  * from paragraph properties, style defaults, and document defaults.
  */
-export interface LayoutBlock {
-  /** Discriminator for future block types (tables, images, etc.). */
+export interface LayoutParagraphBlock {
+  /** Discriminator for block types. */
   kind: 'paragraph';
 
   /** Wrapped and positioned lines within this block. */
@@ -164,6 +164,88 @@ export interface LayoutBlock {
   /** Resolved space after this paragraph, in points. */
   spacingAfter: number;
 }
+
+// ---------------------------------------------------------------------------
+// Table layout result types
+// ---------------------------------------------------------------------------
+
+/** A single laid-out cell within a table. */
+export interface LayoutTableCell {
+  /** Column index (0-based). */
+  colIndex: number;
+  /** Number of columns this cell spans. */
+  colSpan: number;
+  /** Number of rows this cell spans. */
+  rowSpan: number;
+  /** X offset from the table left edge, in points. */
+  x: number;
+  /** Y offset from the table top, in points. */
+  y: number;
+  /** Cell width in points. */
+  width: number;
+  /** Cell height in points. */
+  height: number;
+  /** Laid-out text lines within the cell. */
+  lines: LayoutLine[];
+  /** Resolved borders for this cell. */
+  borders: {
+    top?: BorderIR;
+    bottom?: BorderIR;
+    left?: BorderIR;
+    right?: BorderIR;
+  };
+}
+
+/** A single laid-out row within a table. */
+export interface LayoutTableRow {
+  /** Row height in points. */
+  height: number;
+  /** Y offset from the table top, in points. */
+  y: number;
+  /** Laid-out cells in this row. */
+  cells: LayoutTableCell[];
+}
+
+/** Complete layout result for a table. */
+export interface TableLayoutResult {
+  /** Total table width in points. */
+  width: number;
+  /** Total table height in points. */
+  height: number;
+  /** Resolved column widths in points. */
+  columnWidths: number[];
+  /** Laid-out rows. */
+  rows: LayoutTableRow[];
+}
+
+/**
+ * A laid-out table block positioned on a page.
+ */
+export interface LayoutTableBlock {
+  /** Discriminator for block types. */
+  kind: 'table';
+
+  /** Y offset from the top of the page's content area, in points. */
+  y: number;
+
+  /** Total height of this block, in points. */
+  height: number;
+
+  /** The full table layout result. */
+  tableLayout: TableLayoutResult;
+
+  /** Back-reference to the source table IR. */
+  table: TableIR;
+
+  /** Resolved space before this table, in points. */
+  spacingBefore: number;
+
+  /** Resolved space after this table, in points. */
+  spacingAfter: number;
+}
+
+/** Union of all block types that can appear on a page. */
+export type LayoutBlock = LayoutParagraphBlock | LayoutTableBlock;
 
 // ---------------------------------------------------------------------------
 // Page-level layout

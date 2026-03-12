@@ -70,6 +70,106 @@ export interface ParagraphIR {
 }
 
 // ---------------------------------------------------------------------------
+// Table-level IR
+// ---------------------------------------------------------------------------
+
+/** Border style for table/cell borders. */
+export interface BorderIR {
+  /** Border width in points. */
+  width: number;
+  /** Border color as hex RGB string (e.g., '000000'). */
+  color: string;
+  /** Border style (e.g., 'single', 'double', 'dashed'). */
+  style: string;
+}
+
+/** Set of borders (top, bottom, left, right). */
+export interface BordersIR {
+  top?: BorderIR;
+  bottom?: BorderIR;
+  left?: BorderIR;
+  right?: BorderIR;
+  insideH?: BorderIR;
+  insideV?: BorderIR;
+}
+
+/** Cell margin/padding in points. */
+export interface CellMarginsIR {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+/** Vertical alignment within a table cell. */
+export type CellVerticalAlignment = 'top' | 'center' | 'bottom';
+
+/** Intermediate representation for a single table cell. */
+export interface TableCellIR {
+  /** Paragraphs within this cell. */
+  paragraphs: ParagraphIR[];
+  /** Cell width in points (from w:tcPr/w:tcW). */
+  width?: number;
+  /** Horizontal merge: 'restart' starts a new span, 'continue' continues it. */
+  hMerge?: 'restart' | 'continue';
+  /** Vertical merge: 'restart' starts a new span, 'continue' continues it. */
+  vMerge?: 'restart' | 'continue';
+  /** Column span (resolved from hMerge). */
+  colSpan: number;
+  /** Cell borders (override table borders). */
+  borders?: BordersIR;
+  /** Cell margins/padding. */
+  margins?: CellMarginsIR;
+  /** Vertical alignment of content within the cell. */
+  vAlign?: CellVerticalAlignment;
+}
+
+/** Intermediate representation for a single table row. */
+export interface TableRowIR {
+  /** Cells in this row. */
+  cells: TableCellIR[];
+  /** Minimum row height in points (from w:trPr/w:trHeight). */
+  minHeight?: number;
+  /** Whether the row height is exact (vs. at-least). */
+  exactHeight?: boolean;
+}
+
+/** Intermediate representation for a table. */
+export interface TableIR {
+  /** Table rows. */
+  rows: TableRowIR[];
+  /** Column widths in points from w:tblGrid/w:gridCol. */
+  gridColWidths: number[];
+  /** Table-level borders. */
+  borders?: BordersIR;
+  /** Table width in points. */
+  width?: number;
+  /** Table alignment within the page. */
+  alignment?: ParagraphAlignment;
+  /** Default cell margins. */
+  defaultCellMargins?: CellMarginsIR;
+}
+
+// ---------------------------------------------------------------------------
+// Block-level content elements
+// ---------------------------------------------------------------------------
+
+/** A paragraph block element. */
+export interface ParagraphBlock {
+  kind: 'paragraph';
+  paragraph: ParagraphIR;
+}
+
+/** A table block element. */
+export interface TableBlock {
+  kind: 'table';
+  table: TableIR;
+}
+
+/** Union of all block-level elements in a section. */
+export type BlockElement = ParagraphBlock | TableBlock;
+
+// ---------------------------------------------------------------------------
 // Section-level IR
 // ---------------------------------------------------------------------------
 
@@ -87,8 +187,10 @@ export interface SectionIR {
   marginLeft: number;
   /** Right margin in points. */
   marginRight: number;
-  /** Paragraphs in this section. */
+  /** Paragraphs in this section (legacy — use blocks for mixed content). */
   paragraphs: ParagraphIR[];
+  /** Block-level elements (paragraphs and tables) in document order. */
+  blocks: BlockElement[];
 }
 
 // ---------------------------------------------------------------------------

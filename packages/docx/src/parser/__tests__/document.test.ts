@@ -118,4 +118,56 @@ describe('parseDocumentFromXml', () => {
     expect(doc.styles.size).toBe(0);
     expect(doc.defaultStyle).toBeUndefined();
   });
+
+  it('should parse tables into blocks array', () => {
+    const body = parseXml(
+      bodyXml(
+        '<w:p><w:r><w:t>Before</w:t></w:r></w:p>' +
+          '<w:tbl>' +
+          '<w:tblGrid><w:gridCol w:w="4320"/></w:tblGrid>' +
+          '<w:tr><w:tc><w:p><w:r><w:t>Cell</w:t></w:r></w:p></w:tc></w:tr>' +
+          '</w:tbl>' +
+          '<w:p><w:r><w:t>After</w:t></w:r></w:p>'
+      )
+    );
+    const doc = parseDocumentFromXml(body);
+
+    expect(doc.sections).toHaveLength(1);
+    const section = doc.sections[0];
+
+    // paragraphs array should only contain paragraphs (not table content)
+    expect(section.paragraphs).toHaveLength(2);
+    expect(section.paragraphs[0].runs[0].text).toBe('Before');
+    expect(section.paragraphs[1].runs[0].text).toBe('After');
+
+    // blocks array should have paragraph, table, paragraph
+    expect(section.blocks).toHaveLength(3);
+    expect(section.blocks[0].kind).toBe('paragraph');
+    expect(section.blocks[1].kind).toBe('table');
+    expect(section.blocks[2].kind).toBe('paragraph');
+
+    // Verify table content
+    const tableBlock = section.blocks[1];
+    if (tableBlock.kind === 'table') {
+      expect(tableBlock.table.rows).toHaveLength(1);
+      expect(tableBlock.table.rows[0].cells[0].paragraphs[0].runs[0].text).toBe('Cell');
+    }
+  });
+
+  it('should handle document with only a table', () => {
+    const body = parseXml(
+      bodyXml(
+        '<w:tbl>' +
+          '<w:tblGrid><w:gridCol w:w="2880"/></w:tblGrid>' +
+          '<w:tr><w:tc><w:p/></w:tc></w:tr>' +
+          '</w:tbl>'
+      )
+    );
+    const doc = parseDocumentFromXml(body);
+
+    expect(doc.sections).toHaveLength(1);
+    expect(doc.sections[0].paragraphs).toHaveLength(0);
+    expect(doc.sections[0].blocks).toHaveLength(1);
+    expect(doc.sections[0].blocks[0].kind).toBe('table');
+  });
 });
