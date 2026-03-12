@@ -8,3 +8,4 @@ export { parseSectionProperties, defaultSectionDimensions } from './section-prop
 export { parseStyles, parseDocDefaults } from './styles.js';
 export { parseNumbering, getBulletChar } from './numbering.js';
 export type { NumberingDef, NumberingLevelDef, NumberingMap } from './numbering.js';
+export { parseTable } from './table.js';

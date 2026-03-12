@@ -11,8 +11,15 @@
 import type { XmlElement } from '@opendockit/core';
 import type { OpcPackage } from '@opendockit/core/opc';
 import { REL_OFFICE_DOCUMENT } from '@opendockit/core/opc';
-import type { DocumentIR, SectionIR, ParagraphIR, StyleMap } from '../model/document-ir.js';
+import type {
+  DocumentIR,
+  SectionIR,
+  ParagraphIR,
+  BlockElement,
+  StyleMap,
+} from '../model/document-ir.js';
 import { parseParagraph } from './paragraph.js';
+import { parseTable } from './table.js';
 import { parseSectionProperties, defaultSectionDimensions } from './section-properties.js';
 import { parseStyles, parseDocDefaults } from './styles.js';
 
@@ -80,6 +87,13 @@ export function parseDocumentFromXml(bodyEl: XmlElement, stylesEl?: XmlElement):
 function parseDocumentBody(body: XmlElement): SectionIR[] {
   const sections: SectionIR[] = [];
   let currentParagraphs: ParagraphIR[] = [];
+  let currentBlocks: BlockElement[] = [];
+
+  function commitSection(dims: ReturnType<typeof parseSectionProperties>): void {
+    sections.push({ ...dims, paragraphs: currentParagraphs, blocks: currentBlocks });
+    currentParagraphs = [];
+    currentBlocks = [];
+  }
 
   for (const child of body.children) {
     if (child.is('w:p')) {
@@ -89,34 +103,35 @@ function parseDocumentBody(body: XmlElement): SectionIR[] {
       const pPr = child.child('w:pPr');
       const sectPr = pPr?.child('w:sectPr');
 
+      currentParagraphs.push(para);
+      currentBlocks.push({ kind: 'paragraph', paragraph: para });
+
       if (sectPr !== undefined) {
         // This paragraph ends the current section
-        currentParagraphs.push(para);
         const dims = parseSectionProperties(sectPr);
-        sections.push({ ...dims, paragraphs: currentParagraphs });
-        currentParagraphs = [];
-      } else {
-        currentParagraphs.push(para);
+        commitSection(dims);
       }
+    } else if (child.is('w:tbl')) {
+      const table = parseTable(child);
+      currentBlocks.push({ kind: 'table', table });
     } else if (child.is('w:sectPr')) {
       // Final section properties (last child of body)
       const dims = parseSectionProperties(child);
-      sections.push({ ...dims, paragraphs: currentParagraphs });
-      currentParagraphs = [];
+      commitSection(dims);
     }
   }
 
-  // If there are remaining paragraphs without a trailing sectPr,
+  // If there are remaining elements without a trailing sectPr,
   // create a section with default dimensions
-  if (currentParagraphs.length > 0) {
+  if (currentParagraphs.length > 0 || currentBlocks.length > 0) {
     const dims = defaultSectionDimensions();
-    sections.push({ ...dims, paragraphs: currentParagraphs });
+    commitSection(dims);
   }
 
   // Edge case: empty document gets one empty section
   if (sections.length === 0) {
     const dims = defaultSectionDimensions();
-    sections.push({ ...dims, paragraphs: [] });
+    sections.push({ ...dims, paragraphs: [], blocks: [] });
   }
 
   return sections;
