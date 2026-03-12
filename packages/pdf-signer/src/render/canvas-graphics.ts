@@ -24,6 +24,7 @@ import type {
 } from './evaluator.js';
 import type { RenderDiagnosticsCollector } from './types.js';
 import type { CanvasTreeRecorder } from './canvas-tree-recorder.js';
+import { identityMatrix, multiplyMatrices } from '../util/matrix-ops.js';
 
 // ---------------------------------------------------------------------------
 // Graphics state
@@ -1308,23 +1309,10 @@ function clamp01(v: number): number {
 }
 
 // ================================================================
-// Matrix math
+// Matrix math — shared util (imported at top of file)
 // ================================================================
 
-const IDENTITY = [1, 0, 0, 1, 0, 0];
-
-function multiplyMatrices(m1: number[], m2: number[]): number[] {
-  const [a1, b1, c1, d1, e1, f1] = m1;
-  const [a2, b2, c2, d2, e2, f2] = m2;
-  return [
-    a1 * a2 + b1 * c2,
-    a1 * b2 + b1 * d2,
-    c1 * a2 + d1 * c2,
-    c1 * b2 + d1 * d2,
-    e1 * a2 + f1 * c2 + e2,
-    e1 * b2 + f1 * d2 + f2,
-  ];
-}
+const IDENTITY = identityMatrix();
 
 // ================================================================
 // Canvas helpers

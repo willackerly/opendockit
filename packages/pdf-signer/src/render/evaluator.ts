@@ -17,6 +17,7 @@
 
 import { OPS } from './ops.js';
 import { OperatorList } from './operator-list.js';
+import { identityMatrix, multiplyMatrices, transformPoint } from '../util/matrix-ops.js';
 import {
   tokenizeContentStream,
   parseOperations,
@@ -119,28 +120,7 @@ export interface NativeTilingPattern {
   opList: OperatorList; // Sub-operations to render the pattern cell
 }
 
-// ---------------------------------------------------------------------------
-// Matrix math helpers (for element extraction)
-// ---------------------------------------------------------------------------
-
-function identityMatrix(): number[] {
-  return [1, 0, 0, 1, 0, 0];
-}
-
-function multiplyMatrices(a: number[], b: number[]): number[] {
-  return [
-    a[0] * b[0] + a[1] * b[2],
-    a[0] * b[1] + a[1] * b[3],
-    a[2] * b[0] + a[3] * b[2],
-    a[2] * b[1] + a[3] * b[3],
-    a[4] * b[0] + a[5] * b[2] + b[4],
-    a[4] * b[1] + a[5] * b[3] + b[5],
-  ];
-}
-
-function transformPoint(m: number[], x: number, y: number): [number, number] {
-  return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
-}
+// Matrix math — shared util (imported at top of file)
 
 /** Convert CMYK [0-1] to RGB Color. */
 function cmykToRgb(c: number, m: number, y: number, k: number): Color {

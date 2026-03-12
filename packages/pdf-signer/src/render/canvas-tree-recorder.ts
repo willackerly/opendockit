@@ -110,36 +110,24 @@ export interface RenderTrace {
   config: TraceConfig;
 }
 
-// ---------------------------------------------------------------------------
-// Matrix utilities (same as in canvas-graphics.ts, extracted for reuse)
-// ---------------------------------------------------------------------------
+// Matrix math — shared util
+import {
+  multiplyMatrices as _multiplyMatrices,
+  transformPoint as _transformPoint,
+} from '../util/matrix-ops.js';
 
-const IDENTITY: [number, number, number, number, number, number] = [1, 0, 0, 1, 0, 0];
+const IDENTITY: Matrix6 = [1, 0, 0, 1, 0, 0];
 
 type Matrix6 = [number, number, number, number, number, number];
 
+/** Wrapper that casts the shared util's return to Matrix6 tuple. */
 function multiplyMatrices(m1: number[], m2: Matrix6): Matrix6 {
-  const [a1, b1, c1, d1, e1, f1] = m1;
-  const [a2, b2, c2, d2, e2, f2] = m2;
-  return [
-    a1 * a2 + b1 * c2,
-    a1 * b2 + b1 * d2,
-    c1 * a2 + d1 * c2,
-    c1 * b2 + d1 * d2,
-    e1 * a2 + f1 * c2 + e2,
-    e1 * b2 + f1 * d2 + f2,
-  ];
+  return _multiplyMatrices(m1, m2) as Matrix6;
 }
 
-/**
- * Transform a point (x, y) by a 6-element affine matrix.
- * Returns world-space [wx, wy].
- */
+/** Wrapper that casts the shared util's return to [number, number] tuple. */
 function transformPoint(m: Matrix6, x: number, y: number): [number, number] {
-  return [
-    m[0] * x + m[2] * y + m[4],
-    m[1] * x + m[3] * y + m[5],
-  ];
+  return _transformPoint(m, x, y);
 }
 
 // ---------------------------------------------------------------------------
