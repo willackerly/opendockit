@@ -2060,3 +2060,290 @@ export function renderTextBody(
   backend.restore();
 }
 
+// ---------------------------------------------------------------------------
+// Cursor measurement for text editing
+// ---------------------------------------------------------------------------
+
+/**
+ * Measure the canvas position of a cursor at a given text position.
+ *
+ * Walks through the text body layout to find the (x, y, height) of a cursor
+ * placed at the specified paragraph, run, and character offset. This mirrors
+ * the layout logic of `renderTextBody` to produce accurate coordinates.
+ *
+ * @param backend - The render backend (Canvas2D) for text measurement.
+ * @param textBody - The text body IR containing paragraphs and body properties.
+ * @param position - The cursor position (paragraph, run, character offset).
+ * @param bounds - The shape bounding rectangle in canvas coordinates.
+ * @param rctx - The render context with theme, font resolver, and DPI scale.
+ * @returns The cursor position {x, y, height} in canvas coordinates, or null
+ *          if the position is out of range.
+ */
+export function measureCursorPosition(
+  backend: RenderBackend,
+  textBody: TextBodyIR,
+  position: { paragraphIndex: number; runIndex: number; charOffset: number },
+  bounds: { x: number; y: number; width: number; height: number },
+  rctx: RenderContext,
+): { x: number; y: number; height: number } | null {
+  const dpiScale = textDpiScale(rctx);
+  const body = textBody.bodyProperties;
+
+  // Validate paragraph index.
+  if (position.paragraphIndex < 0 || position.paragraphIndex >= textBody.paragraphs.length) {
+    return null;
+  }
+
+  // Calculate text area (same as renderTextBody).
+  const leftInset = emuToScaledPx(body.leftInset ?? DEFAULT_LR_INSET_EMU, rctx);
+  const rightInset = emuToScaledPx(body.rightInset ?? DEFAULT_LR_INSET_EMU, rctx);
+  const topInset = emuToScaledPx(body.topInset ?? DEFAULT_TB_INSET_EMU, rctx);
+  const bottomInset = emuToScaledPx(body.bottomInset ?? DEFAULT_TB_INSET_EMU, rctx);
+
+  const textAreaX = bounds.x + leftInset;
+  const textAreaY = bounds.y + topInset;
+  const textAreaWidth = bounds.width - leftInset - rightInset;
+  const textAreaHeight = bounds.height - topInset - bottomInset;
+
+  if (textAreaWidth <= 0 || textAreaHeight <= 0) return null;
+
+  const shouldWrap = body.wrap !== 'none';
+  const fontScale = body.autoFit === 'shrink' ? body.fontScale : undefined;
+  const lnSpcReduction = body.autoFit === 'shrink' ? body.lnSpcReduction : undefined;
+
+  // Layout all paragraphs to compute total height (needed for vertical alignment).
+  interface CursorParagraphLayout {
+    lines: WrappedLine[];
+    spaceBeforePx: number;
+    spaceAfterPx: number;
+    alignment: 'left' | 'center' | 'right' | 'justify' | 'distributed';
+    marginLeftPx: number;
+    indentPx: number;
+    bulletWidth: number;
+  }
+
+  const layouts: CursorParagraphLayout[] = [];
+  let totalHeight = 0;
+
+  for (let pi = 0; pi < textBody.paragraphs.length; pi++) {
+    const paragraph = textBody.paragraphs[pi];
+    const fontSizePt = getParagraphFontSizePt(paragraph, fontScale, rctx);
+    const paragraphLevel = paragraph.properties.level ?? 0;
+    const inheritedPProps =
+      rctx.textDefaults?.levels[paragraphLevel]?.paragraphProperties ??
+      rctx.textDefaults?.defPPr?.paragraphProperties;
+
+    const effectiveMarginLeft = paragraph.properties.marginLeft ?? inheritedPProps?.marginLeft;
+    const effectiveIndent = paragraph.properties.indent ?? inheritedPProps?.indent;
+    const effectiveSpaceBefore = paragraph.properties.spaceBefore ?? inheritedPProps?.spaceBefore;
+    const effectiveSpaceAfter = paragraph.properties.spaceAfter ?? inheritedPProps?.spaceAfter;
+    const effectiveLineSpacing = paragraph.properties.lineSpacing ?? inheritedPProps?.lineSpacing;
+
+    const paraFamily = getParagraphFontFamily(paragraph, rctx);
+    const paraFontSizePx = ptToCanvasPx(fontSizePt, dpiScale);
+    const paraLhMul = getFontLineHeightMultiplier(rctx, paraFamily, paraFontSizePx, false, false);
+    const singleSpacingPt = fontSizePt * paraLhMul;
+    const spaceBeforePx = resolveSpacingPx(effectiveSpaceBefore, singleSpacingPt, dpiScale);
+    const spaceAfterPx = resolveSpacingPx(effectiveSpaceAfter, singleSpacingPt, dpiScale);
+
+    const marginLeftPx = effectiveMarginLeft ? emuToScaledPx(effectiveMarginLeft, rctx) : 0;
+    const indentPx = effectiveIndent ? emuToScaledPx(effectiveIndent, rctx) : 0;
+
+    const hasVisibleText = paragraph.runs.some((r) => r.kind === 'run' && r.text.length > 0);
+    const bulletProps =
+      paragraph.bulletProperties ??
+      (hasVisibleText
+        ? (rctx.textDefaults?.levels[paragraphLevel]?.bulletProperties ??
+          rctx.textDefaults?.defPPr?.bulletProperties)
+        : undefined);
+    const bullet = measureBullet(paragraph, rctx, fontScale, undefined, bulletProps);
+    const bulletWidth = bullet ? bullet.widthPx : 0;
+
+    const availableWidth = shouldWrap
+      ? textAreaWidth - marginLeftPx
+      : Infinity;
+
+    const defaultTabSizePx =
+      body.defaultTabSize != null ? emuToScaledPx(body.defaultTabSize, rctx) : undefined;
+    const effectiveTabStops = paragraph.properties.tabStops ?? inheritedPProps?.tabStops;
+
+    const lines = wrapParagraph(
+      paragraph,
+      rctx,
+      availableWidth,
+      bulletWidth,
+      fontScale,
+      lnSpcReduction,
+      indentPx,
+      effectiveLineSpacing,
+      defaultTabSizePx,
+      effectiveTabStops,
+    );
+
+    const alignment = paragraph.properties.alignment ?? inheritedPProps?.alignment ?? 'left';
+
+    const isFirstParagraph = pi === 0;
+    const isLastParagraph = pi === textBody.paragraphs.length - 1;
+    const applyFirstLastSpacing = body.spcFirstLastPara === true;
+    const paragraphHeight =
+      (isFirstParagraph && !applyFirstLastSpacing ? 0 : spaceBeforePx) +
+      lines.reduce((sum, l) => sum + l.heightPx, 0) +
+      (isLastParagraph && !applyFirstLastSpacing ? 0 : spaceAfterPx);
+
+    totalHeight += paragraphHeight;
+    layouts.push({
+      lines,
+      spaceBeforePx,
+      spaceAfterPx,
+      alignment,
+      marginLeftPx,
+      indentPx,
+      bulletWidth,
+    });
+  }
+
+  // Compute vertical alignment offset.
+  let verticalOffset = 0;
+  const verticalAlign = body.verticalAlign ?? 'top';
+  if (verticalAlign === 'middle') {
+    verticalOffset = (textAreaHeight - totalHeight) / 2;
+  } else if (verticalAlign === 'bottom' || verticalAlign === 'bottom4') {
+    verticalOffset = textAreaHeight - totalHeight;
+  }
+
+  // Walk to the target position.
+  let cursorY = textAreaY + verticalOffset;
+
+  for (let pi = 0; pi < layouts.length; pi++) {
+    const layout = layouts[pi];
+    const applyFirstLastSpacing = body.spcFirstLastPara === true;
+
+    if (pi > 0 || applyFirstLastSpacing) {
+      cursorY += layout.spaceBeforePx;
+    }
+
+    const textBaseX = textAreaX + layout.marginLeftPx;
+    const hangingIndent = layout.indentPx < 0;
+    const firstLineTextX = hangingIndent ? textBaseX : textBaseX + layout.indentPx;
+    const textAvailableWidth = textAreaWidth - layout.marginLeftPx;
+
+    // Track cumulative run/character position through the wrapped lines.
+    // Each line contains fragments from sequential runs. We need to map
+    // (runIndex, charOffset) to a specific fragment on a specific line.
+    let globalCharIndex = 0; // Flat char index across all runs in paragraph.
+
+    // Compute target flat char index.
+    const paragraph = textBody.paragraphs[pi];
+    if (pi === position.paragraphIndex) {
+      let targetCharIndex = 0;
+      for (let ri = 0; ri < position.runIndex && ri < paragraph.runs.length; ri++) {
+        const run = paragraph.runs[ri];
+        targetCharIndex += run.kind === 'run' ? run.text.length : 0;
+      }
+      targetCharIndex += position.charOffset;
+
+      // Walk lines to find which line contains the target position.
+      for (let li = 0; li < layout.lines.length; li++) {
+        const line = layout.lines[li];
+        const isFirst = li === 0;
+
+        // Compute lineX (alignment offset).
+        const lineAvailableWidth =
+          isFirst && !hangingIndent
+            ? Math.max(0, textAvailableWidth - layout.indentPx)
+            : textAvailableWidth;
+        let lineX = isFirst && !hangingIndent ? firstLineTextX : textBaseX;
+
+        // Measure rendered line width for alignment.
+        let renderedLineWidth = 0;
+        for (const frag of line.fragments) {
+          if (frag.text === '\t') {
+            renderedLineWidth += frag.widthPx;
+          } else {
+            backend.font = frag.fontString;
+            renderedLineWidth += backend.measureText(frag.text).width;
+          }
+        }
+        if (isFirst && layout.bulletWidth > 0 && !hangingIndent) {
+          renderedLineWidth += layout.bulletWidth;
+        }
+
+        if (layout.alignment === 'center') {
+          lineX += (lineAvailableWidth - renderedLineWidth) / 2;
+        } else if (layout.alignment === 'right') {
+          lineX += lineAvailableWidth - renderedLineWidth;
+        }
+
+        let drawX = lineX;
+        // Account for bullet on first line.
+        if (isFirst && layout.bulletWidth > 0 && !hangingIndent) {
+          drawX += layout.bulletWidth;
+        }
+
+        // Count characters in this line.
+        let lineChars = 0;
+        for (const frag of line.fragments) {
+          lineChars += frag.text.length;
+        }
+
+        if (
+          globalCharIndex + lineChars >= targetCharIndex ||
+          li === layout.lines.length - 1
+        ) {
+          // Target is on this line. Walk fragments to find exact x.
+          let remaining = targetCharIndex - globalCharIndex;
+          for (const frag of line.fragments) {
+            if (remaining <= 0) break;
+            if (remaining >= frag.text.length) {
+              // Skip entire fragment.
+              if (frag.text === '\t') {
+                drawX += frag.widthPx;
+              } else {
+                backend.font = frag.fontString;
+                drawX += backend.measureText(frag.text).width;
+              }
+              remaining -= frag.text.length;
+            } else {
+              // Cursor is within this fragment.
+              const partial = frag.text.substring(0, remaining);
+              backend.font = frag.fontString;
+              drawX += backend.measureText(partial).width;
+              remaining = 0;
+            }
+          }
+
+          return {
+            x: drawX,
+            y: cursorY,
+            height: line.heightPx,
+          };
+        }
+
+        globalCharIndex += lineChars;
+        cursorY += line.heightPx;
+      }
+
+      // Shouldn't reach here if position is valid, but return end-of-paragraph.
+      const lastLine = layout.lines[layout.lines.length - 1];
+      return {
+        x: textBaseX,
+        y: cursorY - (lastLine?.heightPx ?? 0),
+        height: lastLine?.heightPx ?? ptToCanvasPx(DEFAULT_FONT_SIZE_PT, dpiScale),
+      };
+    }
+
+    // Not the target paragraph — advance cursorY past all lines.
+    for (const line of layout.lines) {
+      cursorY += line.heightPx;
+    }
+
+    const isLastParagraph = pi === layouts.length - 1;
+    const applyFirstLast = body.spcFirstLastPara === true;
+    if (!isLastParagraph || applyFirstLast) {
+      cursorY += layout.spaceAfterPx;
+    }
+  }
+
+  return null;
+}
+
