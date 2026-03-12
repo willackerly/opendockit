@@ -41,6 +41,7 @@ export type { Rect } from './spatial.js';
 export {
   // Primary API (new names)
   hitTest,
+  hitTestPrecise,
   getBounds,
   getOverlapping,
   isPointInBounds,
@@ -57,6 +58,10 @@ export {
   rectArea,
   overlapFraction,
 } from './spatial.js';
+
+// ─── OBB utilities ─────────────────────────────────────
+
+export { pointInOBB } from './obb.js';
 
 // ─── Dirty tracking ─────────────────────────────────────
 

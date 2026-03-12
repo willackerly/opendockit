@@ -6,6 +6,7 @@
  */
 
 import type { PageElement, TextElement, ElementBounds } from './types.js';
+import { pointInOBB } from './obb.js';
 
 // ─── Rect type ──────────────────────────────────────────
 
@@ -43,6 +44,32 @@ export function hitTest(elements: PageElement[], x: number, y: number): PageElem
     if (isPointInBounds(x, y, elementToRect(el))) {
       return el;
     }
+  }
+  return null;
+}
+
+/**
+ * Precise hit test that accounts for element rotation using OBB refinement.
+ * First pass: AABB check (same as hitTest). Second pass: OBB filter for
+ * rotated elements. Returns the topmost element, or null.
+ */
+export function hitTestPrecise(
+  elements: PageElement[],
+  x: number,
+  y: number,
+): PageElement | null {
+  // Iterate in reverse (topmost first)
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const el = elements[i];
+    // First pass: quick AABB rejection
+    if (!isPointInBounds(x, y, elementToRect(el))) continue;
+    // Second pass: OBB refinement for rotated elements
+    if (el.rotation !== 0) {
+      if (!pointInOBB(x, y, el.x, el.y, el.width, el.height, el.rotation)) {
+        continue;
+      }
+    }
+    return el;
   }
   return null;
 }
