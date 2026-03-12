@@ -14,15 +14,9 @@
  */
 
 import type { EffectIR, GlowIR, OuterShadowIR } from '../../ir/index.js';
+import { colorToRgba } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
-
-/**
- * Format a ResolvedColor as a CSS rgba() string for Canvas2D.
- */
-function colorToRgba(color: { r: number; g: number; b: number; a: number }): string {
-  return `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a})`;
-}
 
 /**
  * Apply an outer shadow effect to the canvas context.

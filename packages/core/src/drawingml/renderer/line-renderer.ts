@@ -8,19 +8,11 @@
  * Reference: ECMA-376 5th Edition, Part 1 ss 20.1.8.35 (ln — Line Properties)
  */
 
-import type { DashStyle, LineEnd, LineIR, ResolvedColor } from '../../ir/index.js';
+import type { DashStyle, LineEnd, LineIR } from '../../ir/index.js';
+import { colorToRgba } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
 import type { RenderBackend } from './render-backend.js';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Format a ResolvedColor as a CSS rgba() string. */
-function colorToRgba(c: ResolvedColor): string {
-  return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
-}
 
 /**
  * Map an OOXML LineCap to the Canvas2D `lineCap` property value.

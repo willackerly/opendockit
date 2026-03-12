@@ -8,17 +8,9 @@
  * Reference: ECMA-376 5th Edition, Part 1 ss 20.1.8 (Fill Properties)
  */
 
-import type { FillIR, ResolvedColor } from '../../ir/index.js';
+import type { FillIR } from '../../ir/index.js';
+import { colorToRgba } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Format a ResolvedColor as a CSS rgba() string. */
-function colorToRgba(c: ResolvedColor): string {
-  return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
-}
 
 /**
  * Compute linear gradient start/end points from an angle and bounding box.

@@ -9,16 +9,8 @@
 
 import type { BackgroundIR } from '../model/index.js';
 import type { RenderContext, RenderBackend } from '@opendockit/core/drawingml/renderer';
-import type { FillIR, GradientFillIR, ResolvedColor } from '@opendockit/core';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Format a ResolvedColor as a CSS rgba() string. */
-function colorToRgba(c: ResolvedColor): string {
-  return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
-}
+import type { FillIR, GradientFillIR } from '@opendockit/core';
+import { colorToRgba } from '@opendockit/core';
 
 /**
  * Compute linear gradient start/end points from an angle and bounding box.
