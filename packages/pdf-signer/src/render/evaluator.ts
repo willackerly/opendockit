@@ -81,6 +81,8 @@ export interface NativeImage {
   smaskData?: Uint8Array;
   /** Browser-decoded ImageBitmap (avoids RGBA round-trip for JPEGs). */
   bitmap?: ImageBitmap;
+  /** PDF /Interpolate flag — when false, use nearest-neighbor scaling. */
+  interpolate?: boolean;
 }
 
 /** A gradient stop for shading patterns. */
@@ -1168,10 +1170,11 @@ class EvalContext {
         : 8;
     const cs = (params.get('ColorSpace') as string) ?? 'DeviceGray';
 
-    // Check for JPEG filter
+    // Check for JPEG filter — emit raw bytes for canvas to decode
     const filter = (params.get('Filter') as string) ?? '';
     if (filter === 'DCTDecode' || filter === 'JPXDecode') {
-      // Can't easily decode JPEG inline; emit raw with RGBA fallback
+      const jpegImage: NativeImage = { width, height, data: dataBytes, isJpeg: true };
+      this.opList.addOpArgs(OPS.paintInlineImageXObject, [jpegImage]);
       return;
     }
 
@@ -1594,11 +1597,17 @@ function decodeImageXObject(
   const height = dict.getInt('Height', 0);
   if (width <= 0 || height <= 0) return null;
 
+  // Read /Interpolate flag — controls image smoothing
+  const interpolateItem = dict.getItem('Interpolate');
+  const interpolate =
+    (interpolateItem instanceof COSName && interpolateItem.getName() === 'true') ||
+    (interpolateItem && 'booleanValue' in interpolateItem && (interpolateItem as any).booleanValue === true);
+
   // Check if JPEG — pass through raw bytes for canvas to decode
   const filters = getStreamFilters(dict);
   const lastFilter = filters[filters.length - 1] ?? '';
   if (lastFilter === 'DCTDecode' || lastFilter === 'JPXDecode') {
-    const image: NativeImage = { width, height, data: stream.getData(), isJpeg: true };
+    const image: NativeImage = { width, height, data: stream.getData(), isJpeg: true, interpolate };
     // Store SMask data for JPEG images — will be applied after browser pre-decode
     // converts the JPEG to RGBA pixels in preDecodeJpegs()
     const smaskData = extractSMask(dict, resolve, width, height);
@@ -1700,6 +1709,11 @@ function decodeImageXObject(
         image.data[i * 4 + 3] = smaskData[i];
       }
     }
+  }
+
+  // Propagate /Interpolate flag to image
+  if (image) {
+    image.interpolate = interpolate;
   }
 
   return image;

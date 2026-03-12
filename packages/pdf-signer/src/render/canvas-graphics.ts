@@ -991,6 +991,11 @@ export class NativeCanvasGraphics {
       // Apply graphics state alpha (matches text/shape behavior)
       ctx.globalAlpha = this.state.fillAlpha;
 
+      // Respect PDF /Interpolate flag — false means nearest-neighbor (crisp pixels)
+      if (image.interpolate === false) {
+        ctx.imageSmoothingEnabled = false;
+      }
+
       // Record image event BEFORE transform (use current CTM for position)
       this.recorder?.recordImage();
 
