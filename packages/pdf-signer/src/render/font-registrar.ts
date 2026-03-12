@@ -45,6 +45,20 @@ export interface FontRegistrarOptions {
   };
 }
 
+/**
+ * Interface for an external font resolver that can receive extracted fonts.
+ * Matches FontResolver from @opendockit/core without importing it directly
+ * (pdf-signer does not depend on core).
+ */
+export interface ExternalFontResolver {
+  registerExtractedFont(
+    family: string,
+    data: ArrayBuffer | Uint8Array,
+    weight?: number,
+    style?: 'normal' | 'italic'
+  ): Promise<boolean>;
+}
+
 // ---------------------------------------------------------------------------
 // FontRegistrar
 // ---------------------------------------------------------------------------
@@ -55,6 +69,18 @@ export class FontRegistrar {
 
   /** Counter for generating unique names. */
   private counter = 0;
+
+  /** Optional external font resolver for unified font pipeline. */
+  private _externalResolver: ExternalFontResolver | null = null;
+
+  /**
+   * Set an external font resolver. When set, every registered font will also
+   * be fed to the resolver via `registerExtractedFont()`, creating a bridge
+   * between PDF font extraction and the unified font pipeline.
+   */
+  setExternalResolver(resolver: ExternalFontResolver | null): void {
+    this._externalResolver = resolver;
+  }
 
   /**
    * Register font bytes so they can be used in Canvas2D ctx.font.
@@ -67,7 +93,7 @@ export class FontRegistrar {
   async register(
     pdfFontName: string,
     fontBytes: Uint8Array,
-    options?: FontRegistrarOptions,
+    options?: FontRegistrarOptions
   ): Promise<string> {
     // Check cache — don't re-register the same font
     const cached = this.cache.get(pdfFontName);
@@ -84,7 +110,7 @@ export class FontRegistrar {
       family,
       options?.fontType,
       options?.charCodeToUnicode,
-      options?.metrics,
+      options?.metrics
     );
 
     let registered: RegisteredFont;
@@ -96,6 +122,23 @@ export class FontRegistrar {
     }
 
     this.cache.set(pdfFontName, registered);
+
+    // Bridge: feed extracted font to external resolver if configured
+    if (this._externalResolver) {
+      const weight = this._parseCssWeight(options?.weight);
+      const style = (options?.style === 'italic' ? 'italic' : 'normal') as 'normal' | 'italic';
+      try {
+        await this._externalResolver.registerExtractedFont(
+          registered.family,
+          patchedBytes,
+          weight,
+          style
+        );
+      } catch {
+        // External resolver failure is non-fatal — font is still registered locally
+      }
+    }
+
     return registered.family;
   }
 
@@ -178,7 +221,7 @@ export class FontRegistrar {
   private async registerNode(
     family: string,
     fontBytes: Uint8Array,
-    options?: FontRegistrarOptions,
+    options?: FontRegistrarOptions
   ): Promise<RegisteredFont> {
     const fs = await import('fs');
     const os = await import('os');
@@ -212,11 +255,11 @@ export class FontRegistrar {
   private async registerBrowser(
     family: string,
     fontBytes: Uint8Array,
-    options?: FontRegistrarOptions,
+    options?: FontRegistrarOptions
   ): Promise<RegisteredFont> {
     const buffer = fontBytes.buffer.slice(
       fontBytes.byteOffset,
-      fontBytes.byteOffset + fontBytes.byteLength,
+      fontBytes.byteOffset + fontBytes.byteLength
     );
 
     const fontFace = new FontFace(family, buffer as ArrayBuffer, {
@@ -228,5 +271,16 @@ export class FontRegistrar {
     (document.fonts as any).add(fontFace);
 
     return { family, fontFace };
+  }
+
+  /**
+   * Parse a CSS weight string to a numeric value.
+   * 'bold' → 700, 'normal' → 400, '600' → 600, etc.
+   */
+  private _parseCssWeight(weight?: string): number {
+    if (!weight || weight === 'normal') return 400;
+    if (weight === 'bold') return 700;
+    const n = parseInt(weight, 10);
+    return isNaN(n) ? 400 : n;
   }
 }
