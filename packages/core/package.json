@@ -70,6 +70,10 @@
     "./renderer": {
       "types": "./dist/renderer/index.d.ts",
       "import": "./dist/renderer/index.js"
+    },
+    "./synthesis": {
+      "types": "./dist/synthesis/index.d.ts",
+      "import": "./dist/synthesis/index.js"
     }
   },
   "scripts": {
