@@ -60,3 +60,5 @@ export {
   isVariableFontFilename,
 } from './variable-font.js';
 export type { VariationAxes } from './variable-font.js';
+
+export { subsetFont, isSubsetAvailable } from './subset.js';

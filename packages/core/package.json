@@ -85,11 +85,16 @@
     "fast-xml-parser": "^4.5.0",
     "jszip": "^3.10.0"
   },
+  "optionalDependencies": {
+    "subset-font": "^2.4.0"
+  },
   "peerDependencies": {
     "@opendockit/fonts": "workspace:*"
   },
   "peerDependenciesMeta": {
-    "@opendockit/fonts": { "optional": true }
+    "@opendockit/fonts": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "typescript": "^5.7.0",

@@ -27,7 +27,7 @@ import {
   subsetTrueTypeFont,
 } from '@opendockit/pdf-signer';
 import type { TrueTypeFontInfo } from '@opendockit/pdf-signer';
-import { loadTTF } from '@opendockit/core/font';
+import { loadTTF, subsetFont } from '@opendockit/core/font';
 import type { FontKey } from './pdf-font-collector.js';
 
 // ---------------------------------------------------------------------------
@@ -281,19 +281,39 @@ export async function embedFontsForPdf(
         const codepoints = usedCodepoints?.get(cpKey);
 
         if (codepoints && codepoints.size > 0) {
-          // Map codepoints to glyph IDs via font's cmap
-          const usedGlyphIds = new Set<number>();
-          for (const cp of codepoints) {
-            const gid = fullInfo.cmap.get(cp);
-            if (gid !== undefined) usedGlyphIds.add(gid);
+          // Build the character string for hb-subset
+          const chars = String.fromCodePoint(...codepoints);
+
+          // Try hb-subset (WASM) first — produces better subsets
+          let hbSubsetted = false;
+          try {
+            const subsetted = await subsetFont(ttfBytes, chars, {
+              targetFormat: 'truetype',
+            });
+            // Only use if it actually reduced the size
+            if (subsetted.length < ttfBytes.length) {
+              embedBytes = subsetted;
+              hbSubsetted = true;
+            }
+          } catch {
+            // hb-subset not available or failed
           }
 
-          if (usedGlyphIds.size > 0) {
-            try {
-              const subsetResult = subsetTrueTypeFont(ttfBytes, usedGlyphIds);
-              embedBytes = subsetResult.bytes;
-            } catch {
-              // Fall back to full font if subsetting fails
+          // Fallback: basic TS subsetter from pdf-signer
+          if (!hbSubsetted) {
+            const usedGlyphIds = new Set<number>();
+            for (const cp of codepoints) {
+              const gid = fullInfo.cmap.get(cp);
+              if (gid !== undefined) usedGlyphIds.add(gid);
+            }
+
+            if (usedGlyphIds.size > 0) {
+              try {
+                const subsetResult = subsetTrueTypeFont(ttfBytes, usedGlyphIds);
+                embedBytes = subsetResult.bytes;
+              } catch {
+                // Fall back to full font if subsetting fails
+              }
             }
           }
         }
