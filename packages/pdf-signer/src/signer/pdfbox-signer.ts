@@ -264,7 +264,7 @@ async function preparePdfWithFlatten(
  * on the page for backward compatibility with the parity harness, but also
  * passes appearance metadata so Phase 2 can build the appearance stream.
  */
-async function preparePdfWithRewrite(
+export async function preparePdfWithRewrite(
   pdfBytes: Uint8Array,
   signer: BrowserKeypairSigner,
   options: SignatureOptions,

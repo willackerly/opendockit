@@ -1,11 +1,11 @@
 # Current Implementation State
 
-_Updated: 2026-02-27_
+_Updated: 2026-03-12_
 
 ## Repository Status: CLEAN
 
 ```
-Version: 1.0.0-beta.8
+Version: 1.0.0-beta.10
 All 1565 fast tests pass (72 test files: 72 pass, 8 env-gated/skipped, ~4s)
 All 9 fixtures pass byte-for-byte parity (SHA256 match)
 Corpus: 1105/1105 pass (0 failures, 7 known-limitation, ~40min)
@@ -162,13 +162,16 @@ New `src/render/` module wraps PDF.js to render PDF pages to PNG. This is Phase 
 
 **Test expansion: 1344 tests (up from 1329), 15 new renderer tests**
 
-### Counter-Signature Integrity Fix (Incremental-Only Signing)
+### Incremental-First Signing (beta.10)
 
-**Bug**: When counter-signing a PDF (User 1 signs, then User 2 signs), Signature 1's integrity broke because `preparePdfWithAppearance()` called `PDFDocument.load()` + `pdfDoc.save()`, which fully rewrote all bytes — invalidating Signature 1's ByteRange content digest.
+**All signatures now use the incremental path** — original PDF bytes are preserved exactly, signature objects are appended as an incremental update (~50KB). This is safe for all PDFs:
+- Original content streams are never re-serialized
+- Page content is pixel-identical before and after signing (verified via pdftoppm on 30-page USG Briefing)
+- Counter-signatures preserve all earlier signatures' ByteRange integrity
 
-**Fix**: Two-path architecture in `preparePdfWithAppearance()`:
-- **First signature** (no existing sigs): Uses `preparePdfWithRewrite()` — full PDFDocument.load()+save() rewrite, preserving byte-for-byte parity with Java PDFBox on all 9 fixtures
-- **Counter-signing** (existing sigs detected): Uses `preparePdfIncremental()` — returns ORIGINAL bytes unchanged, builds appearance stream entirely in Phase 2 incremental write
+**Background**: The previous "first-signature" path used `PDFDocument.load()` + `save()` which fully rewrote the PDF. This caused blank pages on complex PDFs (PowerPoint exports, government documents) because the COS serializer lost page content streams. The rewrite path (`preparePdfWithRewrite()`) is retained as a named export for Java PDFBox byte-parity testing but is no longer the default.
+
+**Visual integrity test**: `hybrid-visual-integrity.test.ts` signs the 30-page USG Briefing PDF, renders all pages via pdftoppm before/after, and confirms pages 1-29 are pixel-identical (0 diff) while page 30 shows exactly the signature stamp (~45K changed pixels).
 
 **Key changes:**
 - `src/pdfbox/parser/object.ts` — Added `resolvePageObjectNumber()` for native page tree traversal (catalog → /Pages → /Kids → page by index)

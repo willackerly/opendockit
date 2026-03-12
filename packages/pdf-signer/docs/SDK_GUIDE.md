@@ -144,7 +144,7 @@ interface SignatureOptions {
   contactInfo?: string;         // Signer contact info
   signatureAppearance?: SignatureAppearance;
   timestampURL?: string;        // RFC 3161 TSA URL (enables LTV timestamps)
-  forceFullSave?: boolean;      // Force full document rewrite
+  forceFullSave?: boolean;      // Force full document rewrite (not recommended — may lose page content on complex PDFs)
   flattenForms?: boolean;       // Flatten all form fields before signing (default: false)
   enableLTV?: boolean;          // Embed certs in DSS for long-term validation
 }
