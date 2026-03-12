@@ -45,6 +45,18 @@ import type { RenderBackend } from './render-backend.js';
 /** Default font size in points when none is specified. */
 const DEFAULT_FONT_SIZE_PT = 18;
 
+// ---------------------------------------------------------------------------
+// Text measurement cache — avoids redundant backend.measureText() calls for
+// identical font+text pairs within and across paragraphs.
+// ---------------------------------------------------------------------------
+
+const measurementCache = new Map<string, number>();
+
+/** Clear the text measurement cache (e.g. between slides or after font changes). */
+export function clearMeasurementCache(): void {
+  measurementCache.clear();
+}
+
 /** Default left/right body insets in EMU (OOXML default: 0.1 inches = 91,440 EMU). */
 const DEFAULT_LR_INSET_EMU = 91440;
 
@@ -394,6 +406,12 @@ function measureFragment(
   _bold?: boolean,
   _italic?: boolean
 ): number {
+  const cacheKey = `${fontString}\0${text}`;
+  const cached = measurementCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   // Always use Canvas2D for horizontal text measurement. This ensures wrapping
   // decisions match actual rendered widths (including kerning and OpenType shaping).
   // The metrics DB linear advance widths caused wrapping divergence where text
@@ -405,13 +423,18 @@ function measureFragment(
   // wrap decisions, matching PowerPoint's behavior at line break points.
   // For italic text where glyphs overhang, actualBoundingBoxRight > width,
   // so we keep using advance width — no regression risk.
+  let width: number;
   if (
     typeof metrics.actualBoundingBoxRight === 'number' &&
     metrics.actualBoundingBoxRight < metrics.width
   ) {
-    return metrics.actualBoundingBoxRight;
+    width = metrics.actualBoundingBoxRight;
+  } else {
+    width = metrics.width;
   }
-  return metrics.width;
+
+  measurementCache.set(cacheKey, width);
+  return width;
 }
 
 /**
@@ -708,6 +731,15 @@ function wrapParagraph(
   // paragraph ends with a line break (e.g. heading + BR before bullets).
   let trailingBrRun: (typeof paragraph.runs)[number] | null = null;
 
+  // Pre-compute tab stop positions once per paragraph (not per run).
+  const effectiveTabSizePx = defaultTabSizePx ?? emuToScaledPx(914400, rctx);
+  const tabStopPositionsPx = tabStops
+    ? tabStops
+        .slice()
+        .sort((a, b) => a.position - b.position)
+        .map((ts) => emuToScaledPx(ts.position, rctx))
+    : [];
+
   for (const run of paragraph.runs) {
     if (run.kind === 'lineBreak') {
       // Force a line break. If we have no fragments, push an empty line
@@ -811,16 +843,6 @@ function wrapParagraph(
         ? ptToCanvasPx(hundredthsPtToPt(charSpacing), dpiScale)
         : 0;
 
-    // Fallback default tab size: 914400 EMU = 1 inch.
-    const effectiveTabSizePx = defaultTabSizePx ?? emuToScaledPx(914400, rctx);
-
-    // Sorted explicit tab stop positions in pixels.
-    const tabStopPositionsPx = tabStops
-      ? tabStops
-          .slice()
-          .sort((a, b) => a.position - b.position)
-          .map((ts) => emuToScaledPx(ts.position, rctx))
-      : [];
 
     // Track accumulated text within this run on the current line.
     // Measuring the full accumulated text preserves inter-word kerning pairs
