@@ -61,6 +61,10 @@
     "./edit": {
       "types": "./dist/edit/index.d.ts",
       "import": "./dist/edit/index.js"
+    },
+    "./synthesis": {
+      "types": "./dist/synthesis/index.d.ts",
+      "import": "./dist/synthesis/index.js"
     }
   },
   "scripts": {
