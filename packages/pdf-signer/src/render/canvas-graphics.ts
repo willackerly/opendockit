@@ -56,6 +56,8 @@ interface GraphicsState {
   textRenderingMode: number;
   /** Font ascent ratio (0–1) from PDF FontDescriptor /Ascent. Default 0.8. */
   fontAscentRatio: number;
+  /** True when using a registered embedded PDF font (skip remeasure). */
+  fontIsRegistered: boolean;
 }
 
 function defaultState(): GraphicsState {
@@ -82,6 +84,7 @@ function defaultState(): GraphicsState {
     textRise: 0,
     textRenderingMode: 0,
     fontAscentRatio: 0.8,
+    fontIsRegistered: false,
   };
 }
 
@@ -620,6 +623,7 @@ export class NativeCanvasGraphics {
     this.state.fontWeight = isRegistered ? 'normal' : css.weight;
     this.state.fontStyle = isRegistered ? 'normal' : css.style;
     this.state.fontAscentRatio = ascentRatio ?? 0.8;
+    this.state.fontIsRegistered = isRegistered;
   }
 
   private moveText(tx: number, ty: number): void {
@@ -772,9 +776,9 @@ export class NativeCanvasGraphics {
     const fontStr = `${this.state.fontStyle} ${this.state.fontWeight} ${browserFontSize}px ${this.state.fontFamily}`;
     ctx.font = fontStr;
 
-    // Remeasure: compensate for font metric mismatches when using substituted
-    // system fonts. If the browser's measured width differs from the PDF-specified
-    // glyph width, scale horizontally to match (pdf.js pattern).
+    // Remeasure: compensate for font metric mismatches between the PDF-specified
+    // glyph width and the browser's actual rendering width. Applies to both
+    // registered embedded fonts and CSS fallback fonts (pdf.js pattern).
     let remeasureOffsetX = 0;
     const expectedWidth = pdfGlyphWidth ?? 0;
     if (expectedWidth > 0 && rawSize > 0 && typeof ctx.measureText === 'function') {

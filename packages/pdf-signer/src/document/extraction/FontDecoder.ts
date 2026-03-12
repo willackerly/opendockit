@@ -45,6 +45,8 @@ export interface FontDecoder {
   getCharWidth(code: number): number;
   /** True for Type0/CIDFont (2-byte codes). */
   isComposite: boolean;
+  /** Character code → Unicode mapping (from ToUnicode CMap + encoding). */
+  charCodeToUnicode?: Map<number, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -89,9 +91,26 @@ export function buildFontDecoder(
     }
   }
 
+  // Build combined charCode→unicode map for font cmap rebuilding.
+  // Merges toUnicodeMap (highest priority) with encodingMap fallback.
+  const charCodeToUnicode = new Map<number, string>();
+  if (toUnicodeMap) {
+    for (const [code, uni] of toUnicodeMap) {
+      charCodeToUnicode.set(code, uni);
+    }
+  }
+  if (encodingMap) {
+    for (const [code, uni] of encodingMap) {
+      if (!charCodeToUnicode.has(code)) {
+        charCodeToUnicode.set(code, uni);
+      }
+    }
+  }
+
   return {
     fontName,
     isComposite,
+    charCodeToUnicode: charCodeToUnicode.size > 0 ? charCodeToUnicode : undefined,
 
     decode(bytes: Uint8Array): string {
       let result = '';

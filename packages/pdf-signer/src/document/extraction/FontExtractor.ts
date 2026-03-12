@@ -48,6 +48,8 @@ export interface ExtractedFont {
   };
   /** Glyph ID to advance width mapping (in font units). */
   glyphWidths?: Map<number, number>;
+  /** Character code → Unicode mapping for cmap rebuilding (from ToUnicode + Encoding). */
+  charCodeToUnicode?: Map<number, string>;
 }
 
 // ---------------------------------------------------------------------------

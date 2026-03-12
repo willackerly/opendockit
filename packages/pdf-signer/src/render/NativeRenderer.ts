@@ -138,9 +138,8 @@ export class NativeRenderer {
 
     const opList = evaluatePage(pageDict, this.resolve, diagnostics);
 
-    // Font registration disabled for now — subsetted PDF fonts cause metric shifts
-    // that regress some pages. Infrastructure is in place for future enablement.
-    // await this.preRegisterFonts(opList, diagnostics);
+    // Pre-register embedded PDF fonts for canvas rendering
+    await this.preRegisterFonts(opList, diagnostics);
 
     // Pre-decode JPEG images in browser (createImageBitmap is async)
     await this.preDecodeJpegs(opList, diagnostics);
@@ -200,8 +199,8 @@ export class NativeRenderer {
     // Evaluate page content stream → OperatorList
     const opList = evaluatePage(pageDict, this.resolve, diagnostics);
 
-    // Font registration disabled — see renderPageToCanvas comment
-    // await this.preRegisterFonts(opList, diagnostics);
+    // Pre-register embedded PDF fonts for canvas rendering
+    await this.preRegisterFonts(opList, diagnostics);
 
     // Pre-decode JPEG images in browser (createImageBitmap is async)
     await this.preDecodeJpegs(opList, diagnostics);
@@ -341,7 +340,6 @@ export class NativeRenderer {
    * If registration fails (corrupt font, unsupported format), the 4th arg
    * is set to undefined so canvas-graphics falls back to CSS fonts.
    */
-  // @ts-expect-error Disabled pending font metric tuning — called sites commented out
   private async preRegisterFonts(
     opList: OperatorList,
     diagnostics: RenderDiagnosticsCollector,
@@ -372,7 +370,7 @@ export class NativeRenderer {
         const family = await this.fontRegistrar.register(
           embeddedFont.fontName,
           embeddedFont.rawBytes,
-          { fontType: embeddedFont.fontType },
+          { fontType: embeddedFont.fontType, charCodeToUnicode: embeddedFont.charCodeToUnicode },
         );
         // Replace ExtractedFont object with the registered family name string
         args[3] = family;

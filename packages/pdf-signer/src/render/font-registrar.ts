@@ -49,7 +49,7 @@ export class FontRegistrar {
   async register(
     pdfFontName: string,
     fontBytes: Uint8Array,
-    options?: { weight?: string; style?: string; fontType?: string }
+    options?: { weight?: string; style?: string; fontType?: string; charCodeToUnicode?: Map<number, string> }
   ): Promise<string> {
     // Check cache — don't re-register the same font
     const cached = this.cache.get(pdfFontName);
@@ -151,7 +151,7 @@ export class FontRegistrar {
   private async registerNode(
     family: string,
     fontBytes: Uint8Array,
-    options?: { weight?: string; style?: string; fontType?: string }
+    options?: { weight?: string; style?: string; fontType?: string; charCodeToUnicode?: Map<number, string> }
   ): Promise<RegisteredFont> {
     const fs = await import('fs');
     const os = await import('os');
@@ -170,7 +170,7 @@ export class FontRegistrar {
     // magic bytes, and have minimal name tables — all cause FreeType (node-canvas)
     // to reject them. Use fonttools (python3) to fix if available.
     try {
-      await patchFontWithFonttools(tmpFile, family);
+      await patchFontWithFonttools(tmpFile, family, options?.charCodeToUnicode);
     } catch {
       // fonttools not available — try raw bytes anyway
     }
@@ -183,6 +183,7 @@ export class FontRegistrar {
       style: options?.style ?? 'normal',
     });
 
+    // Keep temp file until cleanup (don't delete immediately)
     return { family, tempPath: tmpFile };
   }
 
@@ -225,14 +226,33 @@ export class FontRegistrar {
  *
  * fonttools can read these fonts and rewrite them with proper tables.
  */
-async function patchFontWithFonttools(fontPath: string, family: string): Promise<void> {
+async function patchFontWithFonttools(
+  fontPath: string,
+  family: string,
+  charCodeToUnicode?: Map<number, string>,
+): Promise<void> {
   const { execSync } = await import('child_process');
 
-  // Write a python script to /tmp and execute it
   const fs = await import('fs');
   const scriptPath = fontPath + '.fix.py';
+
+  // Build the charCode→Unicode mapping as a Python dict literal
+  let cmapJsonPath = '';
+  if (charCodeToUnicode && charCodeToUnicode.size > 0) {
+    cmapJsonPath = fontPath + '.cmap.json';
+    const cmapObj: Record<string, number> = {};
+    for (const [code, uni] of charCodeToUnicode) {
+      // Map charCode → first Unicode code point
+      const cp = uni.codePointAt(0);
+      if (cp !== undefined) {
+        cmapObj[String(code)] = cp;
+      }
+    }
+    fs.writeFileSync(cmapJsonPath, JSON.stringify(cmapObj));
+  }
+
   const script = `
-import sys
+import sys, json
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables.O_S_2f_2 import table_O_S_2f_2, Panose
 
@@ -282,16 +302,74 @@ if 'OS/2' not in f:
     os2.usMaxContext = 0
     f['OS/2'] = os2
 
+# Rebuild cmap with Unicode mappings from PDF ToUnicode/Encoding.
+# PDF subsetted fonts use arbitrary char codes; our renderer decodes to
+# Unicode via ToUnicode CMap. We need the font's cmap to map those
+# Unicode code points to the correct glyph IDs.
+cmap_file = sys.argv[3] if len(sys.argv) > 3 else ''
+if cmap_file:
+    with open(cmap_file) as cf:
+        code_to_unicode = json.load(cf)  # {"charCode": unicodeCodePoint}
+
+    glyph_order = f.getGlyphOrder()
+
+    # Collect ALL charCode → glyphName from every cmap subtable (any format).
+    # getBestCmap() only returns format 4/12; subsetted fonts often only have
+    # format 0 or format 6 which getBestCmap() ignores.
+    all_code_to_glyph = {}
+    if 'cmap' in f:
+        for subtable in f['cmap'].tables:
+            if subtable.cmap:
+                for code, glyph_name in subtable.cmap.items():
+                    if code not in all_code_to_glyph:
+                        all_code_to_glyph[code] = glyph_name
+
+    # Build unicode → glyphName mapping
+    unicode_to_glyph = {}
+    for char_code_str, unicode_cp in code_to_unicode.items():
+        char_code = int(char_code_str)
+        glyph_name = all_code_to_glyph.get(char_code)
+        if glyph_name is None:
+            # Fallback: some subsetted fonts use direct glyph index
+            if 0 < char_code < len(glyph_order):
+                glyph_name = glyph_order[char_code]
+            else:
+                continue
+        # Skip .notdef — don't map unicode to missing glyph
+        if glyph_name == '.notdef':
+            continue
+        unicode_to_glyph[unicode_cp] = glyph_name
+
+    if unicode_to_glyph:
+        # Create new format 4 cmap subtable (Windows Unicode BMP)
+        from fontTools.ttLib.tables._c_m_a_p import cmap_format_4
+        new_sub = cmap_format_4(4)
+        new_sub.platEncID = 1   # Unicode BMP (UCS-2)
+        new_sub.platformID = 3  # Windows
+        new_sub.format = 4
+        new_sub.reserved = 0
+        new_sub.length = 0
+        new_sub.language = 0
+        new_sub.cmap = unicode_to_glyph
+
+        # Replace all existing cmap subtables with our Unicode one
+        f['cmap'].tables = [new_sub]
+
 f.save(sys.argv[1])
 `;
   fs.writeFileSync(scriptPath, script);
   try {
-    execSync(`python3 "${scriptPath}" "${fontPath}" "${family}"`, {
-      timeout: 5000,
+    const args = [`python3`, `"${scriptPath}"`, `"${fontPath}"`, `"${family}"`];
+    if (cmapJsonPath) args.push(`"${cmapJsonPath}"`);
+    execSync(args.join(' '), {
+      timeout: 10000,
       stdio: 'pipe',
     });
   } finally {
     try { fs.unlinkSync(scriptPath); } catch { /* ignore */ }
+    if (cmapJsonPath) {
+      try { fs.unlinkSync(cmapJsonPath); } catch { /* ignore */ }
+    }
   }
 }
 

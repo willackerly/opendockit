@@ -960,6 +960,10 @@ class EvalContext {
       let extractedFont: ExtractedFont | undefined;
       try {
         extractedFont = extractEmbeddedFont(fontDict, this.resolve);
+        // Attach charCode→Unicode mapping so font registrar can rebuild cmap
+        if (extractedFont && decoder.charCodeToUnicode) {
+          extractedFont.charCodeToUnicode = decoder.charCodeToUnicode;
+        }
       } catch {
         // Non-critical — fall back to CSS fonts
       }
