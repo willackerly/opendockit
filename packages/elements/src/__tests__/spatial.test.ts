@@ -4,6 +4,7 @@ import {
   pointInRect,
   isPointInBounds,
   hitTest,
+  hitTestPrecise,
   elementAtPoint,
   getBounds,
   getOverlapping,
@@ -464,5 +465,109 @@ describe('elementToRect', () => {
   it('extracts position and size from an element', () => {
     const el = makeShapeElement('s1', 15, 25, 35, 45);
     expect(elementToRect(el)).toEqual({ x: 15, y: 25, width: 35, height: 45 });
+  });
+});
+
+// ─── hitTestPrecise (OBB-aware) ─────────────────────────
+
+function makeRotatedShape(
+  id: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  rotation: number,
+): ShapeElement {
+  return {
+    ...baseProps,
+    id,
+    type: 'shape',
+    x,
+    y,
+    width,
+    height,
+    rotation,
+    shapeType: 'rectangle',
+    fill: null,
+    stroke: null,
+  };
+}
+
+describe('hitTestPrecise', () => {
+  it('returns the topmost element at a point (no rotation)', () => {
+    const elements: PageElement[] = [
+      makeShapeElement('s1', 0, 0, 100, 100),
+      makeShapeElement('s2', 50, 50, 100, 100),
+    ];
+    const result = hitTestPrecise(elements, 75, 75);
+    expect(result).not.toBeNull();
+    expect(result!.id).toBe('s2');
+  });
+
+  it('returns null for a miss', () => {
+    const elements: PageElement[] = [makeShapeElement('s1', 0, 0, 100, 100)];
+    expect(hitTestPrecise(elements, 200, 200)).toBeNull();
+  });
+
+  it('returns null for empty element list', () => {
+    expect(hitTestPrecise([], 10, 10)).toBeNull();
+  });
+
+  it('excludes point in AABB corner of 45° rotated square', () => {
+    // 100x100 square at (0,0) rotated 45°. Point (5,5) is inside the AABB
+    // but outside the rotated diamond.
+    const elements: PageElement[] = [makeRotatedShape('r1', 0, 0, 100, 100, 45)];
+
+    // hitTest (AABB only) would return the element
+    const aabbResult = hitTest(elements, 5, 5);
+    expect(aabbResult).not.toBeNull();
+
+    // hitTestPrecise correctly rejects it
+    const obbResult = hitTestPrecise(elements, 5, 5);
+    expect(obbResult).toBeNull();
+  });
+
+  it('includes point at center of rotated element', () => {
+    const elements: PageElement[] = [makeRotatedShape('r1', 0, 0, 100, 100, 45)];
+    const result = hitTestPrecise(elements, 50, 50);
+    expect(result).not.toBeNull();
+    expect(result!.id).toBe('r1');
+  });
+
+  it('skips OBB check for rotation=0 (AABB is exact)', () => {
+    const elements: PageElement[] = [makeShapeElement('s1', 0, 0, 100, 100)];
+    // Point on corner — should hit for both AABB and OBB since rotation=0
+    expect(hitTestPrecise(elements, 0, 0)).not.toBeNull();
+    expect(hitTestPrecise(elements, 100, 100)).not.toBeNull();
+  });
+
+  it('narrow rotated rect excludes AABB false positives', () => {
+    // 200x20 narrow rect at (0,0) rotated 45°. Center=(100,10).
+    // A point perpendicular to the narrow dimension should miss the OBB.
+    const elements: PageElement[] = [makeRotatedShape('r1', 0, 0, 200, 20, 45)];
+
+    // Point near original top-left — in AABB but not in rotated OBB
+    const result = hitTestPrecise(elements, 5, 5);
+    expect(result).toBeNull();
+
+    // Center should still hit
+    expect(hitTestPrecise(elements, 100, 10)).not.toBeNull();
+  });
+
+  it('respects z-order with mixed rotated and unrotated elements', () => {
+    // Back: unrotated 100x100 at (0,0)
+    // Front: 45° rotated 100x100 at (0,0)
+    const elements: PageElement[] = [
+      makeShapeElement('back', 0, 0, 100, 100),
+      makeRotatedShape('front', 0, 0, 100, 100, 45),
+    ];
+
+    // At center (50,50) — both hit, front wins
+    const centerResult = hitTestPrecise(elements, 50, 50);
+    expect(centerResult!.id).toBe('front');
+
+    // At corner (5,5) — front's OBB misses, back's AABB hits
+    const cornerResult = hitTestPrecise(elements, 5, 5);
+    expect(cornerResult!.id).toBe('back');
   });
 });

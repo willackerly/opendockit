@@ -41,6 +41,7 @@ export type { Rect } from './spatial.js';
 export {
   // Primary API (new names)
   hitTest,
+  hitTestPrecise,
   getBounds,
   getOverlapping,
   isPointInBounds,
@@ -61,6 +62,10 @@ export {
 // ─── Spatial index (R-tree) ─────────────────────────────
 
 export { SpatialIndex } from './spatial-index.js';
+
+// ─── OBB utilities ─────────────────────────────────────
+
+export { pointInOBB } from './obb.js';
 
 // ─── Dirty tracking ─────────────────────────────────────
 
