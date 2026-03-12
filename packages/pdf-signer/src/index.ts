@@ -249,6 +249,9 @@ export type {
 // --- Utility ---
 export { embedFileAttachment } from './util/index.js';
 
+// --- Incremental Save ---
+export { ChangeTracker, IncrementalWriter } from './incremental/index.js';
+
 // --- Element Model ---
 export type {
   PageModel,
