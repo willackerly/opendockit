@@ -54,3 +54,5 @@ export {
   SUBSTITUTION_REGISTRY,
   type SubstitutionEntry,
 } from './substitution-table.js';
+
+export { subsetFont, isSubsetAvailable } from './subset.js';
