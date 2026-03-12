@@ -7,15 +7,16 @@
  *
  * This implementation handles:
  * - Solid fill backgrounds
- * - Gradient fill backgrounds (linear only, approximated as solid using first stop)
+ * - Gradient fill backgrounds (linear/radial via PDF shading objects)
  * - Shape rectangles with solid fills
+ * - Gradient fills on shapes (linear/radial via PDF shading with clip path)
+ * - Picture fill backgrounds (image XObjects)
+ * - Picture fills on shapes (image XObjects with clip path)
  * - Text rendering with standard PDF fonts (Helvetica, Times-Roman, Courier)
  * - Shape outlines
  * - Group transforms
  *
  * Future work:
- * - Picture/image embedding as XObjects
- * - Gradient fills on shapes
  * - Effects (shadows, glow, reflection)
  * - Connector rendering
  * - Table text rendering
@@ -26,6 +27,9 @@ import type {
   SlideElementIR,
   DrawingMLShapeIR,
   FillIR,
+  GradientFillIR,
+  GradientStopIR,
+  PictureFillIR,
   ResolvedColor,
   TransformIR,
   GroupIR,
@@ -39,6 +43,35 @@ import type { BackgroundIR, EnrichedSlideData } from '../model/index.js';
 import { emuToPt } from '@opendockit/core';
 import type { EmbeddedFontResult } from './pdf-font-embedder.js';
 import { getStandardFontName } from './pdf-font-embedder.js';
+
+// ---------------------------------------------------------------------------
+// Shading request — collected during rendering, materialized by the exporter
+// ---------------------------------------------------------------------------
+
+/** A gradient color stop in PDF color space (0-1 components). */
+export interface PdfGradientStop {
+  position: number;
+  r: number;
+  g: number;
+  b: number;
+}
+
+/**
+ * A request to create a PDF shading object.
+ *
+ * Collected during rendering and fulfilled by the exporter, which creates
+ * the actual shading dictionary and wires it into the page resources.
+ */
+export interface ShadingRequest {
+  /** Unique name for this shading (e.g. "Sh1", "Sh2"). */
+  name: string;
+  /** Shading type: 2 = axial (linear), 3 = radial. */
+  type: 2 | 3;
+  /** Coordinate array: [x0, y0, x1, y1] for axial, [x0, y0, r0, x1, y1, r1] for radial. */
+  coords: number[];
+  /** Color stops (position 0-1, RGB 0-1). */
+  stops: PdfGradientStop[];
+}
 
 // ---------------------------------------------------------------------------
 // Color conversion helpers
@@ -79,6 +112,162 @@ function transformToPdf(
   // PDF Y is from bottom, so flip: pdfY = pageHeight - yFromTop - height
   const y = pageHeightPt - yFromTop - h;
   return { x, y, w, h };
+}
+
+// ---------------------------------------------------------------------------
+// Shading collector
+// ---------------------------------------------------------------------------
+
+/**
+ * Collects shading requests during slide rendering.
+ *
+ * Each gradient fill encountered during rendering creates a ShadingRequest
+ * that the exporter later materializes into PDF shading dictionary objects.
+ */
+export class ShadingCollector {
+  private _requests: ShadingRequest[] = [];
+  private _counter = 0;
+
+  /**
+   * Record a linear gradient shading request.
+   *
+   * @param x0 - Start X in PDF points
+   * @param y0 - Start Y in PDF points
+   * @param x1 - End X in PDF points
+   * @param y1 - End Y in PDF points
+   * @param stops - Gradient stops from the IR
+   * @returns The shading name (e.g. "Sh1")
+   */
+  addLinearGradient(
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    stops: GradientStopIR[]
+  ): string {
+    const name = `Sh${++this._counter}`;
+    this._requests.push({
+      name,
+      type: 2,
+      coords: [x0, y0, x1, y1],
+      stops: stops.map((s) => ({
+        position: s.position,
+        ...toPdfRgb(s.color),
+      })),
+    });
+    return name;
+  }
+
+  /**
+   * Record a radial gradient shading request.
+   *
+   * @param cx0 - Inner circle center X
+   * @param cy0 - Inner circle center Y
+   * @param r0 - Inner circle radius
+   * @param cx1 - Outer circle center X
+   * @param cy1 - Outer circle center Y
+   * @param r1 - Outer circle radius
+   * @param stops - Gradient stops from the IR
+   * @returns The shading name (e.g. "Sh2")
+   */
+  addRadialGradient(
+    cx0: number,
+    cy0: number,
+    r0: number,
+    cx1: number,
+    cy1: number,
+    r1: number,
+    stops: GradientStopIR[]
+  ): string {
+    const name = `Sh${++this._counter}`;
+    this._requests.push({
+      name,
+      type: 3,
+      coords: [cx0, cy0, r0, cx1, cy1, r1],
+      stops: stops.map((s) => ({
+        position: s.position,
+        ...toPdfRgb(s.color),
+      })),
+    });
+    return name;
+  }
+
+  /** Get all collected shading requests. */
+  getRequests(): ShadingRequest[] {
+    return this._requests;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Gradient geometry helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the axial shading coordinates for a linear gradient.
+ *
+ * PPTX linear gradients are specified by an angle (degrees).
+ * PDF Type 2 (axial) shading needs start/end points in the fill area.
+ *
+ * @param angle - Gradient angle in degrees (0 = left-to-right, 90 = top-to-bottom)
+ * @param x - Fill area left
+ * @param y - Fill area bottom (PDF coordinates)
+ * @param w - Fill area width
+ * @param h - Fill area height
+ * @returns [x0, y0, x1, y1] in PDF coordinates
+ */
+function linearGradientCoords(
+  angle: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): [number, number, number, number] {
+  // PPTX angle: 0° = left-to-right, 90° = top-to-bottom
+  // Convert to radians for coordinate computation
+  const rad = ((angle % 360) * Math.PI) / 180;
+
+  // Center of the fill area
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+
+  // Direction vector (PPTX: 0° → right, rotates clockwise)
+  // In PDF coords (Y up): 0° → right (+x), 90° → down (-y)
+  const dx = Math.cos(rad);
+  const dy = -Math.sin(rad);
+
+  // Project to fill the entire bounding box
+  // The gradient line must span the diagonal projection
+  const halfDist = (Math.abs(dx) * w + Math.abs(dy) * h) / 2;
+
+  const x0 = cx - dx * halfDist;
+  const y0 = cy - dy * halfDist;
+  const x1 = cx + dx * halfDist;
+  const y1 = cy + dy * halfDist;
+
+  return [x0, y0, x1, y1];
+}
+
+/**
+ * Compute radial gradient coordinates for a path/radial gradient.
+ *
+ * Maps an OOXML radial/path gradient to a PDF Type 3 radial shading.
+ *
+ * @param x - Fill area left
+ * @param y - Fill area bottom (PDF coordinates)
+ * @param w - Fill area width
+ * @param h - Fill area height
+ * @returns [cx0, cy0, r0, cx1, cy1, r1]
+ */
+function radialGradientCoords(
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): [number, number, number, number, number, number] {
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const r = Math.max(w, h) / 2;
+  return [cx, cy, 0, cx, cy, r];
 }
 
 // ---------------------------------------------------------------------------
@@ -158,12 +347,24 @@ function resolveThemeFont(
 
 /**
  * Render the slide background into PDF operators.
+ *
+ * Supports solid, gradient (via shading objects), pattern (approximated), and
+ * picture (via image XObjects) fills.
+ *
+ * @param builder - PDF content stream builder
+ * @param background - The background fill to render
+ * @param pageWidthPt - Page width in PDF points
+ * @param pageHeightPt - Page height in PDF points
+ * @param shadingCollector - Optional shading collector for gradient fills
+ * @param imageResourceNames - Optional map of image part URI -> PDF resource name
  */
 export function renderBackgroundToPdf(
   builder: ContentStreamBuilder,
   background: BackgroundIR | undefined,
   pageWidthPt: number,
-  pageHeightPt: number
+  pageHeightPt: number,
+  shadingCollector?: ShadingCollector,
+  imageResourceNames?: Map<string, string>
 ): void {
   if (!background?.fill || background.fill.type === 'none') {
     // Default white background
@@ -189,16 +390,7 @@ export function renderBackgroundToPdf(
     }
 
     case 'gradient': {
-      // TRACKED-TASK: PDF gradient shading objects for gradient backgrounds - see TODO.md
-      // Approximation: use the first gradient stop color as a solid fill
-      if (fill.stops.length > 0) {
-        const { r, g, b } = toPdfRgb(fill.stops[0].color);
-        builder.pushGraphicsState();
-        builder.setFillingRgbColor(r, g, b);
-        builder.rectangle(0, 0, pageWidthPt, pageHeightPt);
-        builder.fill();
-        builder.popGraphicsState();
-      }
+      renderGradientFill(builder, fill, 0, 0, pageWidthPt, pageHeightPt, shadingCollector);
       break;
     }
 
@@ -214,15 +406,107 @@ export function renderBackgroundToPdf(
     }
 
     case 'picture': {
-      // TRACKED-TASK: PDF image XObject embedding for picture backgrounds - see TODO.md
-      // Fallback: white background
-      builder.pushGraphicsState();
-      builder.setFillingRgbColor(1, 1, 1);
-      builder.rectangle(0, 0, pageWidthPt, pageHeightPt);
-      builder.fill();
-      builder.popGraphicsState();
+      renderPictureFill(builder, fill, 0, 0, pageWidthPt, pageHeightPt, imageResourceNames);
       break;
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Gradient fill renderer (shared by background + shapes)
+// ---------------------------------------------------------------------------
+
+/**
+ * Render a gradient fill into PDF operators.
+ *
+ * Uses the `sh` (paint shading) operator with a clip path. The shading
+ * dictionary is created by the exporter from the ShadingRequest.
+ *
+ * If no shading collector is available, falls back to a solid fill using
+ * the first stop color.
+ */
+function renderGradientFill(
+  builder: ContentStreamBuilder,
+  fill: GradientFillIR,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  shadingCollector?: ShadingCollector
+): void {
+  if (fill.stops.length === 0) return;
+
+  // Fallback to solid when no shading collector
+  if (!shadingCollector || fill.stops.length < 2) {
+    const { r, g, b } = toPdfRgb(fill.stops[0].color);
+    builder.pushGraphicsState();
+    builder.setFillingRgbColor(r, g, b);
+    builder.rectangle(x, y, w, h);
+    builder.fill();
+    builder.popGraphicsState();
+    return;
+  }
+
+  let shadingName: string;
+
+  if (fill.kind === 'radial' || fill.kind === 'path') {
+    const [cx0, cy0, r0, cx1, cy1, r1] = radialGradientCoords(x, y, w, h);
+    shadingName = shadingCollector.addRadialGradient(cx0, cy0, r0, cx1, cy1, r1, fill.stops);
+  } else {
+    // Linear gradient (default)
+    const angle = fill.angle ?? 0;
+    const [x0, y0, x1, y1] = linearGradientCoords(angle, x, y, w, h);
+    shadingName = shadingCollector.addLinearGradient(x0, y0, x1, y1, fill.stops);
+  }
+
+  // Clip to the fill area and paint the shading
+  builder.pushGraphicsState();
+  builder.rectangle(x, y, w, h);
+  builder.clip();
+  builder.endPath();
+  // Paint the shading: /ShName sh
+  builder.raw(`/${shadingName} sh`);
+  builder.popGraphicsState();
+}
+
+// ---------------------------------------------------------------------------
+// Picture fill renderer (shared by background + shapes)
+// ---------------------------------------------------------------------------
+
+/**
+ * Render a picture fill into PDF operators.
+ *
+ * Clips to the fill area and renders the image XObject. Falls back to a
+ * white fill if the image is not available.
+ */
+function renderPictureFill(
+  builder: ContentStreamBuilder,
+  fill: PictureFillIR,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  imageResourceNames?: Map<string, string>
+): void {
+  const resourceName = imageResourceNames?.get(fill.imagePartUri);
+
+  if (resourceName) {
+    builder.pushGraphicsState();
+    // Clip to the fill area
+    builder.rectangle(x, y, w, h);
+    builder.clip();
+    builder.endPath();
+    // Scale and position the image (PDF images are 1x1 by default)
+    builder.concatMatrix(w, 0, 0, h, x, y);
+    builder.drawXObject(resourceName);
+    builder.popGraphicsState();
+  } else {
+    // Fallback: white fill
+    builder.pushGraphicsState();
+    builder.setFillingRgbColor(1, 1, 1);
+    builder.rectangle(x, y, w, h);
+    builder.fill();
+    builder.popGraphicsState();
   }
 }
 
@@ -232,6 +516,9 @@ export function renderBackgroundToPdf(
 
 /**
  * Render a shape's fill to PDF operators.
+ *
+ * Supports solid, gradient (via shading), pattern (approximated), and
+ * picture (via image XObject) fills.
  */
 function renderShapeFill(
   builder: ContentStreamBuilder,
@@ -239,7 +526,9 @@ function renderShapeFill(
   x: number,
   y: number,
   w: number,
-  h: number
+  h: number,
+  shadingCollector?: ShadingCollector,
+  imageResourceNames?: Map<string, string>
 ): void {
   if (!fill || fill.type === 'none') return;
 
@@ -253,14 +542,7 @@ function renderShapeFill(
     }
 
     case 'gradient': {
-      // TRACKED-TASK: PDF gradient shading for shape fills - see TODO.md
-      // Approximation: use first stop color
-      if (fill.stops.length > 0) {
-        const { r, g, b } = toPdfRgb(fill.stops[0].color);
-        builder.setFillingRgbColor(r, g, b);
-        builder.rectangle(x, y, w, h);
-        builder.fill();
-      }
+      renderGradientFill(builder, fill, x, y, w, h, shadingCollector);
       break;
     }
 
@@ -273,7 +555,7 @@ function renderShapeFill(
     }
 
     case 'picture': {
-      // TRACKED-TASK: PDF image XObject embedding for shape picture fills - see TODO.md
+      renderPictureFill(builder, fill, x, y, w, h, imageResourceNames);
       break;
     }
   }
@@ -512,7 +794,9 @@ function renderShapeToPdf(
   builder: ContentStreamBuilder,
   element: DrawingMLShapeIR,
   pageHeightPt: number,
-  fontCtx?: FontLookupContext
+  fontCtx?: FontLookupContext,
+  shadingCollector?: ShadingCollector,
+  imageResourceNames?: Map<string, string>
 ): void {
   const transform = element.properties.transform;
   if (!transform) return;
@@ -540,7 +824,7 @@ function renderShapeToPdf(
   }
 
   // Render fill
-  renderShapeFill(builder, element.properties.fill, x, y, w, h);
+  renderShapeFill(builder, element.properties.fill, x, y, w, h, shadingCollector, imageResourceNames);
 
   // Render outline
   renderShapeLine(builder, element, x, y, w, h);
@@ -568,7 +852,8 @@ function renderGroupToPdf(
   group: GroupIR,
   pageHeightPt: number,
   fontCtx?: FontLookupContext,
-  imageResourceNames?: Map<string, string>
+  imageResourceNames?: Map<string, string>,
+  shadingCollector?: ShadingCollector
 ): void {
   const transform = group.properties.transform;
   if (!transform) return;
@@ -598,7 +883,8 @@ function renderGroupToPdf(
       child,
       pageHeightPt / scaleY + emuToPt(cy),
       fontCtx,
-      imageResourceNames
+      imageResourceNames,
+      shadingCollector
     );
   }
 
@@ -622,21 +908,23 @@ function renderGroupToPdf(
  * @param pageHeightPt - Page height in PDF points (for Y-flip)
  * @param fontCtx - Font lookup context for text rendering
  * @param imageResourceNames - Map of image part URI -> PDF resource name (e.g. "Im1")
+ * @param shadingCollector - Optional shading collector for gradient fills
  */
 export function renderElementToPdf(
   builder: ContentStreamBuilder,
   element: SlideElementIR,
   pageHeightPt: number,
   fontCtx?: FontLookupContext,
-  imageResourceNames?: Map<string, string>
+  imageResourceNames?: Map<string, string>,
+  shadingCollector?: ShadingCollector
 ): void {
   switch (element.kind) {
     case 'shape':
-      renderShapeToPdf(builder, element, pageHeightPt, fontCtx);
+      renderShapeToPdf(builder, element, pageHeightPt, fontCtx, shadingCollector, imageResourceNames);
       break;
 
     case 'group':
-      renderGroupToPdf(builder, element as GroupIR, pageHeightPt, fontCtx, imageResourceNames);
+      renderGroupToPdf(builder, element as GroupIR, pageHeightPt, fontCtx, imageResourceNames, shadingCollector);
       break;
 
     case 'picture':
@@ -734,7 +1022,7 @@ function renderTablePlaceholder(
  * @param pageHeightPt - Page height in PDF points
  * @param fontCtx - Optional font lookup context for text rendering
  * @param imageResourceNames - Optional map of image part URI -> PDF resource name
- * @returns ContentStreamBuilder with all operators
+ * @returns Object with ContentStreamBuilder and ShadingCollector
  */
 export function renderSlideToPdf(
   data: EnrichedSlideData,
@@ -742,31 +1030,40 @@ export function renderSlideToPdf(
   pageHeightPt: number,
   fontCtx?: FontLookupContext,
   imageResourceNames?: Map<string, string>
-): ContentStreamBuilder {
+): SlideRenderResult {
   const builder = new ContentStreamBuilder();
+  const shadingCollector = new ShadingCollector();
   const { slide, layout, master } = data;
 
   // 1. Background cascade: slide > layout > master
   const effectiveBg = slide.background ?? layout.background ?? master.background;
-  renderBackgroundToPdf(builder, effectiveBg, pageWidthPt, pageHeightPt);
+  renderBackgroundToPdf(builder, effectiveBg, pageWidthPt, pageHeightPt, shadingCollector, imageResourceNames);
 
   // 2. Master elements (if layout says showMasterSp !== false)
   const showMaster = layout.showMasterSp !== false;
   if (showMaster) {
     for (const element of master.elements) {
-      renderElementToPdf(builder, element, pageHeightPt, fontCtx, imageResourceNames);
+      renderElementToPdf(builder, element, pageHeightPt, fontCtx, imageResourceNames, shadingCollector);
     }
   }
 
   // 3. Layout elements
   for (const element of layout.elements) {
-    renderElementToPdf(builder, element, pageHeightPt, fontCtx, imageResourceNames);
+    renderElementToPdf(builder, element, pageHeightPt, fontCtx, imageResourceNames, shadingCollector);
   }
 
   // 4. Slide elements (front-most layer)
   for (const element of slide.elements) {
-    renderElementToPdf(builder, element, pageHeightPt, fontCtx, imageResourceNames);
+    renderElementToPdf(builder, element, pageHeightPt, fontCtx, imageResourceNames, shadingCollector);
   }
 
-  return builder;
+  return { builder, shadingRequests: shadingCollector.getRequests() };
+}
+
+/** Result of rendering a slide, including content stream and shading requests. */
+export interface SlideRenderResult {
+  /** The content stream builder with all operators. */
+  builder: ContentStreamBuilder;
+  /** Shading requests that need to be materialized as PDF objects. */
+  shadingRequests: ShadingRequest[];
 }

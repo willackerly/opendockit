@@ -12,8 +12,8 @@
  * @module pdf-image-collector
  */
 
-import type { SlideElementIR, PictureIR, GroupIR } from '@opendockit/core';
-import type { EnrichedSlideData } from '../model/index.js';
+import type { SlideElementIR, PictureIR, GroupIR, DrawingMLShapeIR, FillIR } from '@opendockit/core';
+import type { EnrichedSlideData, BackgroundIR } from '../model/index.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -52,6 +52,19 @@ export function collectImagesFromSlide(slideData: EnrichedSlideData): CollectedI
     result.push({ imagePartUri, widthEmu, heightEmu });
   }
 
+  function processFill(fill: FillIR | undefined, widthEmu: number, heightEmu: number): void {
+    if (fill?.type === 'picture' && fill.imagePartUri) {
+      addImage(fill.imagePartUri, widthEmu, heightEmu);
+    }
+  }
+
+  function processBackground(bg: BackgroundIR | undefined): void {
+    if (bg?.fill?.type === 'picture') {
+      // Use slide dimensions for background images
+      addImage(bg.fill.imagePartUri, 12192000, 6858000); // default 10"x7.5" in EMU
+    }
+  }
+
   function processElement(element: SlideElementIR): void {
     switch (element.kind) {
       case 'picture': {
@@ -62,6 +75,14 @@ export function collectImagesFromSlide(slideData: EnrichedSlideData): CollectedI
         }
         break;
       }
+      case 'shape': {
+        const shape = element as DrawingMLShapeIR;
+        const transform = shape.properties.transform;
+        if (shape.properties.fill?.type === 'picture' && transform) {
+          processFill(shape.properties.fill, transform.size.width, transform.size.height);
+        }
+        break;
+      }
       case 'group': {
         const group = element as GroupIR;
         for (const child of group.children) {
@@ -69,7 +90,7 @@ export function collectImagesFromSlide(slideData: EnrichedSlideData): CollectedI
         }
         break;
       }
-      // shapes, tables, connectors, etc. — no image references
+      // tables, connectors, etc. — no image references (yet)
       default:
         break;
     }
@@ -80,6 +101,11 @@ export function collectImagesFromSlide(slideData: EnrichedSlideData): CollectedI
       processElement(element);
     }
   }
+
+  // Collect images from backgrounds
+  const effectiveBg =
+    slideData.slide.background ?? slideData.layout.background ?? slideData.master.background;
+  processBackground(effectiveBg);
 
   // Respect showMasterSp flag
   const showMaster = slideData.layout.showMasterSp !== false;

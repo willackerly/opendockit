@@ -18,6 +18,12 @@ import {
   collectImagesFromPresentation,
   detectImageMimeType,
 } from '../pdf-image-collector.js';
+import {
+  renderSlideToPdf,
+  renderBackgroundToPdf,
+  ShadingCollector,
+} from '../pdf-slide-renderer.js';
+import { ContentStreamBuilder } from '@opendockit/pdf-signer';
 import { PDFBackend, PDFGradient } from '@opendockit/render';
 import type {
   PresentationIR,
@@ -28,6 +34,7 @@ import type {
   ResolvedColor,
   DrawingMLShapeIR,
   PictureIR,
+  PictureFillIR,
   TransformIR,
   ShapePropertiesIR,
   GradientFillIR,
@@ -886,6 +893,526 @@ describe('exportPresentationToPdf with gradients', () => {
     const header = new TextDecoder().decode(result.bytes.slice(0, 5));
     expect(header).toBe('%PDF-');
     expect(result.pageCount).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Gradient Shading — Content Stream Operators
+// ---------------------------------------------------------------------------
+
+describe('gradient shading in content stream', () => {
+  it('emits sh operator for linear gradient background', () => {
+    const builder = new ContentStreamBuilder();
+    const collector = new ShadingCollector();
+
+    renderBackgroundToPdf(
+      builder,
+      {
+        fill: {
+          type: 'gradient',
+          kind: 'linear',
+          angle: 0,
+          stops: [
+            { position: 0, color: { r: 255, g: 0, b: 0, a: 1 } },
+            { position: 1, color: { r: 0, g: 0, b: 255, a: 1 } },
+          ],
+        },
+      },
+      720,
+      540,
+      collector
+    );
+
+    const ops = builder.toString();
+    // Should contain clip + shading paint operator
+    expect(ops).toContain('W');
+    expect(ops).toContain('/Sh1 sh');
+
+    // Should have created a shading request
+    const requests = collector.getRequests();
+    expect(requests).toHaveLength(1);
+    expect(requests[0].name).toBe('Sh1');
+    expect(requests[0].type).toBe(2); // axial
+    expect(requests[0].stops).toHaveLength(2);
+  });
+
+  it('emits sh operator for radial gradient background', () => {
+    const builder = new ContentStreamBuilder();
+    const collector = new ShadingCollector();
+
+    renderBackgroundToPdf(
+      builder,
+      {
+        fill: {
+          type: 'gradient',
+          kind: 'radial',
+          stops: [
+            { position: 0, color: { r: 255, g: 255, b: 255, a: 1 } },
+            { position: 1, color: { r: 0, g: 0, b: 0, a: 1 } },
+          ],
+        },
+      },
+      720,
+      540,
+      collector
+    );
+
+    const ops = builder.toString();
+    expect(ops).toContain('/Sh1 sh');
+
+    const requests = collector.getRequests();
+    expect(requests[0].type).toBe(3); // radial
+  });
+
+  it('emits sh operator for gradient shape fill', () => {
+    const slide = makeEnriched({
+      elements: [
+        makeShape({
+          properties: makeProperties({
+            transform: makeTransform(),
+            fill: {
+              type: 'gradient',
+              kind: 'linear',
+              angle: 45,
+              stops: [
+                { position: 0, color: { r: 0, g: 128, b: 0, a: 1 } },
+                { position: 1, color: { r: 0, g: 0, b: 128, a: 1 } },
+              ],
+            },
+          }),
+        }),
+      ],
+    });
+
+    const { builder, shadingRequests } = renderSlideToPdf(slide, 720, 540);
+    const ops = builder.toString();
+
+    // Background shading (default white) + shape gradient
+    expect(ops).toContain('/Sh1 sh');
+    expect(shadingRequests.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('creates multiple shading requests for multiple gradients', () => {
+    const slide = makeEnriched({
+      elements: [
+        makeShape({
+          properties: makeProperties({
+            transform: makeTransform(),
+            fill: {
+              type: 'gradient',
+              kind: 'linear',
+              angle: 0,
+              stops: [
+                { position: 0, color: { r: 255, g: 0, b: 0, a: 1 } },
+                { position: 1, color: { r: 0, g: 255, b: 0, a: 1 } },
+              ],
+            },
+          }),
+        }),
+        makeShape({
+          properties: makeProperties({
+            transform: makeTransform({
+              position: { x: 2000000, y: 914400 },
+            }),
+            fill: {
+              type: 'gradient',
+              kind: 'radial',
+              stops: [
+                { position: 0, color: { r: 255, g: 255, b: 0, a: 1 } },
+                { position: 1, color: { r: 0, g: 0, b: 255, a: 1 } },
+              ],
+            },
+          }),
+        }),
+      ],
+    });
+
+    const { shadingRequests } = renderSlideToPdf(slide, 720, 540);
+
+    // Two gradient shapes -> two shading requests
+    expect(shadingRequests.length).toBe(2);
+    expect(shadingRequests[0].name).toBe('Sh1');
+    expect(shadingRequests[1].name).toBe('Sh2');
+  });
+
+  it('converts gradient stop colors to 0-1 range', () => {
+    const collector = new ShadingCollector();
+    collector.addLinearGradient(0, 0, 100, 0, [
+      { position: 0, color: { r: 128, g: 64, b: 255, a: 1 } },
+      { position: 1, color: { r: 0, g: 128, b: 0, a: 1 } },
+    ]);
+
+    const req = collector.getRequests()[0];
+    expect(req.stops[0].r).toBeCloseTo(128 / 255, 3);
+    expect(req.stops[0].g).toBeCloseTo(64 / 255, 3);
+    expect(req.stops[0].b).toBeCloseTo(1, 3);
+    expect(req.stops[1].r).toBeCloseTo(0, 3);
+    expect(req.stops[1].g).toBeCloseTo(128 / 255, 3);
+    expect(req.stops[1].b).toBeCloseTo(0, 3);
+  });
+
+  it('handles multi-stop gradients (3+ stops)', () => {
+    const slide = makeEnriched({
+      elements: [
+        makeShape({
+          properties: makeProperties({
+            transform: makeTransform(),
+            fill: {
+              type: 'gradient',
+              kind: 'linear',
+              angle: 0,
+              stops: [
+                { position: 0, color: { r: 255, g: 0, b: 0, a: 1 } },
+                { position: 0.5, color: { r: 0, g: 255, b: 0, a: 1 } },
+                { position: 1, color: { r: 0, g: 0, b: 255, a: 1 } },
+              ],
+            },
+          }),
+        }),
+      ],
+    });
+
+    const { shadingRequests } = renderSlideToPdf(slide, 720, 540);
+    const gradientReq = shadingRequests.find((r) => r.stops.length === 3);
+    expect(gradientReq).toBeDefined();
+    expect(gradientReq!.stops).toHaveLength(3);
+  });
+
+  it('falls back to solid fill when only 1 stop', () => {
+    const builder = new ContentStreamBuilder();
+    const collector = new ShadingCollector();
+
+    renderBackgroundToPdf(
+      builder,
+      {
+        fill: {
+          type: 'gradient',
+          kind: 'linear',
+          stops: [{ position: 0, color: { r: 128, g: 128, b: 128, a: 1 } }],
+        },
+      },
+      720,
+      540,
+      collector
+    );
+
+    const ops = builder.toString();
+    // Should NOT have a shading operator — should be solid fill
+    expect(ops).not.toContain('sh');
+    // Should have rg (fill color)
+    expect(ops).toContain('rg');
+    expect(collector.getRequests()).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Gradient Shading — Full PDF Export
+// ---------------------------------------------------------------------------
+
+describe('exportPresentationToPdf with gradient shading objects', () => {
+  it('embeds shading dictionary in PDF for gradient fill shape', async () => {
+    const pres = makePresentation(1);
+    const slides = [
+      makeEnriched({
+        elements: [
+          makeShape({
+            properties: makeProperties({
+              transform: makeTransform(),
+              fill: {
+                type: 'gradient',
+                kind: 'linear',
+                angle: 90,
+                stops: [
+                  { position: 0, color: { r: 255, g: 0, b: 0, a: 1 } },
+                  { position: 1, color: { r: 0, g: 0, b: 255, a: 1 } },
+                ],
+              },
+            }),
+          }),
+        ],
+      }),
+    ];
+
+    const result = await exportPresentationToPdf(pres, slides);
+    const pdfText = new TextDecoder().decode(result.bytes);
+
+    // PDF should contain a shading reference
+    expect(pdfText).toContain('/Shading');
+    expect(pdfText).toContain('/Sh1');
+    // Content stream should have the sh operator
+    expect(pdfText).toContain('/Sh1 sh');
+    // Shading dictionary should have Type 2 (axial)
+    expect(pdfText).toContain('/ShadingType 2');
+    expect(pdfText).toContain('/ColorSpace /DeviceRGB');
+    // Function type 2 (exponential interpolation)
+    expect(pdfText).toContain('/FunctionType 2');
+  });
+
+  it('embeds stitching function for multi-stop gradient', async () => {
+    const pres = makePresentation(1);
+    const slides = [
+      makeEnriched({
+        elements: [
+          makeShape({
+            properties: makeProperties({
+              transform: makeTransform(),
+              fill: {
+                type: 'gradient',
+                kind: 'linear',
+                angle: 0,
+                stops: [
+                  { position: 0, color: { r: 255, g: 0, b: 0, a: 1 } },
+                  { position: 0.5, color: { r: 0, g: 255, b: 0, a: 1 } },
+                  { position: 1, color: { r: 0, g: 0, b: 255, a: 1 } },
+                ],
+              },
+            }),
+          }),
+        ],
+      }),
+    ];
+
+    const result = await exportPresentationToPdf(pres, slides);
+    const pdfText = new TextDecoder().decode(result.bytes);
+
+    // Should contain stitching function (Type 3)
+    expect(pdfText).toContain('/FunctionType 3');
+    // Should contain sub-functions (Type 2)
+    expect(pdfText).toContain('/FunctionType 2');
+    // Should contain /Bounds array
+    expect(pdfText).toContain('/Bounds');
+  });
+
+  it('embeds radial shading for radial gradient', async () => {
+    const pres = makePresentation(1);
+    const slides = [
+      makeEnriched({
+        elements: [
+          makeShape({
+            properties: makeProperties({
+              transform: makeTransform(),
+              fill: {
+                type: 'gradient',
+                kind: 'radial',
+                stops: [
+                  { position: 0, color: { r: 255, g: 255, b: 255, a: 1 } },
+                  { position: 1, color: { r: 0, g: 0, b: 0, a: 1 } },
+                ],
+              },
+            }),
+          }),
+        ],
+      }),
+    ];
+
+    const result = await exportPresentationToPdf(pres, slides);
+    const pdfText = new TextDecoder().decode(result.bytes);
+
+    // Should contain Type 3 radial shading
+    expect(pdfText).toContain('/ShadingType 3');
+  });
+
+  it('embeds shading for gradient background', async () => {
+    const pres = makePresentation(1);
+    const slides = [
+      makeEnriched({
+        background: {
+          fill: {
+            type: 'gradient',
+            kind: 'linear',
+            angle: 0,
+            stops: [
+              { position: 0, color: { r: 200, g: 200, b: 200, a: 1 } },
+              { position: 1, color: { r: 50, g: 50, b: 50, a: 1 } },
+            ],
+          },
+        },
+      }),
+    ];
+
+    const result = await exportPresentationToPdf(pres, slides);
+    const pdfText = new TextDecoder().decode(result.bytes);
+
+    expect(pdfText).toContain('/Shading');
+    expect(pdfText).toContain('/ShadingType 2');
+    expect(pdfText).toContain('/Sh1 sh');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Picture Fill — Image Collector
+// ---------------------------------------------------------------------------
+
+describe('collectImagesFromSlide with picture fills', () => {
+  it('collects images from shape picture fills', () => {
+    const slideData = makeEnriched({
+      elements: [
+        makeShape({
+          properties: makeProperties({
+            transform: makeTransform(),
+            fill: {
+              type: 'picture',
+              imagePartUri: '/ppt/media/texture.jpg',
+            } as PictureFillIR,
+          }),
+        }),
+      ],
+    });
+
+    const images = collectImagesFromSlide(slideData);
+    expect(images.length).toBeGreaterThanOrEqual(1);
+    expect(images.some((i) => i.imagePartUri === '/ppt/media/texture.jpg')).toBe(true);
+  });
+
+  it('collects images from background picture fills', () => {
+    const slideData = makeEnriched({
+      background: {
+        fill: {
+          type: 'picture',
+          imagePartUri: '/ppt/media/bg-photo.jpg',
+        } as PictureFillIR,
+      },
+    });
+
+    const images = collectImagesFromSlide(slideData);
+    expect(images.length).toBeGreaterThanOrEqual(1);
+    expect(images.some((i) => i.imagePartUri === '/ppt/media/bg-photo.jpg')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Picture Fill — Content Stream & Export
+// ---------------------------------------------------------------------------
+
+describe('picture fill rendering', () => {
+  it('emits Do operator for picture fill background when image is registered', () => {
+    const builder = new ContentStreamBuilder();
+    const imageMap = new Map([
+      ['/ppt/media/bg.jpg', 'Im1'],
+    ]);
+
+    renderBackgroundToPdf(
+      builder,
+      {
+        fill: {
+          type: 'picture',
+          imagePartUri: '/ppt/media/bg.jpg',
+        } as PictureFillIR,
+      },
+      720,
+      540,
+      undefined,
+      imageMap
+    );
+
+    const ops = builder.toString();
+    // Should clip to background area and paint image
+    expect(ops).toContain('W');
+    expect(ops).toContain('/Im1 Do');
+  });
+
+  it('falls back to white fill when picture image is not registered', () => {
+    const builder = new ContentStreamBuilder();
+
+    renderBackgroundToPdf(
+      builder,
+      {
+        fill: {
+          type: 'picture',
+          imagePartUri: '/ppt/media/missing.jpg',
+        } as PictureFillIR,
+      },
+      720,
+      540
+    );
+
+    const ops = builder.toString();
+    // Should have white fill fallback
+    expect(ops).toContain('1 1 1 rg');
+    expect(ops).not.toContain('Do');
+  });
+
+  it('emits Do operator for shape picture fill', () => {
+    const imageMap = new Map([
+      ['/ppt/media/fill.jpg', 'Im2'],
+    ]);
+
+    const slide = makeEnriched({
+      elements: [
+        makeShape({
+          properties: makeProperties({
+            transform: makeTransform(),
+            fill: {
+              type: 'picture',
+              imagePartUri: '/ppt/media/fill.jpg',
+            } as PictureFillIR,
+          }),
+        }),
+      ],
+    });
+
+    const { builder } = renderSlideToPdf(slide, 720, 540, undefined, imageMap);
+    const ops = builder.toString();
+
+    expect(ops).toContain('/Im2 Do');
+  });
+
+  it('exports PDF with picture fill background image', async () => {
+    const jpeg = createMinimalJpeg();
+    const pres = makePresentation(1);
+    const slides = [
+      makeEnriched({
+        background: {
+          fill: {
+            type: 'picture',
+            imagePartUri: '/ppt/media/bg.jpg',
+          } as PictureFillIR,
+        },
+      }),
+    ];
+
+    const result = await exportPresentationToPdf(pres, slides, {
+      getImageBytes: (partUri) => {
+        if (partUri === '/ppt/media/bg.jpg') return jpeg;
+        return undefined;
+      },
+    });
+
+    expect(result.imageCount).toBe(1);
+    const pdfText = new TextDecoder().decode(result.bytes);
+    expect(pdfText).toContain('/Im1 Do');
+  });
+
+  it('exports PDF with shape picture fill image', async () => {
+    const jpeg = createMinimalJpeg();
+    const pres = makePresentation(1);
+    const slides = [
+      makeEnriched({
+        elements: [
+          makeShape({
+            properties: makeProperties({
+              transform: makeTransform(),
+              fill: {
+                type: 'picture',
+                imagePartUri: '/ppt/media/texture.jpg',
+              } as PictureFillIR,
+            }),
+          }),
+        ],
+      }),
+    ];
+
+    const result = await exportPresentationToPdf(pres, slides, {
+      getImageBytes: (partUri) => {
+        if (partUri === '/ppt/media/texture.jpg') return jpeg;
+        return undefined;
+      },
+    });
+
+    expect(result.imageCount).toBe(1);
+    const pdfText = new TextDecoder().decode(result.bytes);
+    expect(pdfText).toContain('/Im1 Do');
+    expect(pdfText).toContain('/Subtype /Image');
   });
 });
 
