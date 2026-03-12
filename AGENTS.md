@@ -156,13 +156,13 @@ Multiple agents work async on this codebase. Docs drift when agents complete wor
 
 | Component | Location | What It Does |
 |-----------|----------|-------------|
-| **PageElement types** | `packages/pdf-signer/src/elements/types.ts` (149 lines) | TextElement (paragraphs→runs), ShapeElement, ImageElement, PathElement, GroupElement — format-agnostic |
+| **PageElement types** | `packages/elements/src/types.ts` (149 lines) | TextElement (paragraphs→runs), ShapeElement, ImageElement, PathElement, GroupElement — format-agnostic |
 | **trace-to-elements** | `packages/elements/src/debug/trace-to-elements.ts` (463 lines, 21 tests) | Converts RenderTrace → PageElement[]. Groups by shapeId/paragraph/run. Parses CSS colors/fonts |
 | **element-matcher** | `packages/elements/src/debug/element-matcher.ts` (284 lines) | Multi-pass matching: (1) text-exact, (2) text-fuzzy (LCS > 0.7), (3) spatial (IoU > 0.3) |
 | **property-diff** | `packages/elements/src/debug/property-diff.ts` (345 lines) | Per-property comparison: position (<1pt match, 1-3pt minor, >8pt critical), font size, color (RGB distance), font family |
 | **PPTX→elements bridge** | `packages/pptx/src/elements/pptx-to-elements.ts` (578 lines) | Converts SlideElementIR → PageElement[] with EMU→points, rotation, source preservation |
 
-### PDF Comparison Infrastructure (partial — Canvas Tree will complete it)
+### PDF Comparison Infrastructure (complete)
 
 | Component | Location | What It Does |
 |-----------|----------|-------------|
@@ -170,6 +170,8 @@ Multiple agents work async on this codebase. Docs drift when agents complete wor
 | **Element matcher (PDF)** | `packages/pdf-signer/src/render/__tests__/element-matcher.ts` (660 lines, 42 tests) | Flattens TextElements to runs, groups into words, greedy nearest-neighbor matching |
 | **Element diff harness** | `packages/pdf-signer/src/render/__tests__/element-diff-harness.test.ts` (134 lines) | Integration: render → extract elements → match ground truth → score → HTML report |
 | **RMSE comparison harness** | `packages/pdf-signer/src/render/__tests__/pdf-compare-harness.test.ts` | Pixel-level: NativeRenderer vs pdftoppm → per-page RMSE → HTML report with diffs |
+
+> **Note:** There are two element-matcher implementations. `@opendockit/elements` `matchElements()` is the public API for cross-format matching. `packages/pdf-signer/src/render/__tests__/element-matcher.ts` has PDF-specific word grouping (`groupRunsIntoWords`, `splitRunsIntoWords`) and Levenshtein matching — this should be promoted to a non-test module.
 
 ### How to Use (Quick Reference)
 
@@ -201,9 +203,24 @@ const report = generateDiffReport(elementsA, elementsB);
 
 **If you see a cross-format test that calls `exportPresentationToPdf()` as the PDF source, it is WRONG. Delete it and rebuild using a PowerPoint-exported PDF.**
 
-### Next: Canvas Tree Recorder (planned — see `docs/plans/CANVAS_TREE_PLAN.md`)
+### Canvas Tree Recorder (COMPLETE)
 
-Will instrument PDF's `canvas-graphics.ts` to emit the same `TraceEvent[]` format as PPTX's TracingBackend, enabling the full comparison pipeline for PDF rendering. Target: text accuracy from 8.2% → >90%.
+Instruments PDF's `canvas-graphics.ts` to emit the same `TraceEvent[]` format as PPTX's TracingBackend, enabling the full comparison pipeline for PDF rendering. Text accuracy went from 8.2% → 97%.
+
+| Component | Location | What It Does |
+|-----------|----------|-------------|
+| **CanvasTreeRecorder** | `packages/pdf-signer/src/render/canvas-tree-recorder.ts` | Captures Canvas2D ops as TraceEvent[] (same format as PPTX TracingBackend). Shadow CTM stack for world-space coordinates. |
+| **NativeRenderer.renderPageWithTrace()** | `packages/pdf-signer/src/render/NativeRenderer.ts` | Renders page + captures trace. Returns `{ result, trace }`. |
+
+### PDF Font Rendering Pipeline
+
+| Component | Location | What It Does |
+|-----------|----------|-------------|
+| **FontDecoder** | `packages/pdf-signer/src/document/extraction/FontDecoder.ts` | Decodes PDF char codes → Unicode (5-step: ToUnicode CMap, Differences, named encoding, built-in, passthrough) |
+| **FontExtractor** | `packages/pdf-signer/src/document/extraction/FontExtractor.ts` | Extracts font programs from PDF FontDescriptor → `ExtractedFont { fontName, fontType, rawBytes, metrics, charCodeToUnicode }` |
+| **font-patcher** | `packages/pdf-signer/src/render/font-patcher.ts` | Pure-TS font binary fixer: `patchFont()`, `patchTrueTypeFont()`, `wrapCFFInOTF()`, `detectFontType()` |
+| **font-table-builder** | `packages/pdf-signer/src/render/font-table-builder.ts` | OpenType table builders: `buildCmapTable`, `buildNameTable`, `buildOS2Table`, `assembleSfnt`, etc. |
+| **FontRegistrar** | `packages/pdf-signer/src/render/font-registrar.ts` | Registers patched font bytes with Canvas2D (Node.js `registerFont` or browser `FontFace` API) |
 
 ---
 

@@ -9,7 +9,7 @@ This is the foundation package for all of OpenDocKit. It defines the Intermediat
 ## Quick Start
 
 ```bash
-pnpm --filter @opendockit/core test    # run ~1,570 tests
+pnpm --filter @opendockit/core test    # run ~1,687 tests
 pnpm --filter @opendockit/core build   # compile to dist/
 ```
 

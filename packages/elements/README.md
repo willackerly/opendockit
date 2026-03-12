@@ -9,7 +9,7 @@ This package defines the shared element model used by both PPTX and PDF document
 ## Quick Start
 
 ```bash
-pnpm --filter @opendockit/elements test    # run ~146 tests
+pnpm --filter @opendockit/elements test    # run ~331 tests
 pnpm --filter @opendockit/elements build   # compile to dist/
 ```
 
@@ -27,3 +27,4 @@ pnpm --filter @opendockit/elements build   # compile to dist/
 - `src/editable-document.ts` -- EditableDocument base class with move/resize/delete/select operations
 - `src/text-search.ts` -- Full-text search across pages with bounding box results
 - `src/clipboard.ts` -- Format-neutral clipboard serialization (strip source bags on copy, fresh IDs on paste)
+- `src/debug/` -- Structural comparison utilities: trace-to-elements, element-matcher, property-diff (cross-format quality measurement)

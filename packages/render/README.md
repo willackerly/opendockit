@@ -9,7 +9,7 @@ This package provides the rendering primitives shared across the OpenDocKit pipe
 ## Quick Start
 
 ```bash
-pnpm --filter @opendockit/render test    # run ~201 tests
+pnpm --filter @opendockit/render test    # run ~208 tests
 pnpm --filter @opendockit/render build   # compile to dist/
 ```
 

@@ -9,7 +9,7 @@ This package provides the complete PPTX rendering pipeline: parsing PPTX files i
 ## Quick Start
 
 ```bash
-pnpm --filter @opendockit/pptx test    # run ~337 tests
+pnpm --filter @opendockit/pptx test    # run ~373 tests
 pnpm --filter @opendockit/pptx build   # compile to dist/
 ```
 

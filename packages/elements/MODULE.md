@@ -92,9 +92,24 @@ Match positions are mapped back from flat paragraph strings to per-run bounding 
 
 Source bags are stripped on copy so clipboard data is truly format-neutral. New 8-hex-char IDs are assigned on paste.
 
+## Debug & Comparison Utilities (`src/debug/`)
+
+Structural comparison infrastructure for cross-format quality measurement.
+
+| Export | File | What It Does |
+|--------|------|-------------|
+| `traceToElements(trace)` | `trace-to-elements.ts` | Convert RenderTrace → PageElement[]. Groups by shapeId/paragraph/run. |
+| `matchElements(a, b)` | `element-matcher.ts` | Multi-pass matching: text-exact → text-fuzzy (LCS > 0.7) → spatial (IoU > 0.3) |
+| `generateDiffReport(a, b)` | `property-diff.ts` | Per-property diff with severity scoring + aggregate summary |
+| `extractText(element)` | `property-diff.ts` | Extract concatenated text from a PageElement |
+| `parseCssColor(str)` | `trace-to-elements.ts` | Parse CSS color string → {r,g,b,a} |
+| `parseCssFont(str)` | `trace-to-elements.ts` | Parse CSS font shorthand → {family, size, weight, style} |
+
+Types: `MatchedPair`, `MatchResult`, `PropertyDelta`, `ElementDiff`, `DiffReport`
+
 ## Test Coverage
 
-146 tests across 5 test files (plus `test-helpers.ts`):
+331 tests across 5 test files (plus `test-helpers.ts` and debug/ tests):
 
 | File | Tests |
 | --- | --- |

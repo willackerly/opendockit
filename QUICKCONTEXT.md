@@ -108,7 +108,7 @@ See `docs/plans/FONT_DELIVERY_PLAN.md` for architecture and `docs/plans/FONT_DEL
 
 ### NativeRenderer (PDF Reading) Quality — Active Focus
 
-**Pixel RMSE avg 0.055** against pdftoppm on USG Briefing (30 pages). Down from 0.14 — **61% reduction**. Now rendering with **correct embedded typefaces** via font registration + cmap rebuild. Improvements from font size clamping [16,100]px, per-character remeasure system, actual glyph widths, and font ascent from FontDescriptor.
+**Pixel RMSE avg 0.042** against pdftoppm on USG Briefing (30 pages). Down from 0.14 — **70% reduction**. Now rendering with **correct embedded typefaces** via pure-TS font patcher + cmap rebuild + font registration. Improvements from font size clamping [16,100]px, per-character remeasure system, actual glyph widths, font ascent from FontDescriptor, and pure-TS font binary patching.
 
 **Structural accuracy (trace pipeline):** 97% text accuracy, 4.4pt avg position delta (was 8.2% / 29.7pt before Canvas Tree Recorder).
 
@@ -116,7 +116,7 @@ See `docs/plans/FONT_DELIVERY_PLAN.md` for architecture and `docs/plans/FONT_DEL
 
 **Completed (2026-03-12):** All prior fixes + font size clamping, remeasure system, actual glyph widths, font ascent from FontDescriptor, Canvas Tree Recorder Phase 1+2, **embedded font rendering** (font extraction + fonttools cmap rebuild + registration).
 
-**Remaining:** ExtGState SMask transparency groups (page 29 — Hard), Separation/DeviceN tint transforms. Canvas Tree Recorder Phase 3 (cross-format PPTX↔PDF comparison) and Phase 4 (diagnostic HTML report).
+**Remaining:** ExtGState SMask transparency groups (page 29 — Hard), Separation/DeviceN tint transforms. Canvas Tree Recorder Phase 3 (cross-format PPTX↔PDF comparison) and Phase 4 (diagnostic HTML report). Font substitution is DONE (pure-TS font patcher, no external fonttools dependency).
 
 **pdf-signer-web migration (COMPLETE 2026-03-11):** Swapped vendored pdfbox-ts tarball for @opendockit/pdf-signer. 2 source files + 2 package.json + 2 vitest configs updated. All 101 tests pass, typecheck clean.
 
@@ -187,7 +187,7 @@ None currently.
 
 ### PDF NativeRenderer Quality (2026-03-11)
 
-**Pixel RMSE 0.053** (down from 0.14 — 62% reduction). **Structural: 97% text accuracy, 4.4pt position delta.** Canvas Tree Recorder Phase 1+2 complete. Font size clamping, remeasure system, actual glyph widths, font ascent metrics all landed. Remaining: ExtGState SMask (transparency groups), font substitution, Separation/DeviceN.
+**Pixel RMSE 0.042** (down from 0.14 — 70% reduction). **Structural: 97% text accuracy, 4.4pt position delta.** Canvas Tree Recorder Phase 1+2 complete. Font size clamping, remeasure system, actual glyph widths, font ascent metrics, embedded font rendering (pure-TS font patcher) all landed. Remaining: ExtGState SMask (transparency groups), Separation/DeviceN.
 
 **Comparison harness**: `packages/pdf-signer/src/render/__tests__/pdf-compare-harness.test.ts` — generates HTML report at `packages/tmp/pdf-compare/usg-briefing/report.html`.
 **PPTX SBS viewer**: `pnpm sbs -- --pptx <path> --ref-dir <dir>` or `node scripts/generate-sbs-viewer.mjs`.

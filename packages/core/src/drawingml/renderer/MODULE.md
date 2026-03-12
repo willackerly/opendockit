@@ -18,6 +18,10 @@
 | `text-renderer.ts`    | `TextBodyIR`       | Canvas2D fillText                    | Yes                                               |
 | `picture-renderer.ts` | `PictureIR`        | Canvas2D drawImage                   | Yes                                               |
 | `group-renderer.ts`   | `GroupIR`          | Recursive Canvas2D                   | No — calls shape-renderer                         |
+| `render-backend.ts`   | —                  | `RenderBackend` abstract interface (348 lines) | Yes (define first) — CanvasBackend + PDFBackend implement it |
+| `canvas-backend.ts`   | —                  | `CanvasBackend` — 1:1 Canvas2D passthrough of RenderBackend | Yes |
+| `trace-types.ts`      | —                  | `TextTraceEvent`, `ShapeTraceEvent`, `ImageTraceEvent`, `StrokeTextTraceEvent` (186 lines) | Yes |
+| `tracing-backend.ts`  | —                  | `TracingBackend` — wraps RenderBackend, records TraceEvent[] with world-space coords (759 lines, 42 tests) | Yes |
 
 **RenderContext interface** (define in `render-context.ts`):
 
