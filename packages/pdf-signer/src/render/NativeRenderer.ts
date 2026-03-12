@@ -19,7 +19,7 @@ declare class ImageData { constructor(data: Uint8ClampedArray, sw: number, sh: n
 import type { RenderOptions, RenderResult, RenderDiagnostic } from './types.js';
 import { RenderDiagnosticsCollector } from './types.js';
 import { evaluatePage, evaluatePageWithElements } from './evaluator.js';
-import type { PageElement } from '../elements/types.js';
+import type { PageElement, TextElement } from '../elements/types.js';
 import { NativeCanvasGraphics } from './canvas-graphics.js';
 import { canvasToPng, isNodeEnvironment } from './canvas-factory.js';
 import type { COSDictionary } from '../pdfbox/cos/COSTypes.js';
@@ -303,7 +303,8 @@ export class NativeRenderer {
   /**
    * Extract positioned elements from a page.
    * Returns a flat array of elements (text, shapes, images, paths)
-   * with positions in PDF points (1/72").
+   * with positions in PDF points (1/72"), normalized to top-left
+   * origin (Y-down) coordinate system with colors scaled to 0-255.
    *
    * @param pageIndex  0-based page index
    * @returns PageElement[] — flat, z-ordered (back to front)
@@ -315,7 +316,53 @@ export class NativeRenderer {
 
     const pageDict = this.pages[pageIndex].pageDict;
     const { elements } = evaluatePageWithElements(pageDict, this.resolve);
-    return elements;
+
+    // Get page height for Y-flip (PDF native is bottom-left, Y-up)
+    const visibleBox = getVisibleBox(pageDict, this.resolve);
+    const pageHeight = visibleBox[3] - visibleBox[1];
+
+    // Normalize elements: flip Y to top-down, scale colors to 0-255,
+    // and clean font family names (strip CSS fallback suffixes)
+    for (const el of elements) {
+      // Flip Y: convert from bottom-left origin to top-left origin
+      el.y = pageHeight - el.y - el.height;
+
+      // Normalize text elements
+      if (el.type === 'text') {
+        for (const para of (el as { paragraphs: Array<{ runs: Array<{ color: { r: number; g: number; b: number; a?: number }; fontFamily: string }> }> }).paragraphs) {
+          for (const run of para.runs) {
+            // Scale colors from 0-1 to 0-255 if they appear to be in 0-1 range
+            if (run.color.r <= 1 && run.color.g <= 1 && run.color.b <= 1 &&
+                (run.color.r > 0 || run.color.g > 0 || run.color.b > 0) &&
+                (run.color.r < 1 || run.color.g < 1 || run.color.b < 1)) {
+              run.color.r = Math.round(run.color.r * 255);
+              run.color.g = Math.round(run.color.g * 255);
+              run.color.b = Math.round(run.color.b * 255);
+            } else if (run.color.r === 1 && run.color.g === 1 && run.color.b === 1) {
+              // Pure white in 0-1 → 255,255,255
+              run.color.r = 255;
+              run.color.g = 255;
+              run.color.b = 255;
+            }
+            // Strip CSS fallback suffixes: "Barlow", sans-serif → Barlow
+            run.fontFamily = run.fontFamily.replace(/^["']|["']$/g, '').split(',')[0].trim().replace(/^["']|["']$/g, '');
+          }
+        }
+      }
+
+      // Normalize shape/path fill/stroke colors
+      if (el.type === 'shape' || el.type === 'path') {
+        const shaped = el as { fill?: { color?: { r: number; g: number; b: number } } | null; stroke?: { color?: { r: number; g: number; b: number } } | null };
+        normalizeColorField(shaped.fill?.color);
+        normalizeColorField(shaped.stroke?.color);
+      }
+    }
+
+    // Group character-level text elements into word-level elements.
+    // PDF evaluator produces one TextElement per text-showing operator
+    // (often per-character). Merge adjacent same-line text elements
+    // into word-level elements for better cross-format matching.
+    return groupTextElementsIntoWords(elements);
   }
 
   /**
@@ -523,6 +570,91 @@ export function getPageElements(doc: any /* PDFDocument */, pageIndex = 0): Page
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Merge adjacent same-line character-level TextElements into word-level elements.
+ * Non-text elements pass through unchanged.
+ */
+function groupTextElementsIntoWords(elements: PageElement[]): PageElement[] {
+  const Y_TOL = 3;   // pts — same-line threshold
+  const X_GAP = 4;   // pts — max gap between adjacent chars
+
+  const result: PageElement[] = [];
+  const textEls: TextElement[] = [];
+  const nonTextEls: PageElement[] = [];
+
+  for (const el of elements) {
+    if (el.type === 'text') textEls.push(el as TextElement);
+    else nonTextEls.push(el);
+  }
+
+  if (textEls.length === 0) return elements;
+
+  // Sort by y then x (top-to-bottom, left-to-right)
+  textEls.sort((a, b) => {
+    const dy = a.y - b.y;
+    if (Math.abs(dy) > Y_TOL) return dy;
+    return a.x - b.x;
+  });
+
+  let cur = textEls[0];
+  let curText = cur.paragraphs[0]?.runs[0]?.text ?? '';
+  let curRight = cur.x + cur.width;
+
+  for (let i = 1; i < textEls.length; i++) {
+    const el = textEls[i];
+    const elText = el.paragraphs[0]?.runs[0]?.text ?? '';
+    const sameLine = Math.abs(el.y - cur.y) <= Y_TOL;
+    const adjacent = el.x - curRight <= X_GAP;
+
+    if (sameLine && adjacent) {
+      // Merge: extend current element
+      curText += elText;
+      const newRight = el.x + el.width;
+      cur = {
+        ...cur,
+        width: newRight - cur.x,
+        height: Math.max(cur.height, el.height),
+        paragraphs: [{
+          runs: [{
+            ...cur.paragraphs[0].runs[0],
+            text: curText,
+            width: newRight - cur.x,
+            height: Math.max(
+              cur.paragraphs[0].runs[0].height,
+              el.paragraphs[0]?.runs[0]?.height ?? 0,
+            ),
+          }],
+        }],
+      };
+      curRight = newRight;
+    } else {
+      // Emit current, start new
+      if (curText.trim().length > 0) result.push(cur);
+      cur = el;
+      curText = elText;
+      curRight = el.x + el.width;
+    }
+  }
+  if (curText.trim().length > 0) result.push(cur);
+
+  // Interleave non-text elements back (maintain z-order by index)
+  result.push(...nonTextEls);
+  result.sort((a, b) => parseInt(a.index) - parseInt(b.index));
+
+  return result;
+}
+
+/** Scale a color field from 0-1 float range to 0-255 integer range. */
+function normalizeColorField(color?: { r: number; g: number; b: number }): void {
+  if (!color) return;
+  if (color.r <= 1 && color.g <= 1 && color.b <= 1) {
+    if (color.r === 0 && color.g === 0 && color.b === 0) return; // pure black is valid in both
+    color.r = Math.round(color.r * 255);
+    color.g = Math.round(color.g * 255);
+    color.b = Math.round(color.b * 255);
+  }
+}
 
 function getMediaBox(
   pageDict: COSDictionary,

@@ -100,6 +100,21 @@ function colorSeverity(dist: number): Severity {
   return 'major';
 }
 
+/**
+ * Normalize font family for comparison:
+ * - Strip CSS fallback chain: "Barlow", sans-serif → Barlow
+ * - Remove quotes: "RobotoSlab" → RobotoSlab
+ * - Lowercase for case-insensitive comparison
+ */
+function normalizeFontFamily(family: string): string {
+  return family
+    .split(',')[0]           // take first in CSS fallback chain
+    .trim()
+    .replace(/^["']|["']$/g, '') // strip quotes
+    .toLowerCase()
+    .trim();
+}
+
 // ─── Core diff logic ───────────────────────────────────
 
 function diffNumericProp(
@@ -145,15 +160,19 @@ function diffTextRuns(
       });
     }
 
-    // Font family (normalized)
-    const fontA = ra.fontFamily.toLowerCase().trim();
-    const fontB = rb.fontFamily.toLowerCase().trim();
+    // Font family (normalized — strip CSS fallbacks, quotes, weight suffixes)
+    const fontA = normalizeFontFamily(ra.fontFamily);
+    const fontB = normalizeFontFamily(rb.fontFamily);
     if (fontA !== fontB) {
+      // Downgrade severity if base family matches (e.g. "barlow light" vs "barlow")
+      const baseA = fontA.split(/\s+/)[0];
+      const baseB = fontB.split(/\s+/)[0];
+      const severity = baseA === baseB ? 'minor' : 'major';
       deltas.push({
         property: `${prefix}.fontFamily`,
         valueA: ra.fontFamily,
         valueB: rb.fontFamily,
-        severity: 'major',
+        severity,
       });
     }
 

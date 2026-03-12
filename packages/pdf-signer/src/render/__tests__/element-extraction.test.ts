@@ -192,18 +192,18 @@ describe('shape elements', () => {
     });
     expect(rect).toBeDefined();
 
-    // Check fill color (should be red)
+    // Check fill color (should be red, normalized to 0-255 range)
     if (rect!.type === 'shape') {
       expect(rect!.fill).not.toBeNull();
       expect(rect!.fill!.color).toBeDefined();
-      expect(rect!.fill!.color!.r).toBeCloseTo(1, 1);
-      expect(rect!.fill!.color!.g).toBeCloseTo(0, 1);
-      expect(rect!.fill!.color!.b).toBeCloseTo(0, 1);
+      expect(rect!.fill!.color!.r).toBeCloseTo(255, -1);
+      expect(rect!.fill!.color!.g).toBeCloseTo(0, -1);
+      expect(rect!.fill!.color!.b).toBeCloseTo(0, -1);
     } else {
       // Path element with fill
       expect(rect!.fill).not.toBeNull();
       expect(rect!.fill!.color).toBeDefined();
-      expect(rect!.fill!.color!.r).toBeCloseTo(1, 1);
+      expect(rect!.fill!.color!.r).toBeCloseTo(255, -1);
     }
   });
 

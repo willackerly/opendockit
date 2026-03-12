@@ -115,8 +115,9 @@ describe('element model integration', () => {
     const elements = getPageElements(loaded, 0);
 
     // Preview redacting a broad area that should hit the SSN text
-    // Text at y=200 with fontSize=12 => element y=200, height~14.4
-    const preview = getRedactionPreview(elements, { x: 0, y: 190, width: 400, height: 25 });
+    // Text at y=200 (PDF bottom-up) with fontSize=12, page height=300
+    // After Y-flip: y = 300 - 200 - 14.4 ≈ 85.6
+    const preview = getRedactionPreview(elements, { x: 0, y: 75, width: 400, height: 25 });
     expect(preview.count).toBeGreaterThan(0);
     expect(preview.summary).toContain('Redacting');
 
@@ -246,10 +247,9 @@ describe('element model integration', () => {
 
     // Extract text from a broad horizontal strip across the top of the page.
     // The wire-instructions PDF has its title near the top.
-    // PDF coordinate system: y=0 is bottom, so top of page ~ pageHeight.
+    // After Y-flip: top of page is y=0. Use a strip near the top.
     // The page is likely US Letter (612 x 792).
-    // Title "CONFIDENTIAL WIRE TRANSFER INSTRUCTIONS" is near the top.
-    const topStrip = { x: 0, y: 700, width: 612, height: 100 };
+    const topStrip = { x: 0, y: 0, width: 612, height: 100 };
     const text = extractTextInRect(elements, topStrip);
     // Should contain at least part of the title
     expect(text.length).toBeGreaterThan(0);

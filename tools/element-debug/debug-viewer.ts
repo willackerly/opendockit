@@ -557,15 +557,15 @@ function drawSlideOverlays(result: SlideResult) {
   const scaleX = pptxCanvas.width / slideWidthPt;
   const scaleY = pptxCanvas.height / slideHeightPt;
 
-  // PDF: coordinates are in points (bottom-left origin, Y up) — flip Y and use PDF page dimensions
+  // PDF: coordinates are now normalized to top-left origin (Y down) by getPageElements()
   const pdfScaleX = pdfCanvas.width > 0 ? pdfCanvas.width / result.pdfPageWidthPt : scaleX;
   const pdfScaleY = pdfCanvas.height > 0 ? pdfCanvas.height / pdfPageHeightPt : scaleY;
 
-  // Helper to convert PDF element coords (bottom-left origin) to canvas coords (top-left origin)
+  // PDF elements are already in top-left Y-down coords — just scale to canvas pixels
   function pdfToCanvas(el: { x: number; y: number; width: number; height: number }) {
     return {
       x: el.x * pdfScaleX,
-      y: (pdfPageHeightPt - el.y - el.height) * pdfScaleY,
+      y: el.y * pdfScaleY,
       w: el.width * pdfScaleX,
       h: el.height * pdfScaleY,
     };
@@ -623,9 +623,9 @@ function handleClick(
 
   let clickX: number, clickY: number;
   if (side === 'PDF') {
-    // PDF elements are in bottom-left origin — convert canvas click to PDF space
+    // PDF elements are now normalized to top-left origin (Y down)
     clickX = ((e.clientX - rect.left) / rect.width) * result.pdfPageWidthPt;
-    clickY = result.pdfPageHeightPt - ((e.clientY - rect.top) / rect.height) * result.pdfPageHeightPt;
+    clickY = ((e.clientY - rect.top) / rect.height) * result.pdfPageHeightPt;
   } else {
     // PPTX elements are in top-left origin
     clickX = ((e.clientX - rect.left) / rect.width) * slideWidthPt;
