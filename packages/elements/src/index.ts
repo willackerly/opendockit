@@ -58,6 +58,10 @@ export {
   overlapFraction,
 } from './spatial.js';
 
+// ─── Spatial index (R-tree) ─────────────────────────────
+
+export { SpatialIndex } from './spatial-index.js';
+
 // ─── Dirty tracking ─────────────────────────────────────
 
 export { WeakDirtyTracker, DirtyTracker } from './dirty-tracking.js';
