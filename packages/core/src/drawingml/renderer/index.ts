@@ -13,6 +13,7 @@ export { emuToScaledPx } from './render-context.js';
 // Render backend
 export type { RenderBackend } from './render-backend.js';
 export { CanvasBackend } from './canvas-backend.js';
+export { CanvasKitBackend } from './canvaskit-backend.js';
 
 // Fill renderer
 export { applyFill } from './fill-renderer.js';

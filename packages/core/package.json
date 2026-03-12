@@ -77,10 +77,12 @@
     "jszip": "^3.10.0"
   },
   "peerDependencies": {
-    "@opendockit/fonts": "workspace:*"
+    "@opendockit/fonts": "workspace:*",
+    "canvaskit-wasm": ">=0.39.0"
   },
   "peerDependenciesMeta": {
-    "@opendockit/fonts": { "optional": true }
+    "@opendockit/fonts": { "optional": true },
+    "canvaskit-wasm": { "optional": true }
   },
   "devDependencies": {
     "typescript": "^5.7.0",
