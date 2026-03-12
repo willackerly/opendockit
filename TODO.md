@@ -382,5 +382,5 @@ Core npm drops from 18MB → ~800KB. Fonts become optional companion package + C
 - [x] Worker protocol types (`render-protocol.ts`) — typed MainToWorkerMessage / WorkerToMainMessage unions
 - [x] Worker entry point scaffold (`render-worker.ts`) — receives OffscreenCanvas, basic scale+background render loop
 - [x] WorkerOrchestrator (`worker-orchestrator.ts`) — main-thread controller: init, requestRender, resize, dispose
-- [ ] Full element rendering in worker — import SlideRenderer pipeline into worker bundle for real slide rendering
+- [x] Full element rendering in worker — renderSlide() pipeline wired into worker with CanvasBackend, MediaCache, theme/colorMap support
 - [ ] SlideViewport integration — wire `useWorker` option in SlideKit to use WorkerOrchestrator instead of main-thread render

@@ -69,6 +69,63 @@ function createMockCanvas(width = 1920, height = 1080) {
   } as unknown as HTMLCanvasElement & { _offscreen: MockOffscreenCanvas };
 }
 
+/** Build a minimal SerializedSlideData for tests. */
+function minimalSlideData(overrides?: Partial<SerializedSlideData>): SerializedSlideData {
+  return {
+    enrichedSlide: {
+      slide: {
+        partUri: '/ppt/slides/slide1.xml',
+        elements: [],
+        layoutPartUri: '/ppt/slideLayouts/slideLayout1.xml',
+        masterPartUri: '/ppt/slideMasters/slideMaster1.xml',
+      },
+      layout: {
+        partUri: '/ppt/slideLayouts/slideLayout1.xml',
+        elements: [],
+        masterPartUri: '/ppt/slideMasters/slideMaster1.xml',
+      },
+      master: {
+        partUri: '/ppt/slideMasters/slideMaster1.xml',
+        elements: [],
+        colorMap: { bg1: 'lt1', tx1: 'dk1' },
+      },
+    },
+    theme: {
+      name: 'Office Theme',
+      colorScheme: {
+        name: 'Office',
+        dk1: '#000000',
+        lt1: '#ffffff',
+        dk2: '#1f497d',
+        lt2: '#eeece1',
+        accent1: '#4f81bd',
+        accent2: '#c0504d',
+        accent3: '#9bbb59',
+        accent4: '#8064a2',
+        accent5: '#4bacc6',
+        accent6: '#f79646',
+        hlink: '#0000ff',
+        folHlink: '#800080',
+      },
+      fontScheme: {
+        name: 'Office',
+        majorFont: { latin: 'Calibri Light', ea: '', cs: '' },
+        minorFont: { latin: 'Calibri', ea: '', cs: '' },
+      },
+      formatScheme: {
+        name: 'Office',
+        fillStyles: [],
+        lineStyles: [],
+        effectStyles: [],
+        bgFillStyles: [],
+      },
+    },
+    width: 9144000,
+    height: 6858000,
+    ...overrides,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Install global mocks
 // ---------------------------------------------------------------------------
@@ -153,25 +210,22 @@ describe('WorkerOrchestrator', () => {
   });
 
   describe('requestRender', () => {
-    it('sends render message after init', async () => {
+    it('sends render message with enriched slide data after init', async () => {
       const orch = new WorkerOrchestrator();
       const canvas = createMockCanvas();
       const initPromise = orch.init(canvas);
       simulateWorkerMessage({ type: 'ready' });
       await initPromise;
 
-      const slideData: SerializedSlideData = {
-        elements: [{ kind: 'shape' }],
-        width: 9144000,
-        height: 6858000,
-      };
+      const slideData = minimalSlideData();
       orch.requestRender(slideData);
 
       // init message + render message
       expect(postedMessages).toHaveLength(2);
       const renderMsg = postedMessages[1].data as { type: string; slideData: SerializedSlideData };
       expect(renderMsg.type).toBe('render');
-      expect(renderMsg.slideData.elements).toHaveLength(1);
+      expect(renderMsg.slideData.enrichedSlide.slide.elements).toHaveLength(0);
+      expect(renderMsg.slideData.theme.name).toBe('Office Theme');
     });
 
     it('sends render message with viewportRect', async () => {
@@ -181,7 +235,7 @@ describe('WorkerOrchestrator', () => {
       simulateWorkerMessage({ type: 'ready' });
       await initPromise;
 
-      const slideData: SerializedSlideData = { elements: [], width: 100, height: 100 };
+      const slideData = minimalSlideData();
       const viewport = { x: 10, y: 20, width: 50, height: 50 };
       orch.requestRender(slideData, viewport);
 
@@ -192,10 +246,29 @@ describe('WorkerOrchestrator', () => {
       expect(renderMsg.viewportRect).toEqual(viewport);
     });
 
+    it('transfers media ArrayBuffers as transferables', async () => {
+      const orch = new WorkerOrchestrator();
+      const canvas = createMockCanvas();
+      const initPromise = orch.init(canvas);
+      simulateWorkerMessage({ type: 'ready' });
+      await initPromise;
+
+      const imgBuffer = new ArrayBuffer(256);
+      const slideData = minimalSlideData({
+        mediaBuffers: { '/ppt/media/image1.png': imgBuffer },
+      });
+      orch.requestRender(slideData);
+
+      // Verify the ArrayBuffer is in the transfer list
+      expect(postedMessages).toHaveLength(2);
+      const renderCall = postedMessages[1];
+      expect(renderCall.transfer).toBeDefined();
+      expect(renderCall.transfer).toContain(imgBuffer);
+    });
+
     it('is a no-op before init', () => {
       const orch = new WorkerOrchestrator();
-      const slideData: SerializedSlideData = { elements: [], width: 100, height: 100 };
-      orch.requestRender(slideData);
+      orch.requestRender(minimalSlideData());
       expect(postedMessages).toHaveLength(0);
     });
   });
@@ -325,7 +398,7 @@ describe('WorkerOrchestrator', () => {
       orch.dispose();
       const countBefore = postedMessages.length;
 
-      orch.requestRender({ elements: [], width: 100, height: 100 });
+      orch.requestRender(minimalSlideData());
       expect(postedMessages).toHaveLength(countBefore);
     });
   });
