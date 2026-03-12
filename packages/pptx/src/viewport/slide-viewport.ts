@@ -1577,6 +1577,8 @@ export class SlideKit {
    * 2. Runtime-loaded fonts (embedded, CDN, user-supplied) — use original name
    * 3. Static substitution table (cross-platform CSS font stacks)
    */
+  private _fontFallbackWarned = new Set<string>();
+
   private _resolveFont(fontName: string): string {
     // User substitution overrides always win.
     if (this._fontSubstitutions[fontName]) {
@@ -1587,25 +1589,38 @@ export class SlideKit {
       return `'${fontName}', sans-serif`;
     }
     // Fall back to the static substitution table.
-    // Emit a diagnostic for the font fallback — the original font is not
-    // available, so rendering may differ from the author's intent.
-    this._diagnostics.emit({
-      category: 'fallback-used',
-      severity: 'info',
-      message: `Font "${fontName}" not loaded; using substitution`,
-      context: { elementType: 'font' },
-    });
-    // Also emit missing-font when the font has no metrics in the DB,
-    // which means text measurement will use Canvas2D approximations.
-    if (!this._fontMetricsDB.hasMetrics(fontName)) {
+    const resolved = resolveFontName(fontName);
+
+    // Emit a loud warning — every fallback is a rendering fidelity bug.
+    if (!this._fontFallbackWarned.has(fontName)) {
+      this._fontFallbackWarned.add(fontName);
+      console.warn(
+        `[SlideKit] FONT FALLBACK: "${fontName}" not loaded → using CSS fallback: ${resolved}`
+      );
       this._diagnostics.emit({
-        category: 'missing-font',
+        category: 'fallback-used',
         severity: 'warning',
-        message: `Font "${fontName}" not found in metrics database; text measurement may be inaccurate`,
+        message: `Font "${fontName}" not loaded; falling back to: ${resolved}`,
         context: { elementType: 'font' },
       });
     }
-    return resolveFontName(fontName);
+    // Also emit missing-font when the font has no metrics in the DB,
+    // which means text measurement will use Canvas2D approximations.
+    if (!this._fontMetricsDB.hasMetrics(fontName)) {
+      if (!this._fontFallbackWarned.has(`metrics:${fontName}`)) {
+        this._fontFallbackWarned.add(`metrics:${fontName}`);
+        console.warn(
+          `[SlideKit] MISSING METRICS: "${fontName}" — text measurement will use Canvas2D approximations`
+        );
+        this._diagnostics.emit({
+          category: 'missing-font',
+          severity: 'warning',
+          message: `Font "${fontName}" not found in metrics database; text measurement may be inaccurate`,
+          context: { elementType: 'font' },
+        });
+      }
+    }
+    return resolved;
   }
 
   /** Emit a progress event if a callback is registered. */

@@ -205,6 +205,52 @@ function resolveFontSizePt(
  * @param rctx  - Optional render context for textDefaults inheritance.
  * @param level - Optional paragraph level for textDefaults lookup.
  */
+/**
+ * Map OOXML weight suffixes in font family names to CSS font-weight values.
+ * OOXML encodes weight in the family name ("Barlow Light" = Barlow @ 300).
+ * When the renderer also sets bold=true, the CSS weight must reflect the
+ * intended result, not blindly layer "bold" on top of a Light family.
+ */
+const WEIGHT_SUFFIX_MAP: Record<string, number> = {
+  'thin': 100,
+  'hairline': 100,
+  'extralight': 200,
+  'extra light': 200,
+  'ultralight': 200,
+  'ultra light': 200,
+  'light': 300,
+  'regular': 400,
+  'medium': 500,
+  'semibold': 600,
+  'semi bold': 600,
+  'demibold': 600,
+  'demi bold': 600,
+  'bold': 700,
+  'extrabold': 800,
+  'extra bold': 800,
+  'ultrabold': 800,
+  'ultra bold': 800,
+  'black': 900,
+  'heavy': 900,
+};
+
+/**
+ * Extract CSS font-weight from a font family name that encodes weight
+ * as a suffix (e.g. "Barlow Light" → { weight: 300, hasWeightSuffix: true }).
+ * Returns null weight if no weight suffix detected.
+ */
+function extractWeightFromFamily(family: string): { weight: number | null; hasWeightSuffix: boolean } {
+  const lower = family.toLowerCase().trim();
+  // Check longest suffixes first to avoid partial matches
+  const suffixes = Object.keys(WEIGHT_SUFFIX_MAP).sort((a, b) => b.length - a.length);
+  for (const suffix of suffixes) {
+    if (lower.endsWith(` ${suffix}`)) {
+      return { weight: WEIGHT_SUFFIX_MAP[suffix], hasWeightSuffix: true };
+    }
+  }
+  return { weight: null, hasWeightSuffix: false };
+}
+
 function buildFontString(
   props: CharacterPropertiesIR,
   resolveFont: (name: string) => string,
@@ -213,7 +259,6 @@ function buildFontString(
   level?: number
 ): string {
   const style = props.italic ? 'italic ' : '';
-  const weight = props.bold ? 'bold ' : '';
   const sizePt = resolveFontSizePt(props, fontScale, rctx, level);
   const sizePx = ptToCanvasPx(sizePt, rctx ? textDpiScale(rctx) : 1);
   let family = props.fontFamily || props.latin;
@@ -229,6 +274,23 @@ function buildFontString(
   family = family || rctx?.theme?.fontScheme?.minorLatin || 'sans-serif';
   // Resolve theme font placeholders (+mj-lt, +mn-lt, etc.) to actual names.
   family = resolveThemeFontFamily(family, rctx?.theme);
+
+  // Decompose weight-suffixed family names into proper CSS weight.
+  // "Barlow Light" + bold=true → weight 700, family "Barlow Light"
+  // "Barlow Light" + bold=false → weight 300, family "Barlow Light"
+  // "Barlow" + bold=true → weight bold, family "Barlow"
+  const { weight: familyWeight, hasWeightSuffix } = extractWeightFromFamily(family);
+  let weight: string;
+  if (props.bold) {
+    // Bold explicitly requested — use CSS "bold" (700) regardless of suffix
+    weight = 'bold ';
+  } else if (hasWeightSuffix && familyWeight != null) {
+    // Family name encodes a specific weight — use it as numeric CSS weight
+    weight = `${familyWeight} `;
+  } else {
+    weight = '';
+  }
+
   const resolved = resolveFont(family);
   // Do NOT wrap resolved in quotes — resolveFontName() already returns a
   // properly formatted CSS font-family string (e.g. `'Barlow Light', sans-serif`

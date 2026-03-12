@@ -158,7 +158,7 @@ for (let idx = startIdx; idx < endIdx; idx++) {
     compCtx.fillStyle = '#fff';
     compCtx.font = 'bold 20px sans-serif';
     compCtx.textAlign = 'center';
-    compCtx.fillText(`Our Render (Slide ${slideIdx + 1})`, wPx * 0.5, 25);
+    compCtx.fillText(`SlideKit PPTX (Slide ${slideIdx + 1})`, wPx * 0.5, 25);
     compCtx.fillText('PowerPoint Reference', wPx * 1.5, 25);
     const rmseStr = rmse != null ? rmse.toFixed(4) : '?';
     compCtx.fillText(`Diff (RMSE: ${rmseStr})`, wPx * 2.5, 25);

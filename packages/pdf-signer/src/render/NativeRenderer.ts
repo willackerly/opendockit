@@ -431,10 +431,16 @@ export class NativeRenderer {
           cmapEntries: embeddedFont.charCodeToUnicode?.size ?? 0,
         });
       } catch (err) {
-        diagnostics.warn('font', `Failed to register embedded font "${embeddedFont.fontName}": ${err instanceof Error ? err.message : String(err)}`, {
+        const css = args[2] as { family: string; weight: string; style: string };
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `[NativeRenderer] FONT REGISTRATION FAILED: "${embeddedFont.fontName}" (${embeddedFont.fontType}, ${embeddedFont.rawBytes.length}B) → falling back to CSS: "${css.family}". Error: ${errMsg}`
+        );
+        diagnostics.warn('font', `Failed to register embedded font "${embeddedFont.fontName}": ${errMsg}`, {
           error: String(err),
           fontType: embeddedFont.fontType,
           byteLength: embeddedFont.rawBytes.length,
+          cssFallback: css.family,
         });
         // Fall back to CSS — clear the 4th arg
         args[3] = undefined;

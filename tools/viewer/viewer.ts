@@ -311,6 +311,7 @@ async function loadPptxFile(arrayBuffer: ArrayBuffer): Promise<void> {
 
   kit = new SlideKit({
     canvas: offscreenCanvas,
+    fontConfig: {},
     onProgress: (event) => {
       const msg = event.message ?? `${event.phase} ${event.current}/${event.total}`;
       setLoading(true, msg);

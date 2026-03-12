@@ -326,7 +326,7 @@ slides.forEach(s => {
     </div>
     <div class="panels" id="panels-\${s.num}">
       <div class="panel render-panel" id="renderPanel-\${s.num}">
-        <div class="panel-label">Our Render</div>
+        <div class="panel-label">SlideKit (PPTX)</div>
         <img data-src-key="render" data-slide="\${s.num}" alt="Render">
       </div>
       <div class="panel ref-panel" id="refPanel-\${s.num}">

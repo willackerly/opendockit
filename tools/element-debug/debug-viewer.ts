@@ -177,7 +177,7 @@ function loadImageAsCanvas(img: HTMLImageElement, targetWidth: number, targetHei
 async function loadPptx(data: ArrayBuffer) {
   setStatus('Loading PPTX...');
   const hiddenCanvas = document.createElement('canvas');
-  slideKit = new SlideKit({ canvas: hiddenCanvas, dpiScale: 2 });
+  slideKit = new SlideKit({ canvas: hiddenCanvas, dpiScale: 2, fontConfig: {} });
   const info = await slideKit.load(data);
   slideCount = info.slideCount;
   slideWidthPt = emuToPx(info.slideWidth, 72);
