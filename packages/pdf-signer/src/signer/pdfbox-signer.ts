@@ -221,17 +221,13 @@ export async function preparePdfWithAppearance(
     return preparePdfWithFlatten(pdfBytes, signer, options);
   }
 
-  // Check for existing signatures — determines which path to use
+  // Check for existing signatures
   const signatureSnapshot = inspectDocumentSignatures(pdfBytes);
-  const hasExistingSignature = signatureSnapshot.hasSignedFields;
 
-  // ── Counter-signing path: return ORIGINAL bytes to preserve earlier sigs ─
-  if (hasExistingSignature) {
-    return preparePdfIncremental(pdfBytes, signer, options, signatureSnapshot);
-  }
-
-  // ── First-signature path: full rewrite (matches Java's behavior for parity)
-  return preparePdfWithRewrite(pdfBytes, signer, options, signatureSnapshot);
+  // ── Incremental path (default): preserves original bytes exactly ──────────
+  // This is safe for all PDFs — original content streams are never re-serialized.
+  // The rewrite path only exists for Java PDFBox byte-parity testing.
+  return preparePdfIncremental(pdfBytes, signer, options, signatureSnapshot);
 }
 
 /**
