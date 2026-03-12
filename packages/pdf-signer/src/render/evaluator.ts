@@ -705,7 +705,7 @@ class EvalContext {
               text,
               fontFamily: css.family,
               fontSize: effectiveFontSize,
-              bold: css.weight === 'bold',
+              bold: css.weight === 'bold' || parseInt(css.weight) >= 700,
               italic: css.style === 'italic',
               color: { ...this.fillColor },
               x: 0,
@@ -953,7 +953,8 @@ class EvalContext {
 
     try {
       const decoder = buildFontDecoder(fontDict, this.resolve);
-      const css = cssForPdfFont(decoder.fontName);
+      const descriptorStyle = extractFontDescriptorStyle(fontDict, this.resolve);
+      const css = cssForPdfFont(decoder.fontName, descriptorStyle);
       const stdWidthFn = buildStdWidthFn(decoder.fontName);
 
       // Extract embedded font program (if present)
@@ -2382,17 +2383,125 @@ const STANDARD_FONT_CSS: Record<string, NativeFont> = {
   'Georgia-BoldItalic': { family: 'Georgia, "Times New Roman", serif', weight: 'bold', style: 'italic' },
 };
 
-function cssForPdfFont(baseFontName: string): NativeFont {
+/**
+ * FontDescriptor style metadata extracted from the PDF.
+ * These are deterministic — specified by the PDF producer, not guessed.
+ */
+interface FontDescriptorStyle {
+  /** CSS font-weight: numeric 100-900 or 'normal'/'bold'. */
+  weight: string;
+  /** CSS font-style: 'italic' or 'normal'. */
+  style: string;
+  /** Source of the style info for diagnostics. */
+  source: 'fontdescriptor' | 'name-heuristic';
+}
+
+/**
+ * Extract font weight and style from the PDF FontDescriptor.
+ * PDF spec (Table 122) defines:
+ *   /Flags bit 7 (0x40) = Italic
+ *   /Flags bit 19 (0x40000) = ForceBold
+ *   /FontWeight = numeric 100-900 (PDF 1.5+)
+ *   /ItalicAngle = nonzero means italic
+ *   /StemV = stem weight (higher = bolder)
+ *
+ * Falls back to name heuristics only when FontDescriptor is absent.
+ */
+function extractFontDescriptorStyle(
+  fontDict: COSDictionary,
+  resolve: ObjectResolver,
+): FontDescriptorStyle {
+  // Locate the FontDescriptor (handle Type0 composite fonts)
+  let descriptorSource: COSDictionary = fontDict;
+  const subtype = resolveItem(fontDict, 'Subtype', resolve);
+  if (subtype instanceof COSName && subtype.getName() === 'Type0') {
+    const descendants = resolveItem(fontDict, 'DescendantFonts', resolve);
+    if (descendants instanceof COSArray && descendants.size() > 0) {
+      let cidFont: COSBase | undefined = descendants.get(0);
+      if (cidFont instanceof COSObjectReference) cidFont = resolve(cidFont);
+      if (cidFont instanceof COSDictionary) {
+        descriptorSource = cidFont;
+      }
+    }
+  }
+
+  const fd = resolveItem(descriptorSource, 'FontDescriptor', resolve);
+  if (!(fd instanceof COSDictionary)) {
+    return { weight: 'normal', style: 'normal', source: 'name-heuristic' };
+  }
+
+  // -- Weight --
+  // Priority: /FontWeight > /Flags ForceBold > /StemV heuristic
+  let weight = 'normal';
+
+  const fontWeightEntry = resolveItem(fd, 'FontWeight', resolve);
+  if (fontWeightEntry instanceof COSInteger || fontWeightEntry instanceof COSFloat) {
+    const w = fontWeightEntry.getValue();
+    if (w >= 100 && w <= 900) {
+      // Map to nearest CSS weight step
+      weight = String(Math.round(w / 100) * 100);
+    }
+  } else {
+    // No /FontWeight — check /Flags and /StemV
+    const flagsEntry = resolveItem(fd, 'Flags', resolve);
+    const flags = flagsEntry instanceof COSInteger ? flagsEntry.getValue() : 0;
+    const forceBold = (flags & 0x40000) !== 0; // bit 19
+
+    if (forceBold) {
+      weight = 'bold';
+    } else {
+      // StemV heuristic: typical bold fonts have StemV >= 140
+      const stemVEntry = resolveItem(fd, 'StemV', resolve);
+      if (stemVEntry instanceof COSInteger || stemVEntry instanceof COSFloat) {
+        const stemV = stemVEntry.getValue();
+        if (stemV >= 140) weight = 'bold';
+        else if (stemV >= 100) weight = '600';
+      }
+    }
+  }
+
+  // -- Italic --
+  // Priority: /Flags Italic bit > /ItalicAngle
+  let style = 'normal';
+  const flagsEntry = resolveItem(fd, 'Flags', resolve);
+  const flags = flagsEntry instanceof COSInteger ? flagsEntry.getValue() : 0;
+  const flagItalic = (flags & 0x40) !== 0; // bit 7
+
+  if (flagItalic) {
+    style = 'italic';
+  } else {
+    const italicAngleEntry = resolveItem(fd, 'ItalicAngle', resolve);
+    if (italicAngleEntry instanceof COSInteger || italicAngleEntry instanceof COSFloat) {
+      const angle = italicAngleEntry.getValue();
+      if (angle !== 0) style = 'italic';
+    }
+  }
+
+  return { weight, style, source: 'fontdescriptor' };
+}
+
+function cssForPdfFont(
+  baseFontName: string,
+  descriptorStyle?: FontDescriptorStyle,
+): NativeFont {
   // Strip subset prefix: "ABCDEF+Helvetica-Bold" → "Helvetica-Bold"
   const name = baseFontName.replace(/^[A-Z]{6}\+/, '');
 
   if (name in STANDARD_FONT_CSS) return STANDARD_FONT_CSS[name];
 
-  // Heuristic: parse weight/style from font name
+  // Heuristic: parse weight/style from font name (fallback only)
   const normalized = name.replace(/[,+]/g, '-');
-  const isBold = /Bold/i.test(normalized);
-  const isItalic = /Italic|Oblique/i.test(normalized);
-  const isLight = /Light/i.test(normalized);
+  const nameBold = /Bold/i.test(normalized);
+  const nameItalic = /Italic|Oblique/i.test(normalized);
+  const nameLight = /Light/i.test(normalized);
+
+  // Use FontDescriptor style if available (deterministic), else name heuristic
+  const weight = descriptorStyle?.source === 'fontdescriptor'
+    ? descriptorStyle.weight
+    : (nameBold ? 'bold' : (nameLight ? '300' : 'normal'));
+  const style = descriptorStyle?.source === 'fontdescriptor'
+    ? descriptorStyle.style
+    : (nameItalic ? 'italic' : 'normal');
 
   // Extract base name: remove style suffixes and non-alpha chars
   const baseName = normalized.split('-')[0].replace(/[^a-zA-Z0-9\s]/g, '') || 'sans-serif';
@@ -2400,19 +2509,19 @@ function cssForPdfFont(baseFontName: string): NativeFont {
   // Try common name variants that aren't in the table
   const lower = baseName.toLowerCase();
   if (lower === 'arial' || lower === 'arialmt') {
-    return { family: 'Arial, Helvetica, sans-serif', weight: isBold ? 'bold' : 'normal', style: isItalic ? 'italic' : 'normal' };
+    return { family: 'Arial, Helvetica, sans-serif', weight, style };
   }
   if (lower.startsWith('timesnewroman') || lower === 'timesnewromanpsmt') {
-    return { family: '"Times New Roman", Times, serif', weight: isBold ? 'bold' : 'normal', style: isItalic ? 'italic' : 'normal' };
+    return { family: '"Times New Roman", Times, serif', weight, style };
   }
   if (lower.startsWith('couriernew') || lower === 'couriernewpsmt') {
-    return { family: '"Courier New", Courier, monospace', weight: isBold ? 'bold' : 'normal', style: isItalic ? 'italic' : 'normal' };
+    return { family: '"Courier New", Courier, monospace', weight, style };
   }
 
   return {
     family: `"${baseName}", sans-serif`,
-    weight: isBold ? 'bold' : (isLight ? '300' : 'normal'),
-    style: isItalic ? 'italic' : 'normal',
+    weight,
+    style,
   };
 }
 
