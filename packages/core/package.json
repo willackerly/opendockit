@@ -62,6 +62,14 @@
     "./edit": {
       "types": "./dist/edit/index.d.ts",
       "import": "./dist/edit/index.js"
+    },
+    "./parser": {
+      "types": "./dist/parser/index.d.ts",
+      "import": "./dist/parser/index.js"
+    },
+    "./renderer": {
+      "types": "./dist/renderer/index.d.ts",
+      "import": "./dist/renderer/index.js"
     }
   },
   "scripts": {
