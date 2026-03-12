@@ -204,6 +204,13 @@ export class SlideKit {
   /** Diagnostic emitter for structured warnings. */
   private _diagnostics: DiagnosticEmitter;
 
+  // --- Viewport culling ---
+
+  /** Viewport rectangle in slide coordinate space (EMU). */
+  private _viewportRect: { x: number; y: number; width: number; height: number } | null = null;
+  /** Whether viewport culling is enabled. */
+  private _cullingEnabled = false;
+
   constructor(options: SlideKitOptions) {
     this._container = options.container;
     this._canvas = options.canvas;
@@ -338,9 +345,9 @@ export class SlideKit {
       diagnostics: this._diagnostics,
     };
 
-    // Clear and render
+    // Clear and render (with optional viewport culling)
     ctx.clearRect(0, 0, slideWidthPx, slideHeightPx);
-    renderSlide(enriched, rctx, slideWidthPx, slideHeightPx);
+    renderSlide(enriched, rctx, slideWidthPx, slideHeightPx, this._buildCullingFilter());
 
     // Check for deferred elements from all layers and kick off WASM loading.
     const allElements = [
@@ -445,7 +452,7 @@ export class SlideKit {
     };
 
     ctx.clearRect(0, 0, slideWidthPx, slideHeightPx);
-    renderSlide(modifiedEnriched, rctx, slideWidthPx, slideHeightPx);
+    renderSlide(modifiedEnriched, rctx, slideWidthPx, slideHeightPx, this._buildCullingFilter());
   }
 
   /** Get the current slide index (0-based). */
@@ -693,6 +700,90 @@ export class SlideKit {
     return this._diagnostics;
   }
 
+  // -------------------------------------------------------------------------
+  // Viewport Culling
+  // -------------------------------------------------------------------------
+
+  /**
+   * Enable viewport culling for large slides.
+   *
+   * When enabled, subsequent `renderSlide()` calls will skip elements whose
+   * bounding box (in EMU slide coordinates) does not overlap the viewport
+   * rectangle set via `setViewportRect()`. Background rendering is never
+   * affected by culling.
+   *
+   * Culling is opt-in. By default it is disabled and all elements render.
+   */
+  enableCulling(): void {
+    this._cullingEnabled = true;
+  }
+
+  /**
+   * Disable viewport culling.
+   *
+   * Subsequent `renderSlide()` calls will render all elements regardless
+   * of the viewport rectangle.
+   */
+  disableCulling(): void {
+    this._cullingEnabled = false;
+    this._viewportRect = null;
+  }
+
+  /** Whether viewport culling is currently enabled. */
+  get cullingEnabled(): boolean {
+    return this._cullingEnabled;
+  }
+
+  /**
+   * Update the visible viewport rectangle in slide coordinate space (EMU).
+   *
+   * Only elements whose bounding box overlaps this rectangle will be
+   * rendered when culling is enabled. Call this whenever the user pans
+   * or zooms the viewport.
+   *
+   * @param rect - Viewport bounds in EMU coordinates, or `null` to clear.
+   */
+  setViewportRect(rect: { x: number; y: number; width: number; height: number } | null): void {
+    this._viewportRect = rect;
+  }
+
+  /** Get the current viewport rectangle, or `null` if not set. */
+  get viewportRect(): { x: number; y: number; width: number; height: number } | null {
+    return this._viewportRect;
+  }
+
+  /**
+   * Build an element visibility filter for the current viewport rect.
+   *
+   * Returns `undefined` when culling is inactive (no filter needed), or
+   * a predicate that returns `true` for elements overlapping the viewport.
+   */
+  private _buildCullingFilter(): ((element: SlideElementIR) => boolean) | undefined {
+    if (!this._cullingEnabled || !this._viewportRect) return undefined;
+
+    const vr = this._viewportRect;
+    const vrRight = vr.x + vr.width;
+    const vrBottom = vr.y + vr.height;
+
+    return (element: SlideElementIR): boolean => {
+      // Extract element bounding box from transform (EMU coordinates)
+      const transform = getElementTransform(element);
+      if (!transform) return true; // No transform → always render (safe fallback)
+
+      const { position, size } = transform;
+      const elRight = position.x + size.width;
+      const elBottom = position.y + size.height;
+
+      // AABB overlap test — no overlap if one is entirely outside the other
+      return !(
+        elRight <= vr.x ||
+        vrRight <= position.x ||
+        elBottom <= vr.y ||
+        vrBottom <= position.y
+      );
+    };
+  }
+
   /**
    * Clean up resources: clear caches, remove created canvas elements,
    * and mark this instance as disposed. After calling dispose(), all
@@ -714,6 +805,8 @@ export class SlideKit {
     this._diagnostics.clear();
     this._pkg = undefined;
     this._presentation = undefined;
+    this._cullingEnabled = false;
+    this._viewportRect = null;
 
     // If we created the canvas ourselves (via container), remove it.
     if (this._container && this._canvas) {
@@ -1646,4 +1739,25 @@ export class SlideKit {
       throw new Error('No presentation loaded. Call load() first.');
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Viewport culling helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract the EMU-space transform from a SlideElementIR.
+ *
+ * Different element kinds store their transform at `properties.transform`.
+ * Returns `undefined` for elements without a parseable transform (safe to
+ * render unconditionally).
+ */
+function getElementTransform(
+  element: SlideElementIR
+): { position: { x: number; y: number }; size: { width: number; height: number } } | undefined {
+  if ('properties' in element && element.properties) {
+    const props = element.properties as { transform?: { position: { x: number; y: number }; size: { width: number; height: number } } };
+    return props.transform ?? undefined;
+  }
+  return undefined;
 }
