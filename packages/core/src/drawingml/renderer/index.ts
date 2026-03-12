@@ -13,6 +13,7 @@ export { emuToScaledPx } from './render-context.js';
 // Render backend
 export type { RenderBackend } from './render-backend.js';
 export { CanvasBackend } from './canvas-backend.js';
+export { CanvasKitBackend } from './canvaskit-backend.js';
 
 // Color utility (canonical source: ir/common.ts — re-exported for convenience)
 export { colorToRgba } from '../../ir/index.js';
