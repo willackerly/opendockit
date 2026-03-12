@@ -23,3 +23,13 @@ export type { CoverageReport, ElementCoverageStatus } from './coverage-report.js
 
 // Grey-box fallback
 export { renderGreyBox } from './grey-box.js';
+
+// Feature registry
+export type { FeatureStatus, FeatureEntry } from './feature-registry.js';
+export {
+  FEATURE_REGISTRY,
+  getFeaturesByStatus,
+  getCoverageSummary,
+  findFeature,
+  searchFeatures,
+} from './feature-registry.js';
