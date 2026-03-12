@@ -21,6 +21,7 @@ import type { CSToken, CSOperation } from '../redaction/ContentStreamRedactor.js
 import { buildFontDecoder, type FontDecoder, type ObjectResolver } from './FontDecoder.js';
 import { getDecompressedStreamData } from './StreamDecoder.js';
 import { loadAndParseDocument, type DocumentParseResult } from './DocumentLoader.js';
+import { identityMatrix, multiplyMatrices, transformPoint } from '../../util/matrix-ops.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -244,10 +245,6 @@ interface TextState {
   currentFontName: string;
 }
 
-function identityMatrix(): number[] {
-  return [1, 0, 0, 1, 0, 0];
-}
-
 function cloneState(s: TextState): TextState {
   return {
     ctm: [...s.ctm],
@@ -265,23 +262,6 @@ function cloneState(s: TextState): TextState {
   };
 }
 
-function multiplyMatrices(m1: number[], m2: number[]): number[] {
-  const [a1, b1, c1, d1, e1, f1] = m1;
-  const [a2, b2, c2, d2, e2, f2] = m2;
-  return [
-    a1 * a2 + b1 * c2,
-    a1 * b2 + b1 * d2,
-    c1 * a2 + d1 * c2,
-    c1 * b2 + d1 * d2,
-    e1 * a2 + f1 * c2 + e2,
-    e1 * b2 + f1 * d2 + f2,
-  ];
-}
-
-function transformPoint(matrix: number[], x: number, y: number): [number, number] {
-  const [a, b, c, d, e, f] = matrix;
-  return [a * x + c * y + e, b * x + d * y + f];
-}
 
 // ---------------------------------------------------------------------------
 // Operation processing

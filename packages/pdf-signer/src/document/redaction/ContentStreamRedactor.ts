@@ -14,6 +14,8 @@
  * 6. Reassemble the content stream
  */
 
+import { identityMatrix, multiplyMatrices, transformPoint } from '../../util/matrix-ops.js';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -475,10 +477,6 @@ interface GraphicsState {
   textLeading: number;
 }
 
-function identityMatrix(): number[] {
-  return [1, 0, 0, 1, 0, 0];
-}
-
 function cloneState(state: GraphicsState): GraphicsState {
   return {
     ctm: [...state.ctm],
@@ -489,34 +487,6 @@ function cloneState(state: GraphicsState): GraphicsState {
   };
 }
 
-/**
- * Multiply two 3x3 transformation matrices (represented as [a,b,c,d,e,f]).
- * Result = m1 * m2 in PDF's pre-multiply convention.
- */
-function multiplyMatrices(m1: number[], m2: number[]): number[] {
-  const [a1, b1, c1, d1, e1, f1] = m1;
-  const [a2, b2, c2, d2, e2, f2] = m2;
-  return [
-    a1 * a2 + b1 * c2,
-    a1 * b2 + b1 * d2,
-    c1 * a2 + d1 * c2,
-    c1 * b2 + d1 * d2,
-    e1 * a2 + f1 * c2 + e2,
-    e1 * b2 + f1 * d2 + f2,
-  ];
-}
-
-/**
- * Transform a point (x, y) by a matrix [a, b, c, d, e, f].
- * Returns [x', y'].
- */
-function transformPoint(matrix: number[], x: number, y: number): [number, number] {
-  const [a, b, c, d, e, f] = matrix;
-  return [
-    a * x + c * y + e,
-    b * x + d * y + f,
-  ];
-}
 
 /**
  * Get the current text position in user space.
