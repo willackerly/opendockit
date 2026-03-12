@@ -441,12 +441,16 @@ function collectPlaceholderKeys(elements: SlideElementIR[]): Set<string> {
  * @param rctx        - The shared render context.
  * @param slideWidth  - Slide width in pixels (already scaled for DPI).
  * @param slideHeight - Slide height in pixels (already scaled for DPI).
+ * @param elementFilter - Optional filter predicate for viewport culling.
+ *   When provided, only elements for which the filter returns `true` are
+ *   rendered. Background rendering is NOT affected by this filter.
  */
 export function renderSlide(
   data: EnrichedSlideData,
   rctx: RenderContext,
   slideWidth: number,
-  slideHeight: number
+  slideHeight: number,
+  elementFilter?: (element: SlideElementIR) => boolean
 ): void {
   const { slide, layout, master } = data;
 
@@ -464,6 +468,7 @@ export function renderSlide(
     for (const element of master.elements) {
       const key = getPlaceholderKey(element);
       if (key && (layoutPlaceholders.has(key) || slidePlaceholders.has(key))) continue;
+      if (elementFilter && !elementFilter(element)) continue;
       renderElementWithDefaults(element, data, rctx);
     }
   }
@@ -472,12 +477,14 @@ export function renderSlide(
   for (const element of layout.elements) {
     const key = getPlaceholderKey(element);
     if (key && slidePlaceholders.has(key)) continue;
+    if (elementFilter && !elementFilter(element)) continue;
     renderElementWithDefaults(element, data, rctx);
   }
 
   // 4. Slide elements (front-most layer — always rendered)
   //    Resolve inherited properties from layout/master placeholders before rendering.
   for (const element of slide.elements) {
+    if (elementFilter && !elementFilter(element)) continue;
     const resolved = resolveInheritedElement(element, data);
     renderElementWithDefaults(resolved, data, rctx);
   }
