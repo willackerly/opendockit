@@ -15,6 +15,13 @@
 
 import type { XmlElement } from '../xml/index.js';
 import type { ThemeIR, ResolvedColor, RgbaColor, ColorSchemeIR } from '../ir/index.js';
+import {
+  rgbToHsl,
+  hslToRgb,
+  scRgbToSrgb,
+  parseHexColor as parseHexColorShared,
+  clampByte,
+} from '../color/index.js';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -444,116 +451,17 @@ function getSystemColor(name: string): ResolvedColor {
 }
 
 // ---------------------------------------------------------------------------
-// HSL <-> RGB conversion
-// ---------------------------------------------------------------------------
-
-/**
- * Convert RGB (0-255) to HSL.
- * Returns [hue (0-360), saturation (0-1), lightness (0-1)].
- *
- * Implementation matches Apache POI's RGB2HSL.
- */
-function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
-  const rN = r / 255;
-  const gN = g / 255;
-  const bN = b / 255;
-
-  const min = Math.min(rN, gN, bN);
-  const max = Math.max(rN, gN, bN);
-
-  // Hue
-  let h = 0;
-  if (max !== min) {
-    if (max === rN) {
-      h = ((60 * (gN - bN)) / (max - min) + 360) % 360;
-    } else if (max === gN) {
-      h = (60 * (bN - rN)) / (max - min) + 120;
-    } else {
-      h = (60 * (rN - gN)) / (max - min) + 240;
-    }
-  }
-
-  // Lightness
-  const l = (max + min) / 2;
-
-  // Saturation
-  let s = 0;
-  if (max !== min) {
-    if (l <= 0.5) {
-      s = (max - min) / (max + min);
-    } else {
-      s = (max - min) / (2 - max - min);
-    }
-  }
-
-  return [h, s, l];
-}
-
-/**
- * Convert HSL to RGB (0-255).
- * h: 0-360, s: 0-1, l: 0-1.
- *
- * Implementation matches Apache POI's HSL2RGB.
- */
-function hslToRgb(h: number, s: number, l: number): [number, number, number] {
-  // Clamp
-  s = Math.max(0, Math.min(1, s));
-  l = Math.max(0, Math.min(1, l));
-  h = ((h % 360) + 360) % 360;
-
-  // Normalize hue to 0-1
-  const hN = h / 360;
-
-  const q = l < 0.5 ? l * (1 + s) : l + s - s * l;
-  const p = 2 * l - q;
-
-  let r = Math.max(0, Math.min(1, hue2rgb(p, q, hN + 1 / 3)));
-  let g = Math.max(0, Math.min(1, hue2rgb(p, q, hN)));
-  let b = Math.max(0, Math.min(1, hue2rgb(p, q, hN - 1 / 3)));
-
-  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
-}
-
-/** Helper for HSL-to-RGB conversion. Matches POI's HUE2RGB. */
-function hue2rgb(p: number, q: number, t: number): number {
-  if (t < 0) t += 1;
-  if (t > 1) t -= 1;
-
-  if (6 * t < 1) return p + (q - p) * 6 * t;
-  if (2 * t < 1) return q;
-  if (3 * t < 2) return p + (q - p) * 6 * (2 / 3 - t);
-  return p;
-}
-
-// ---------------------------------------------------------------------------
-// scRGB conversion
-// ---------------------------------------------------------------------------
-
-/** Convert a single scRGB component to sRGB (apply gamma). */
-function scRgbToSrgb(val: number): number {
-  if (val <= 0.0031308) {
-    return val * 12.92;
-  }
-  return 1.055 * Math.pow(val, 1 / 2.4) - 0.055;
-}
-
-// ---------------------------------------------------------------------------
 // Utility helpers
 // ---------------------------------------------------------------------------
 
-/** Parse a 6-character hex color string to RgbaColor. */
+/** Parse a 6-character hex color string to ResolvedColor. */
 function parseHexColor(hex: string): ResolvedColor {
-  // Normalize: remove any leading '#', pad to 6 chars
-  const cleaned = hex.replace('#', '').padStart(6, '0');
-  const r = parseInt(cleaned.substring(0, 2), 16);
-  const g = parseInt(cleaned.substring(2, 4), 16);
-  const b = parseInt(cleaned.substring(4, 6), 16);
-  return { r: clamp(r), g: clamp(g), b: clamp(b), a: 1 };
+  return parseHexColorShared(hex);
 }
 
 /** Clamp a value to the 0-255 range. */
 function clamp(v: number): number {
-  return Math.max(0, Math.min(255, Math.round(v)));
+  return clampByte(v);
 }
 
 // ---------------------------------------------------------------------------

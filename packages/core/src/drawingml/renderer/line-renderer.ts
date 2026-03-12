@@ -9,10 +9,10 @@
  */
 
 import type { DashStyle, LineEnd, LineIR } from '../../ir/index.js';
-import { colorToRgba } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
 import type { RenderBackend } from './render-backend.js';
+import { colorToRgba } from '../../color/index.js';
 
 /**
  * Map an OOXML LineCap to the Canvas2D `lineCap` property value.

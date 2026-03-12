@@ -1,10 +1,8 @@
 /**
- * Standalone color utility functions for rendering.
+ * Color math — barrel export.
  *
- * Re-exports shared color math from `@opendockit/core` so that downstream
- * consumers who depend on `@opendockit/render` continue to work unchanged.
- *
- * The canonical implementations live in `@opendockit/core/color`.
+ * Re-exports all shared color utilities: conversions, parsing, compositing,
+ * CSS formatting, and color transforms.
  */
 
 export {
@@ -21,6 +19,7 @@ export {
   // HSL <-> RGB
   rgbToHsl,
   hslToRgb,
+  hue2rgb,
   // scRGB
   scRgbToSrgb,
   // Color transforms
@@ -31,6 +30,4 @@ export {
   // Utilities
   clampByte,
   lerpColor,
-} from '@opendockit/core/color';
-
-export type { RgbaColor } from '@opendockit/core';
+} from './color-math.js';

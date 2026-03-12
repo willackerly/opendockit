@@ -10,7 +10,7 @@
 import type { BackgroundIR } from '../model/index.js';
 import type { RenderContext, RenderBackend } from '@opendockit/core/drawingml/renderer';
 import type { FillIR, GradientFillIR } from '@opendockit/core';
-import { colorToRgba } from '@opendockit/core';
+import { colorToRgba } from '@opendockit/core/color';
 
 /**
  * Compute linear gradient start/end points from an angle and bounding box.

@@ -74,6 +74,10 @@
     "./synthesis": {
       "types": "./dist/synthesis/index.d.ts",
       "import": "./dist/synthesis/index.js"
+    },
+    "./color": {
+      "types": "./dist/color/index.d.ts",
+      "import": "./dist/color/index.js"
     }
   },
   "scripts": {

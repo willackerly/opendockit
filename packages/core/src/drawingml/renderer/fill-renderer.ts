@@ -9,8 +9,8 @@
  */
 
 import type { FillIR } from '../../ir/index.js';
-import { colorToRgba } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
+import { colorToRgba } from '../../color/index.js';
 
 /**
  * Compute linear gradient start/end points from an angle and bounding box.

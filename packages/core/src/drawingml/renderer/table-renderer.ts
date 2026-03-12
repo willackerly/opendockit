@@ -9,12 +9,12 @@
  */
 
 import type { TableIR, LineIR } from '../../ir/index.js';
-import { colorToRgba } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
 import type { RenderBackend } from './render-backend.js';
 import { applyFill } from './fill-renderer.js';
 import { renderTextBody, measureTextBodyHeight } from './text-renderer.js';
+import { colorToRgba } from '../../color/index.js';
 
 /**
  * Draw a single border line on the canvas.

@@ -14,9 +14,9 @@
  */
 
 import type { EffectIR, GlowIR, OuterShadowIR } from '../../ir/index.js';
-import { colorToRgba } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
+import { colorToRgba } from '../../color/index.js';
 
 /**
  * Apply an outer shadow effect to the canvas context.
