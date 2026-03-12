@@ -5,10 +5,9 @@
  * OffscreenCanvas. This keeps rendering off the main thread so the UI
  * stays responsive at 60fps even for complex slides.
  *
- * Current status: **scaffold**. The render loop performs basic scaling
- * and background fill. Full integration with the SlideRenderer pipeline
- * (element rendering, text layout, effects) is future work — it requires
- * bundling the renderer into the worker entry point.
+ * The worker constructs a minimal RenderContext from the serialized data
+ * and delegates to the existing renderSlide() pipeline for full element
+ * rendering (shapes, text, images, groups, tables, etc.).
  */
 
 import type {
@@ -17,10 +16,24 @@ import type {
   SerializedSlideData,
   ViewportRect,
 } from './render-protocol.js';
+import type { RenderContext } from '@opendockit/core/drawingml/renderer';
+import { CanvasBackend } from '@opendockit/core/drawingml/renderer';
+import { MediaCache } from '@opendockit/core/media';
+import { emuToPx } from '@opendockit/core';
+import { renderSlide } from '../renderer/slide-renderer.js';
 
 let canvas: OffscreenCanvas | null = null;
 let ctx: OffscreenCanvasRenderingContext2D | null = null;
 let frameId = 0;
+
+/**
+ * Worker-local media cache.
+ *
+ * Populated from the ArrayBuffers transferred in each render message.
+ * Persists across frames so repeated renders of the same slide don't
+ * re-decode images.
+ */
+const mediaCache = new MediaCache();
 
 // ---------------------------------------------------------------------------
 // Message handler
@@ -77,6 +90,7 @@ self.onmessage = (event: MessageEvent<MainToWorkerMessage>) => {
     case 'dispose': {
       canvas = null;
       ctx = null;
+      mediaCache.clear();
       self.close();
       break;
     }
@@ -92,37 +106,81 @@ function postResponse(msg: WorkerToMainMessage): void {
 }
 
 /**
+ * Populate the worker-local media cache from transferred ArrayBuffers.
+ *
+ * Creates ImageBitmap objects from the raw buffers. This runs async but
+ * the current render frame proceeds synchronously — images that aren't
+ * decoded in time will appear on the next render frame.
+ */
+function populateMediaCache(
+  mediaBuffers: Record<string, ArrayBuffer>,
+): void {
+  for (const [partUri, buffer] of Object.entries(mediaBuffers)) {
+    if (mediaCache.has(partUri)) continue;
+    // Store raw bytes immediately so the cache key exists.
+    // Renderers handle Uint8Array as a fallback path.
+    mediaCache.set(partUri, new Uint8Array(buffer), buffer.byteLength);
+
+    // Attempt async decode to ImageBitmap for better rendering.
+    // In worker contexts, createImageBitmap is always available.
+    if (typeof createImageBitmap === 'function') {
+      const blob = new Blob([buffer]);
+      createImageBitmap(blob)
+        .then((bitmap) => {
+          mediaCache.set(partUri, bitmap, buffer.byteLength);
+        })
+        .catch(() => {
+          // Keep the Uint8Array fallback — already stored above.
+        });
+    }
+  }
+}
+
+/**
  * Render serialized slide data to the canvas context.
  *
- * TRACKED-TASK: Full element rendering in worker — see TODO.md "OffscreenCanvas Worker"
- *
- * Currently a scaffold that:
- * 1. Computes uniform scale to fit slide dimensions into the canvas.
- * 2. Fills the background white.
- * 3. Placeholder for per-element rendering.
+ * Constructs a RenderContext from the serialized data and delegates
+ * to the full renderSlide() pipeline for element-level rendering
+ * including backgrounds, master/layout/slide cascade, text, shapes,
+ * images, and groups.
  */
 function renderSlideData(
   ctx: OffscreenCanvasRenderingContext2D,
   data: SerializedSlideData,
   _viewport?: ViewportRect,
 ): void {
-  const { width, height } = data;
+  const { enrichedSlide, theme, colorMap, width, height, slideNumber, mediaBuffers } = data;
   if (width <= 0 || height <= 0) return;
 
-  const scaleX = ctx.canvas.width / width;
-  const scaleY = ctx.canvas.height / height;
-  const scale = Math.min(scaleX, scaleY);
+  // Populate media cache from transferred buffers
+  if (mediaBuffers) {
+    populateMediaCache(mediaBuffers);
+  }
 
-  ctx.save();
-  ctx.scale(scale, scale);
+  // Compute pixel dimensions matching the canvas size
+  const slideWidthPx = ctx.canvas.width;
+  const slideHeightPx = ctx.canvas.height;
 
-  // Background fill (scaffold — always white)
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, width, height);
+  // Compute DPI scale from canvas size vs EMU-based slide dimensions.
+  // The main thread sizes the canvas to slideWidthPx = emuToPx(width) * dpiScale,
+  // so dpiScale = slideWidthPx / emuToPx(width, 96).
+  const baseWidthPx = emuToPx(width, 96);
+  const dpiScale = baseWidthPx > 0 ? slideWidthPx / baseWidthPx : 1;
 
-  // TRACKED-TASK: Render individual slide elements in worker — see TODO.md "OffscreenCanvas Worker"
-  // Full implementation would import CanvasBackend + element renderers
-  // and iterate over data.elements with viewport culling applied.
+  // Build a minimal RenderContext for the worker.
+  // Font resolution is passthrough — the browser's CSS font matching
+  // handles substitution. FontMetricsDB and FontResolver can be
+  // transferred to the worker in a future enhancement for pixel-perfect
+  // text layout.
+  const rctx: RenderContext = {
+    backend: new CanvasBackend(ctx as unknown as CanvasRenderingContext2D),
+    dpiScale,
+    theme,
+    mediaCache,
+    resolveFont: (name: string) => name,
+    colorMap,
+    slideNumber,
+  };
 
-  ctx.restore();
+  renderSlide(enrichedSlide, rctx, slideWidthPx, slideHeightPx);
 }

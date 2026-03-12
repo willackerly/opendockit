@@ -9,6 +9,9 @@
  * Transferable mechanism in the 'init' message.
  */
 
+import type { ThemeIR } from '@opendockit/core';
+import type { EnrichedSlideData, ColorMapOverride } from '../../model/index.js';
+
 // ---------------------------------------------------------------------------
 // Main → Worker messages
 // ---------------------------------------------------------------------------
@@ -21,7 +24,12 @@ export interface InitMessage {
   slideHeight: number;
 }
 
-/** Request a render frame with the given slide data. */
+/**
+ * Request a render frame with the given slide data.
+ *
+ * Carries the full enriched slide chain (slide + layout + master) plus
+ * the theme and color map needed to construct a RenderContext in the worker.
+ */
 export interface RenderMessage {
   type: 'render';
   slideData: SerializedSlideData;
@@ -76,20 +84,31 @@ export type WorkerToMainMessage = ReadyMessage | RenderedMessage | ErrorMessage;
 /**
  * Serialized slide data for transfer across the worker boundary.
  *
- * This is a JSON-safe intermediate representation. The full
- * `EnrichedSlideData` contains parsed XML references and class instances
- * that cannot cross the structured-clone boundary, so this flattened
- * form carries only the data needed for rendering.
+ * Carries the full enriched slide chain (slide + layout + master) which
+ * is pure IR data (JSON-serializable). The theme and color map are included
+ * so the worker can construct a complete RenderContext without callbacks
+ * to the main thread.
+ *
+ * Media (images) are sent as pre-decoded ArrayBuffers keyed by part URI.
  */
 export interface SerializedSlideData {
-  /** Slide IR elements (already JSON-serializable from the parser). */
-  elements: unknown[];
-  /** Background fill data. */
-  background?: unknown;
+  /** The enriched slide chain: slide + layout + master. */
+  enrichedSlide: EnrichedSlideData;
+  /** Presentation theme for the slide's master chain. */
+  theme: ThemeIR;
+  /** Merged color map (master → layout → slide overrides). */
+  colorMap?: ColorMapOverride;
   /** Slide width in EMU. */
   width: number;
   /** Slide height in EMU. */
   height: number;
+  /** 1-based slide number for field code rendering. */
+  slideNumber?: number;
+  /**
+   * Pre-loaded media buffers keyed by OPC part URI.
+   * Images are transferred as ArrayBuffers to avoid re-fetching in the worker.
+   */
+  mediaBuffers?: Record<string, ArrayBuffer>;
 }
 
 /**

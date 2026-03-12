@@ -72,11 +72,31 @@ export class WorkerOrchestrator {
   /**
    * Request a render frame with the given slide data.
    * No-op if the worker is not yet initialized.
+   *
+   * If the slide data includes media buffers, they are listed as
+   * Transferable objects so ownership moves to the worker without copying.
+   * After this call, the ArrayBuffer values in `slideData.mediaBuffers`
+   * will be neutered (zero-length) on the main thread.
    */
   requestRender(slideData: SerializedSlideData, viewportRect?: ViewportRect): void {
     if (!this._worker || !this._ready) return;
     const msg: MainToWorkerMessage = { type: 'render', slideData, viewportRect };
-    this._worker.postMessage(msg);
+
+    // Collect media ArrayBuffers as transferables to avoid copying
+    const transferables: Transferable[] = [];
+    if (slideData.mediaBuffers) {
+      for (const buf of Object.values(slideData.mediaBuffers)) {
+        if (buf.byteLength > 0) {
+          transferables.push(buf);
+        }
+      }
+    }
+
+    if (transferables.length > 0) {
+      this._worker.postMessage(msg, transferables);
+    } else {
+      this._worker.postMessage(msg);
+    }
   }
 
   /**
