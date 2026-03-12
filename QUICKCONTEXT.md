@@ -143,6 +143,20 @@ Still deferred:
 Permanently deferred:
 - **ChartML** — cached image fallback renders chart previews. Not worth the complexity.
 
+### Phase 5+ Strategic Roadmap — PLANNING
+
+See `docs/plans/STRATEGIC_ROADMAP.md` for the full plan. Key initiatives:
+
+| Phase | Focus | Status |
+|-------|-------|--------|
+| 5A | Tree shaking + bundle split (core ~800KB → ~200KB gzipped) | Planning |
+| 5B | Spatial index (rbush) + transaction undo/redo | Planning |
+| 5C | PDF/A-3 lossless round-trip (embed original PPTX in PDF) | Planning |
+| 5.5 | Font innovation (variable fonts, hb-subset, metrics compression, unified resolver) | Planning |
+| 6 | In-canvas editing (OffscreenCanvas worker, text editing engine, CanvasKit/WebGPU) | Planning |
+| 7 | Cross-format save (incremental PDF, PageElement → OOXML synthesis, feature registry) | Planning |
+| 8 | Collaboration & AI (CRDT editing, local VLM document understanding) | Planning |
+
 ### Deferred (not blocking — tackle when needed)
 
 1. **Connector routing** — shape-to-shape endpoint resolution via connection sites
@@ -185,10 +199,11 @@ None currently.
 
 ## Active Bugs
 
-### PDF NativeRenderer Quality (2026-03-11)
+None currently blocking. See `KNOWN_ISSUES.md` for known gaps.
 
-**Pixel RMSE 0.042** (down from 0.14 — 70% reduction). **Structural: 97% text accuracy, 4.4pt position delta.** Canvas Tree Recorder Phase 1+2 complete. Font size clamping, remeasure system, actual glyph widths, font ascent metrics, embedded font rendering (pure-TS font patcher) all landed. Remaining: ExtGState SMask (transparency groups), Separation/DeviceN.
+### PDF NativeRenderer Quality (2026-03-12)
 
-**Comparison harness**: `packages/pdf-signer/src/render/__tests__/pdf-compare-harness.test.ts` — generates HTML report at `packages/tmp/pdf-compare/usg-briefing/report.html`.
-**PPTX SBS viewer**: `pnpm sbs -- --pptx <path> --ref-dir <dir>` or `node scripts/generate-sbs-viewer.mjs`.
+**Pixel RMSE 0.042** (down from 0.14 — 70% reduction). **Structural: 97% text accuracy, 4.4pt position delta.** All major bugs resolved (13 fixes). Remaining: Separation/DeviceN tint transforms. RMSE now dominated by cross-engine inherent differences (JPEG decoder variance, text anti-aliasing).
+
+**Comparison harness**: `packages/pdf-signer/src/render/__tests__/pdf-compare-harness.test.ts`
 **PowerPoint ground truth**: `~/dev/USG Briefing/PNG-USG Briefing Mar 7 - UNCLAS/` (30 slides, 2880x1620).

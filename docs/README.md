@@ -38,6 +38,18 @@
 | ----------------- | ------------------------------------------------------ |
 | `specifications/` | OOXML spec notes, format-specific implementation notes |
 | `testing/`        | Testing strategy, coverage tracking                    |
-| `plans/`          | Implementation phase plans                             |
+| `plans/`          | Implementation phase plans (see below)                 |
 | `current-status/` | Status snapshots at milestones                         |
 | `archive/`        | Completed/obsolete docs                                |
+
+## Plans
+
+| Plan                                     | Purpose                                                                          |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| **`plans/STRATEGIC_ROADMAP.md`**         | Phase 5+ strategic roadmap — cross-format save, editing, performance, blindpipe  |
+| `plans/FONT_DELIVERY_PLAN.md`            | Font system architecture — metrics-only core, companion package, CDN fallback    |
+| `plans/FONT_DELIVERY_EXECUTION.md`       | Font delivery step-by-step execution guide (Phases 1-5)                          |
+| `plans/CANVAS_TREE_PLAN.md`              | Canvas Tree Recorder — structural rendering comparison pipeline                  |
+| `plans/DOCX_LAYOUT_PLAN.md`              | DOCX page layout engine — 8-phase plan                                           |
+| `plans/pdf-office-merge-plan.md`         | PDF/Office unification vision and user stories                                   |
+| `plans/fan-out-strategy.md`              | Parallel worktree execution plan for the PDF/Office merger                       |

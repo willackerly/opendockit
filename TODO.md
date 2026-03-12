@@ -79,12 +79,7 @@
 - [x] Progressive render pipeline (grey-box with hatch + loading indicator, deferred WASM loading, coverage report API)
 - [x] Visual regression pipeline (Playwright + ImageMagick RMSE, 54-slide baseline with regression guard, `pnpm test:visual`)
 
-## Next Up
-
-### PRIORITY: IC CISO Deck Visual Fixes (do NOT move off until resolved)
-
-User-flagged issues from visual diff review (2026-02-24). Each must be investigated,
-fixed, and verified with RMSE improvement before moving to other work.
+### IC CISO Deck Visual Fixes (complete 2026-02-24)
 
 - [x] **Slide 11 — Bullet number spacing** — FIXED: Table cell margins (marL/marR/marT/marB) and vertical alignment (anchor) not parsed from `<a:tcPr>`. RMSE 0.1586→0.1420.
 - [x] **Slide 13 — Unreadable render + arrow artifacts** — FIXED: Multi-path geometry rendering. Arrow presets now render each sub-path with correct fill mode (norm/darken/lighten/none) and stroke.
@@ -95,7 +90,7 @@ fixed, and verified with RMSE improvement before moving to other work.
 - [x] **Page numbers not rendering** — FIXED: Placeholder content inheritance from master/layout `<a:fld>` elements.
 - [x] **Arrow shape artifacts** — FIXED: `buildPresetPaths()` preserves per-path fill/stroke metadata. Shape renderer iterates sub-paths individually.
 
-### Phase 3.5: Diagnostics & Observability
+### Phase 3.5: Diagnostics & Observability (complete 2026-02-27)
 
 - [x] **Structured logging/warning system** — DiagnosticEmitter + RenderContext wiring + SlideKit callback (2026-02-25)
 - [x] **Diagnostic emission expansion** — wired into effect-renderer, fill-renderer, picture-renderer, connector-renderer, slide-viewport (2026-02-25)
@@ -140,6 +135,22 @@ fixed, and verified with RMSE improvement before moving to other work.
 
 These are known gaps. They can be tackled opportunistically or when a real-world PPTX hits them hard.
 
+### PDF Export Pipeline Gaps
+
+TRACKED-TASK items from `pdf-slide-renderer.ts`, `pdf-backend.ts`, and `PDFPage.ts`:
+
+- [ ] PDF gradient shading objects for gradient backgrounds (`pdf-slide-renderer.ts:192`)
+- [ ] PDF image XObject embedding for picture backgrounds (`pdf-slide-renderer.ts:217`)
+- [ ] PDF gradient shading for shape fills (`pdf-slide-renderer.ts:256`)
+- [ ] PDF image XObject embedding for shape picture fills (`pdf-slide-renderer.ts:276`)
+- [ ] PDF connector line rendering (`pdf-slide-renderer.ts:647`)
+- [ ] PDF table rendering (`pdf-slide-renderer.ts:651`)
+- [ ] setTransform CTM tracking for PDFBackend (`pdf-backend.ts:747`)
+- [ ] Quadratic-to-cubic path conversion accuracy (`pdf-backend.ts:786`)
+- [ ] arcTo implementation via tangent circle computation (`pdf-backend.ts:816`)
+- [ ] PDF tiling patterns for createPattern (`pdf-backend.ts:1330`)
+- [ ] Native scaleAnnotations in PDFPage (`PDFPage.ts:198`)
+
 ### Connector Routing via Connection Sites
 
 - Connectors render (straight, bent, curved) but endpoints resolve to shape bounding-box edges
@@ -162,13 +173,13 @@ Found by property-by-property audit of real-world PPTX XML vs parser/renderer.
 - [x] Double strikethrough (2026-02-24)
 - [x] Highlight background color rendering (2026-02-24)
 - [x] LineHeight fallback improved to 1.2 for unknown fonts (2026-02-24)
-
-**Remaining:**
 - [x] `vert` — text direction (`<a:bodyPr vert="vert270">`) parsed + rendered via canvas rotation (2026-02-25)
 - [x] `rtl` — now consumed by text renderer with alignment mirroring + bullet repositioning (2026-02-25)
 - [x] `defTabSz` / `a:tabLst` (tab stops) — parsed + rendered with explicit stops and default grid (2026-02-25)
 - [x] `a:uFill` — underline fill color parsed and rendered (2026-02-25)
 - [x] `a:ln` on `a:rPr` (text outline) — parsed and rendered via strokeText (2026-02-25)
+
+**Remaining:**
 - [ ] `a:effectLst` on `a:rPr` (text shadow/glow/reflection) — not parsed
 - [ ] `numCol` / `spcCol` on `a:bodyPr` — parsed into IR but not consumed (multi-column text bodies)
 - [ ] Underline/strikethrough position — uses geometric heuristic (15%/30% of font size), not OS/2 font metrics
@@ -188,6 +199,20 @@ Deep investigation of top-10 RMSE slides confirms:
 - 10 corpus PPTX files (67 slides) with self-referential regression guard (`pnpm test:visual:corpus`)
 - Plus 1 real-world PPTX (54 slides) with PDF-referenced RMSE baselines (`pnpm test:visual`)
 - Still want: synthetic fixture PPTX files targeting specific features in isolation
+
+## Strategic Roadmap (Phase 5+)
+
+See **`docs/plans/STRATEGIC_ROADMAP.md`** for the comprehensive plan. Summary:
+
+| Phase | Focus | Key Deliverables |
+|-------|-------|-----------------|
+| 5A | Tree shaking + bundle | `sideEffects: false`, per-family metrics split, lazy geometry, core ~800KB → ~200KB gzip |
+| 5B | Editor core | rbush spatial index, transaction undo/redo, viewport culling |
+| 5C | Lossless round-trip | PDF/A-3 attachment embedding (original PPTX inside exported PDF) |
+| 5.5 | Font innovation | Variable fonts, hb-subset WASM, metrics compression, unified resolver |
+| 6 | In-canvas editing | OffscreenCanvas worker, IME text editing, CanvasKit/WebGPU backend |
+| 7 | Cross-format save | Incremental PDF save, PageElement → OOXML synthesis, feature registry |
+| 8 | Collaboration + AI | CRDT editing (Yjs), local VLM document understanding |
 
 ## Planned
 

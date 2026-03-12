@@ -28,11 +28,6 @@
 | **P3** | Separation/DeviceN | Treated as grayscale instead of evaluating tint transform function | Hard |
 | **Info** | Remaining RMSE floor | Remaining 0.042 RMSE dominated by cross-engine inherent differences: JPEG decoder variance, text anti-aliasing (FreeType vs Cairo), subpixel rounding | N/A |
 
-### Resolved: Bundled Font Loading Broken in Vite Dev Mode (2026-02-27, superseded by Phase 3)
-
-- **Original issue:** ALL 42 bundled WOFF2 fonts silently failed to load due to Vite dev mode `@vite-ignore` bypass. Was fixed with `new URL(path, import.meta.url).href`.
-- **Superseded:** Phase 3 font delivery redesign removed all base64 font bundles from core. `bundled-font-loader.ts` now delegates to `@opendockit/fonts` companion package via dynamic import, eliminating the Vite issue entirely.
-
 ### Resolved: Font Loading Missed Master/Layout Fonts (2026-02-27)
 
 - **Font loading missed master/layout content fonts** — FIXED: `_collectNeededFontFamilies()` only checked theme fonts (majorLatin/minorLatin) and embedded font typefaces. Fonts declared in master/layout XML (e.g. `<a:defRPr>` in `<a:lstStyle>`, `<p:txStyles>`) were never discovered, so the viewer fell back to generic serif/sans-serif. Fix: regex-scan master/layout XML parts for `typeface="..."` attributes at load time. This catches all font references from `<a:latin>`, `<a:ea>`, `<a:cs>`, `<a:sym>`, `<a:buFont>`, etc.
@@ -79,19 +74,6 @@ None.
 - **SmartArt fallback** — DONE (2026-02-25): pre-rendered DrawingML from `dsp:drawing`/`dsp:spTree` parts parsed and rendered. Full layout engine deferred.
 - **Chart cached image fallback** — DONE (2026-02-26): follows slide→chart→cached raster image relationship chain. Full ChartML parser deferred to Phase 4.
 
-### Visual Regression Targets (IC CISO deck)
-
-User-flagged issues from visual diff review (2026-02-24):
-
-- ~~**Slide 11** — Numbered bullet items badly misspaced~~ FIXED: table cell margins/alignment (RMSE 0.1586→0.1420)
-- ~~**Slide 13** — Severely unreadable render; arrow artifacts~~ FIXED: multi-path geometry rendering
-- **Slide 9** — Vertical line spacing (RMSE 0.1627). endParaRPr fix applied but remaining diff is from font metric/engine differences, not layout
-- ~~**Slide 46** — Bullet text overflow (RMSE 0.1490)~~ IMPROVED: endParaRPr empty paragraph sizing (RMSE 0.1490→0.1372)
-- **Slide 17** — "Safe Harbor" text spacing (RMSE 0.1060). Confirmed: primarily unrendered 3D background image, text positioning is accurate
-- ~~**Slide 16** — Left column text vertical offset~~ FIXED: table cell anchor="ctr" vertical alignment (RMSE 0.1014→0.0800)
-- ~~**Page numbers** — Not rendering~~ FIXED: placeholder content inheritance from `<a:fld>` elements
-- ~~**Arrow shapes** — Rendering artifacts~~ FIXED: `buildPresetPaths()` preserves per-path fill/stroke metadata
-
 ### Diagnostic/Warning System — DONE (2026-02-25)
 
 - DiagnosticEmitter + RenderContext wiring + SlideKit `onDiagnostic` callback
@@ -135,6 +117,24 @@ User-flagged issues from visual diff review (2026-02-24):
 - Media LRU cache currently unbounded — needs configurable size limits.
 
 ## Resolved Issues
+
+### Bundled Font Loading Broken in Vite Dev Mode (resolved 2026-02-27, superseded by Phase 3)
+
+- **Original issue:** ALL 42 bundled WOFF2 fonts silently failed to load due to Vite dev mode `@vite-ignore` bypass. Was fixed with `new URL(path, import.meta.url).href`.
+- **Superseded:** Phase 3 font delivery redesign removed all base64 font bundles from core. `bundled-font-loader.ts` now delegates to `@opendockit/fonts` companion package via dynamic import, eliminating the Vite issue entirely.
+
+### Visual Regression Targets — IC CISO Deck (resolved 2026-02-24)
+
+User-flagged issues from visual diff review. All actionable items resolved:
+
+- **Slide 11** — Numbered bullet items badly misspaced. FIXED: table cell margins/alignment (RMSE 0.1586->0.1420)
+- **Slide 13** — Severely unreadable render; arrow artifacts. FIXED: multi-path geometry rendering
+- **Slide 9** — Vertical line spacing (RMSE 0.1627). endParaRPr fix applied; remaining diff is from font metric/engine differences, not layout (won't fix)
+- **Slide 46** — Bullet text overflow. IMPROVED: endParaRPr empty paragraph sizing (RMSE 0.1490->0.1372)
+- **Slide 17** — "Safe Harbor" text spacing (RMSE 0.1060). Confirmed: primarily unrendered 3D background image, text positioning is accurate (won't fix)
+- **Slide 16** — Left column text vertical offset. FIXED: table cell anchor="ctr" vertical alignment (RMSE 0.1014->0.0800)
+- **Page numbers** — Not rendering. FIXED: placeholder content inheritance from `<a:fld>` elements
+- **Arrow shapes** — Rendering artifacts. FIXED: `buildPresetPaths()` preserves per-path fill/stroke metadata
 
 ### Empty Paragraph Sizing / endParaRPr (resolved 2026-02-24)
 

@@ -1,7 +1,7 @@
 # Font Delivery Redesign Plan
 
 **Created:** 2026-03-11
-**Status:** Draft
+**Status:** Phases 1-3 implemented (2026-03-11), Phases 4-5 remaining
 **Goal:** Migrate from "everything bundled in core" (~18MB) to "metrics-only core + dynamic font fetching + optional offline companion package."
 
 ---

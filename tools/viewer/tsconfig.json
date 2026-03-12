@@ -2,8 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": ".",
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "vite": ["./node_modules/vite"]
+    }
   },
   "include": ["*.ts"]
 }

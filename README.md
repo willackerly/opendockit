@@ -17,7 +17,7 @@ Renders PPTX presentations (and eventually DOCX/XLSX) directly in the browser us
 
 ## Status
 
-**Alpha** — Phase 4 (PDF/Office unified architecture) complete. PPTX rendering, editing, and PDF export operational.
+**Alpha** — Phase 4 (PDF/Office unified architecture) complete. PPTX rendering, editing, and PDF export operational. Phase 5+ (performance, cross-format save, in-canvas editing) in planning — see [`docs/plans/STRATEGIC_ROADMAP.md`](docs/plans/STRATEGIC_ROADMAP.md).
 
 ## Quick Start
 
@@ -114,10 +114,13 @@ See `docs/architecture/` for full details.
 
 ## Design Philosophy
 
-1. **Progressive fidelity** — render what we can immediately, grey-box what we can't, load WASM for advanced features on demand
-2. **100% client-side** — no server dependencies, works offline
-3. **Transparent capability reporting** — the renderer knows exactly what it supports and tells you
-4. **Inspectable code** — TS/JS envelope owns parsing and orchestration; WASM modules are leaf-node accelerators
+1. **Offline-first** — every feature works without network access. Font metrics ship in-bundle for instant layout; font binaries available via companion package. Network is for enhancement (CDN fonts, updates), never a hard dependency.
+2. **Progressive fidelity** — render something useful immediately, improve quality as resources load. Metrics-only text layout → font binary swap → WASM-accelerated effects. Never block on optional resources.
+3. **100% client-side** — zero server dependencies. All parsing, rendering, editing, and export runs in the browser or Node.js.
+4. **The IR is the product** — `PageElement[]` is the cross-format bridge. Every format reads into it; every output writes from it. Enriching this IR is the highest-leverage work.
+5. **Progressive capability, not progressive compromise** — each tier (parse → layout → render → edit → save) works independently. Apps consume only what they need. Tree shaking eliminates the rest.
+6. **Transparent capability reporting** — the renderer knows exactly what it supports and tells you.
+7. **Inspectable code** — TS/JS envelope owns parsing and orchestration; WASM modules are leaf-node accelerators, not black boxes.
 
 ## Documentation
 
@@ -130,12 +133,25 @@ See `docs/architecture/` for full details.
 | `docs/MIGRATION_GUIDE.md` | pdfbox-ts → @opendockit/pdf-signer migration |
 | `docs/architecture/` | System architecture, RenderBackend, element model |
 | `docs/testing/` | Test coverage, visual regression, font testing |
-| `docs/plans/` | Design decisions and merge plans |
+| `docs/plans/STRATEGIC_ROADMAP.md` | Phase 5+ strategic roadmap (cross-format, editing, performance) |
+| `docs/plans/` | All design plans, merge strategies, execution guides |
 | `scripts/README.md` | Script registry and usage guide |
 | `packages/*/README.md` | Per-package quick start |
 | `packages/**/MODULE.md` | Detailed module documentation |
 
 See `docs/README.md` for the full documentation tree.
+
+## Roadmap
+
+Phase 4 is complete. The strategic roadmap for Phase 5+ is in [`docs/plans/STRATEGIC_ROADMAP.md`](docs/plans/STRATEGIC_ROADMAP.md):
+
+- **Phase 5:** Tree shaking + bundle optimization (core ~800KB → ~200KB gzip), spatial indexing + undo/redo, PDF/A-3 lossless round-trip
+- **Phase 5.5:** Variable fonts, on-demand subsetting (hb-subset WASM), metrics compression, unified cross-format FontResolver
+- **Phase 6:** OffscreenCanvas worker rendering, in-canvas text editing engine, CanvasKit/WebGPU backend
+- **Phase 7:** Incremental PDF save, PageElement → OOXML synthesis, OOXML feature coverage registry
+- **Phase 8:** CRDT collaborative editing (Yjs), AI-assisted document understanding, streaming parsing
+
+Cross-project synergy with [blindpipe](https://github.com/willackerly/blindpipe) (zero-knowledge collaborative office suite) is documented in the roadmap — shared font stack, DOCX parser, and rendering engine could replace blindpipe's ~556MB ONLYOFFICE dependency with a ~5MB OpenDocKit stack.
 
 ## License
 
