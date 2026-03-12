@@ -1,19 +1,20 @@
 # Test Coverage
 
-**Last updated:** 2026-03-08
+**Last updated:** 2026-03-12
 
 ## Summary
 
 | Package                  | Test Files       | Tests              | Status     |
 | ------------------------ | ---------------- | ------------------ | ---------- |
-| @opendockit/core         | 67               | 1,733              | Pass       |
-| @opendockit/elements     | 6                | 203                | Pass       |
+| @opendockit/core         | 67               | 1,687              | Pass       |
+| @opendockit/elements     | 6                | 331                | Pass       |
 | @opendockit/render       | 5                | 208                | Pass       |
-| @opendockit/pptx         | 22               | 433                | Pass       |
-| @opendockit/pdf-signer   | 74 (+8 skipped)  | 1,598 (+46 skipped)| Pass       |
+| @opendockit/pptx         | 22               | 370                | Pass       |
+| @opendockit/pdf-signer   | 74 (+8 skipped)  | 1,777 (+46 skipped)| Pass       |
 | @opendockit/docx         | 9                | 129                | Pass       |
 | @opendockit/pdf          | 1                | 24                 | Pass       |
-| **Total**                | **184**          | **4,328**          | **Pass**   |
+| @opendockit/fonts        | 1                | 8                  | Pass       |
+| **Total**                | **185**          | **4,534**          | **Pass**   |
 
 Typecheck clean. Prettier clean. Zero untracked TODOs.
 
@@ -106,6 +107,21 @@ pdf-signer is a vendored TypeScript port of Apache PDFBox signing primitives. Te
 
 73 active test files; 8 skipped (fixtures requiring JRE or network). 46 tests skipped within active files.
 
+### PDF Rendering Comparison Harness
+
+- **RMSE comparison:** 30-page pixel comparison (NativeRenderer vs pdftoppm ground truth), average RMSE **0.042** — a 70% reduction from the 0.14 starting point.
+- **Trace pipeline:** Canvas Tree Recorder captures text/shape/image events during rendering; compared against `pdftotext -bbox-layout` ground truth. Results: **97% text accuracy, 4.4pt average position delta**.
+- Harness: `packages/pdf-signer/src/render/__tests__/pdf-compare-harness.test.ts`
+- Trace harness: `packages/pdf-signer/src/render/__tests__/trace-pipeline-harness.test.ts`
+
+---
+
+## Module Breakdown (fonts)
+
+| Module              | Tests | Coverage Notes                              |
+| ------------------- | ----- | ------------------------------------------- |
+| Companion package   | 8     | registerOfflineFonts(), manifest, WOFF2/TTF |
+
 ---
 
 ## Module Breakdown (pdf)
@@ -132,7 +148,6 @@ The font pipeline is the #1 fragility risk. Tests are distributed across multipl
 | `core/font/__tests__/font-substitution.test.ts` | core | Substitution table lookup, web-safe passthrough, fallback chain | ~20 |
 | `core/font/__tests__/ttf-loader.test.ts` | core | TTF loading, caching, variant fallback, TrueType magic byte validation | 10 |
 | `core/font/__tests__/font-consistency.test.ts` | core | Substitution→metrics→TTF→WOFF2 pipeline consistency | 7 |
-| `core/font/__tests__/woff2-integrity.test.ts` | core | WOFF2 module validation, base64 decoding, magic bytes | 104 |
 | `core/font/__tests__/font-pipeline-contracts.test.ts` | core | Three-way substitution→metrics→WOFF2 consistency | 28 |
 | `render/src/__tests__/metrics-sync.test.ts` | render | Render bundle re-exports from core, structural equality | 5 |
 

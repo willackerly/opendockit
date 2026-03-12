@@ -1,5 +1,12 @@
 # SlideKit: Progressive-Fidelity PPTX Renderer Architecture
 
+> **Updated 2026-03-12** — Phase 4 consolidation.
+>
+> - **`fontConfig` option** — SlideKit now accepts a `fontConfig` option to wire in `FontResolver` (CDN fonts via Fontsource/Google Fonts, offline companion via `@opendockit/fonts`).
+> - **Unified element extraction** — element output is compatible with the PDF element model (`PageModel`/`PageElement` from `@opendockit/elements`), enabling cross-format comparison.
+> - **CSS font weight from family name** — suffixes like "Light", "SemiBold" are parsed to numeric weights (e.g., Barlow Light -> 300).
+> - **Font fallback alerting** — `console.warn` emitted for every font substitution or fallback, aiding debugging in production.
+
 ## Design Philosophy
 
 **Core principle:** The TS/JS layer owns orchestration, parsing, and simple rendering.

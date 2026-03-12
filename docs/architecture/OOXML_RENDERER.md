@@ -1,5 +1,12 @@
 # OpenDocKit: Unified OOXML Renderer Architecture
 
+> **Updated 2026-03-12** — Phase 4 (PDF/Office merge) complete.
+>
+> - **Unified element model** via `@opendockit/elements` (`PageModel`, `PageElement`) — shared across PPTX and PDF pipelines.
+> - **RenderBackend abstraction** — `CanvasBackend`, `PDFBackend`, `TracingBackend` allow the same element tree to target Canvas2D, PDF export, or structural tracing.
+> - **Cross-format element comparison infrastructure** — ground-truth extraction (`pdftotext -bbox-layout`), element matching (Levenshtein + spatial), and HTML diff reports enable structural diffing between formats.
+> - **PDF native rendering engine** (`NativeRenderer`) — 85+ PDF operators, embedded font rendering via fonttools cmap rebuild, RMSE 0.042 avg against pdftoppm reference.
+
 ## Executive Summary
 
 OpenDocKit is a progressive-fidelity, client-side renderer for OOXML documents (PPTX,

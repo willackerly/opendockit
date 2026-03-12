@@ -1,6 +1,6 @@
 # Quick Context
 
-**Last updated:** 2026-03-11
+**Last updated:** 2026-03-12
 **Branch:** main
 **Phase:** Phase 4 (Waves 0-4) complete — PDF/Office unified architecture
 
@@ -37,7 +37,7 @@ OpenDocKit is a progressive-fidelity, **offline-first**, 100% client-side OOXML 
 
 The full PPTX rendering pipeline is implemented, tested, and visually validated. The editing pipeline (Phase 0-3) is complete. Phase 4 (Waves 0-4) of the PDF/Office unified architecture is complete:
 
-- **4,512 tests** passing (1,687 core + 331 elements + 208 render + 370 pptx + 1,755 pdf-signer + 129 docx + 24 pdf + 8 fonts), typecheck clean
+- **4,534 tests** passing (1,687 core + 331 elements + 208 render + 370 pptx + 1,777 pdf-signer + 129 docx + 24 pdf + 8 fonts), typecheck clean
 - **Visual regression**: 54-slide real-world PPTX with per-slide RMSE baselines (`pnpm test:visual`) + 10-file corpus (67 slides) with self-referential regression guard (`pnpm test:visual:corpus`) + PDF visual regression with RMSE baselines (`pnpm test:visual:pdf`)
 - **@opendockit/core**: OPC reader, XML parser, unit conversions, IR types, theme engine (colors + fonts + formats), font system with precomputed metrics (42 families, 130 faces) + FontResolver + CDN fetcher + font cache, all DrawingML parsers (fill, line, effect, transform, text, picture, group, table, hyperlinks, video placeholder detection, field codes, diagram drawing), geometry engine (187 presets + path builder + custom geometry), all Canvas2D renderers (shape, fill, line, effect, text, picture, group, table, connector) with justify/distributed alignment + character spacing + text body rotation + font-metric-based line height + ascender baseline positioning + text outline + underline fill color, media cache, capability registry, WASM module loader, diagnostics system (DiagnosticEmitter + RenderContext wiring)
 - **@opendockit/pptx**: Presentation parser, slide master/layout/slide parsers, background renderer, slide renderer (with placeholder property inheritance + table textDefaults), SlideKit viewport API (hyperlinks, notes, element inspector), SmartArt fallback renderer, chart cached image fallback renderer
@@ -100,7 +100,7 @@ Cross-project alignment with pdfbox-ts: EditTracker mirrors COSUpdateTracker pat
 
 Core npm dropped from **18MB → ~800KB**. Font binaries moved to companion package (`@opendockit/fonts`, 45 families, 130 variants, 3.9MB WOFF2 + 33MB TTF) for offline rendering, with CDN fallback for online apps. Metrics-only bundle (750KB) stays in core for instant text layout.
 
-**Completed (2026-03-11):** Phase 1 (`@opendockit/fonts` companion package, 8 tests), Phase 2 (FontResolver + CDNFetcher + FontCache + SUBSTITUTION_REGISTRY in core, 37 tests), Phase 2b (SlideKit `fontConfig` opt-in wiring), Phase 3 (removed 17MB base64 from core — bundled-font-loader/ttf-loader now delegate to companion via dynamic import), Phase 3b (generate-font-package.py populates companion with real WOFF2/TTF). Total 4,512 tests passing.
+**Completed (2026-03-12):** Phase 1 (`@opendockit/fonts` companion package, 8 tests), Phase 2 (FontResolver + CDNFetcher + FontCache + SUBSTITUTION_REGISTRY in core, 37 tests), Phase 2b (SlideKit `fontConfig` opt-in wiring), Phase 3 (removed 17MB base64 from core — bundled-font-loader/ttf-loader now delegate to companion via dynamic import), Phase 3b (generate-font-package.py populates companion with real WOFF2/TTF). Total 4,534 tests passing.
 
 **Remaining:** Phase 4 (CDN polish), Phase 5 (harfbuzzjs PDF subsetting).
 
@@ -114,9 +114,9 @@ See `docs/plans/FONT_DELIVERY_PLAN.md` for architecture and `docs/plans/FONT_DEL
 
 **Canvas Tree Recorder — Phase 1+2 Complete (2026-03-11):** CanvasTreeRecorder instruments canvas-graphics.ts to emit TraceEvent[] with shadow CTM stack for world-space coordinates. Phase 2 wires trace output through traceToFlatRuns → groupGlyphsIntoWords → matchTextElements for ground truth comparison. See `docs/plans/CANVAS_TREE_PLAN.md`.
 
-**Completed (2026-03-12):** All prior fixes + font size clamping, remeasure system, actual glyph widths, font ascent from FontDescriptor, Canvas Tree Recorder Phase 1+2, **embedded font rendering** (font extraction + fonttools cmap rebuild + registration).
+**Completed (2026-03-12):** All prior fixes + font size clamping, remeasure system, actual glyph widths, font ascent from FontDescriptor, Canvas Tree Recorder Phase 1+2, **embedded font rendering** (pure-TS font patcher + cmap rebuild — no python3/fonttools dependency), **ExtGState SMask** transparency group support, image interpolation control, inline JPEG rendering, FontDescriptor-based deterministic font weight/style, CSS font weight from family name suffixes (e.g. Barlow Light -> 300), font fallback alerting (console.warn on every substitution), cross-format element comparison infrastructure (PPTX<->PDF).
 
-**Remaining:** ExtGState SMask transparency groups (page 29 — Hard), Separation/DeviceN tint transforms. Canvas Tree Recorder Phase 3 (cross-format PPTX↔PDF comparison) and Phase 4 (diagnostic HTML report). Font substitution is DONE (pure-TS font patcher, no external fonttools dependency).
+**Remaining:** Separation/DeviceN tint transforms. Canvas Tree Recorder Phase 3 (cross-format PPTX↔PDF comparison) and Phase 4 (diagnostic HTML report). RMSE now dominated by cross-engine inherent differences (JPEG decoder variance, text anti-aliasing FreeType vs Cairo).
 
 **pdf-signer-web migration (COMPLETE 2026-03-11):** Swapped vendored pdfbox-ts tarball for @opendockit/pdf-signer. 2 source files + 2 package.json + 2 vitest configs updated. All 101 tests pass, typecheck clean.
 

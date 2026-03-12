@@ -1,27 +1,32 @@
 # Known Issues
 
-**Last updated:** 2026-03-11
+**Last updated:** 2026-03-12
 
 ## Active Bugs (Priority)
 
-### PDF NativeRenderer — Quality (2026-03-11)
+### PDF NativeRenderer — Quality (2026-03-12)
 
-**Avg RMSE: 0.055 against pdftoppm ground truth** (USG Briefing, 30 pages). Down from 0.14 — 61% reduction. Now rendering with **correct embedded typefaces** (Barlow, RobotoSlab) via font registration + cmap rebuild. Only 2/30 BAD pages remain.
+**Avg RMSE: 0.042 against pdftoppm ground truth** (USG Briefing, 30 pages). Down from 0.14 — **70% total reduction**. Now rendering with **correct embedded typefaces** (Barlow, RobotoSlab) via pure-TS font patcher + cmap rebuild + font registration. No python3/fonttools dependency required.
 
 **Fixed (13 bugs, 2026-03-10):** ICC stream color space (#1 — backgrounds decoded as gray), JPEG SMask application, Form XObject state isolation, fillStroke path destruction, image mask fill color, horizontal text scaling (Tz), Type 0 sampled function decode, stitching function recursion, tiling patterns, ImageData Node.js crash, per-character text positioning, ICCBased N=2, browser JPEG crosshatch.
 
 **Fixed (2 bugs, 2026-03-11):** Negative fontSize (renderGlyph skips Y-flip), CS/cs color space tracking (evaluator tracks fill/stroke color space from CS/cs operators).
 
+**Fixed (2026-03-12):** ExtGState SMask transparency group support (offscreen compositing), image interpolation control (`imageSmoothingEnabled`), inline JPEG rendering, FontDescriptor-based deterministic font weight/style, CSS font weight from font family name suffixes (e.g. Barlow Light -> weight 300), font fallback alerting (loud console.warn on every substitution), pure-TS font patcher (replaced python3/fonttools cmap rebuild).
+
 **Element-level structural diffing (2026-03-11):** Infrastructure built — ground-truth-extractor.ts, element-matcher.ts, element-diff-harness.test.ts (55 new tests). Canvas Tree Recorder Phase 2 achieves **97% text accuracy, 4.4pt avg position delta** (was 8.2% / 29.7pt before).
+
+**Cross-format element comparison (2026-03-12):** PPTX<->PDF structural comparison infrastructure built for verifying rendering consistency across formats.
 
 **Open issues:**
 
 | Priority | Issue | Details | Effort |
 |----------|-------|---------|--------|
 | **Next** | Canvas Tree Recorder Phase 3 | Cross-format PPTX↔PDF comparison using trace pipeline. **Ground truth PDFs MUST be exported from PowerPoint — NEVER use our `exportPDF()`.** | Medium |
-| **P1** | ExtGState SMask | Transparency groups on page 29 — `handleExtGState()` ignores `/SMask` key, requires offscreen compositing | Hard |
-| ~~**P2**~~ | ~~Font substitution~~ | **DONE** — Embedded TrueType fonts registered via fonttools cmap rebuild. Correct typefaces render (Barlow, RobotoSlab). RMSE 0.055. | ~~Medium~~ |
+| ~~**P1**~~ | ~~ExtGState SMask~~ | **DONE** — Transparency group support via offscreen compositing. | ~~Hard~~ |
+| ~~**P2**~~ | ~~Font substitution~~ | **DONE** — Embedded TrueType fonts registered via pure-TS font patcher + cmap rebuild. No python3/fonttools dependency. | ~~Medium~~ |
 | **P3** | Separation/DeviceN | Treated as grayscale instead of evaluating tint transform function | Hard |
+| **Info** | Remaining RMSE floor | Remaining 0.042 RMSE dominated by cross-engine inherent differences: JPEG decoder variance, text anti-aliasing (FreeType vs Cairo), subpixel rounding | N/A |
 
 ### Resolved: Bundled Font Loading Broken in Vite Dev Mode (2026-02-27, superseded by Phase 3)
 

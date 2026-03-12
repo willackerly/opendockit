@@ -1,6 +1,8 @@
-# pdfbox-ts
+# @opendockit/pdf-signer
 
-TypeScript port of [Apache PDFBox](https://pdfbox.apache.org/) — create, modify, and **digitally sign** PDFs in JavaScript. No WASM. No native binaries. **~1 MB**.
+TypeScript PDF engine — create, modify, render, and **digitally sign** PDFs in JavaScript. No WASM. No native binaries. **~1 MB**.
+
+> Formerly `pdfbox-ts`. Now part of the [OpenDocKit](../../README.md) monorepo. See the [Migration Guide](../../docs/MIGRATION_GUIDE.md) for upgrade instructions.
 
 ## Out of Scope
 
@@ -11,15 +13,15 @@ The following are explicitly **not planned**:
 - **Linearization** — Web-optimized PDF streaming (out of scope for current use cases)
 - **Long-tail malformed PDFs** — 20 corpus files with genuinely broken xref tables, missing catalogs, or corrupt page trees from PDF.js/qpdf fuzz artifacts. These are not real-world documents.
 
-## Why pdfbox-ts?
+## Why @opendockit/pdf-signer?
 
-No JavaScript library can digitally sign PDFs. Until now, your only option was Apryse/PDFTron at **$9,000-$36,000/year** with a **60 MB** WASM bundle.
+No JavaScript library can digitally sign PDFs and render them natively. Until now, your only option was Apryse/PDFTron at **$9,000-$36,000/year** with a **60 MB** WASM bundle.
 
-pdfbox-ts brings Apache PDFBox's battle-tested signing pipeline to TypeScript — with **byte-for-byte parity** verified against 9 real-world fixtures. Zero external PDF dependencies.
+@opendockit/pdf-signer brings Apache PDFBox's battle-tested signing pipeline to TypeScript — with **byte-for-byte parity** verified against 9 real-world fixtures — plus a native PDF rendering engine that achieves **RMSE 0.042** against pdftoppm with pure-TS font patching. Zero external dependencies.
 
 ## Comparison
 
-| | pdfbox-ts | Apryse/PDFTron | pdf-lib | jsPDF | PDF.js |
+| | @opendockit/pdf-signer | Apryse/PDFTron | pdf-lib | jsPDF | PDF.js |
 |---|---|---|---|---|---|
 | **Price** | Proprietary | $9k-$36k/yr | Free (OSS) | Free (OSS) | Free (OSS) |
 | **Bundle size** | ~1 MB | ~60 MB | ~1.1 MB | ~150 KB | ~1.5 MB |
@@ -86,11 +88,20 @@ pdf-lib has been unmaintained since February 2022 (~2-3M weekly npm downloads st
 - PDF/A compliance (PDF/A-1b and PDF/A-2b archival output)
 - Object stream compression
 
-**Rendering & Element Model**
-- PDF.js-based rendering (optional peer dependency via `pdfbox-ts/render`)
-- NativeRenderer: direct COS-to-canvas pipeline, no save/re-parse round-trip
-- Element extraction: text, shapes, paths, images with positions and fonts (`pdfbox-ts/elements`)
+**Native PDF Rendering Engine**
+- **NativeRenderer**: direct COS-to-canvas pipeline — 85+ content stream operators, no PDF.js dependency needed
+- **RMSE 0.042** avg vs pdftoppm (70% reduction from 0.14 starting point, 30-page comparison)
+- Pure-TS font patcher: cmap rebuild, OS/2 synthesis, CFF→OTF wrapping — no python3/fonttools
+- ExtGState SMask transparency groups (Luminosity + Alpha subtypes)
+- Image interpolation control (respects PDF `/Interpolate` flag)
+- FontDescriptor-based deterministic font weight/style (reads `/FontWeight`, `/Flags`, `/ItalicAngle`)
+- Tiling patterns, Type 0/3 shading functions, ICC color space handling
+- PDF.js-based rendering also available (optional peer dependency via sub-path import)
+
+**Element Model & Spatial Queries**
+- Element extraction: text, shapes, paths, images with positions and fonts
 - Spatial queries: `queryElementsInRect`, `elementAtPoint`, `extractTextInRect`, bounding boxes
+- Word grouping, Y-coordinate normalization, color scaling for cross-format comparison
 - Element-based redaction: surgical operator-index removal via `applyElementRedaction`
 - Interactive canvas state machine (`InteractionStore`): hover, selection, marquee, draw-rect-to-redact
 - Coordinate conversion utilities (viewport-to-page with Y-flip + scale)
@@ -98,7 +109,9 @@ pdf-lib has been unmaintained since February 2022 (~2-3M weekly npm downloads st
 
 **Quality**
 - Byte-for-byte parity with Apache PDFBox (9 fixtures, SHA256 verified)
-- 1,565 tests + 1,105-file robustness corpus from 9 sources (0 failures)
+- **1,777 tests** + 1,105-file robustness corpus from 9 sources (0 failures)
+- 30-page pixel-level RMSE comparison harness (avg 0.042)
+- Trace pipeline: 97% text accuracy, 4.4pt avg position delta
 - Adobe Acrobat validated (`signatureValidate()` = 4, VALID)
 - Zero Node.js built-ins — works in Vite, webpack, Parcel with no polyfills
 
@@ -107,7 +120,7 @@ pdf-lib has been unmaintained since February 2022 (~2-3M weekly npm downloads st
 ### Sign a PDF
 
 ```typescript
-import { signPDFWithPDFBox } from 'pdfbox-ts';
+import { signPDFWithPDFBox } from '@opendockit/pdf-signer';
 
 const result = await signPDFWithPDFBox(pdfBytes, signer, {
   reason: 'Approved',
@@ -126,7 +139,7 @@ const result = await signPDFWithPDFBox(pdfBytes, signer, {
 ### Verify Signatures
 
 ```typescript
-import { verifySignatures } from 'pdfbox-ts';
+import { verifySignatures } from '@opendockit/pdf-signer';
 
 const results = verifySignatures(signedPdfBytes);
 for (const sig of results) {
@@ -144,7 +157,7 @@ for (const sig of results) {
 ### Create a PDF
 
 ```typescript
-import { PDFDocument, StandardFonts, rgb } from 'pdfbox-ts';
+import { PDFDocument, StandardFonts, rgb } from '@opendockit/pdf-signer';
 
 const doc = await PDFDocument.create();
 const page = doc.addPage([612, 792]);
@@ -164,7 +177,7 @@ const pdfBytes = await doc.save();
 ### Embed a Custom Font
 
 ```typescript
-import { PDFDocument } from 'pdfbox-ts';
+import { PDFDocument } from '@opendockit/pdf-signer';
 import { readFile } from 'fs/promises';
 
 const doc = await PDFDocument.create();
@@ -180,7 +193,7 @@ const pdfBytes = await doc.save();
 ### Load and Modify
 
 ```typescript
-import { PDFDocument, rgb } from 'pdfbox-ts';
+import { PDFDocument, rgb } from '@opendockit/pdf-signer';
 
 const doc = await PDFDocument.load(existingPdfBytes);
 const pages = doc.getPages();
@@ -200,7 +213,7 @@ const modifiedBytes = await doc.save();
 ### Visual Signature with PNG Image
 
 ```typescript
-import { signPDFWithPDFBox } from 'pdfbox-ts';
+import { signPDFWithPDFBox } from '@opendockit/pdf-signer';
 
 const result = await signPDFWithPDFBox(pdfBytes, signer, {
   signatureAppearance: {
@@ -213,7 +226,7 @@ const result = await signPDFWithPDFBox(pdfBytes, signer, {
 ### Copy Pages Between Documents
 
 ```typescript
-import { PDFDocument, copyPages } from 'pdfbox-ts';
+import { PDFDocument, copyPages } from '@opendockit/pdf-signer';
 
 const srcDoc = await PDFDocument.load(sourcePdfBytes);
 const dstDoc = await PDFDocument.create();
@@ -229,7 +242,7 @@ const pdfBytes = await dstDoc.save();
 ### Sign and Lock Form Fields
 
 ```typescript
-import { signPDFWithPDFBox } from 'pdfbox-ts';
+import { signPDFWithPDFBox } from '@opendockit/pdf-signer';
 
 const result = await signPDFWithPDFBox(pdfWithFormFields, signer, {
   flattenForms: true,  // Bake form values into page content before signing
@@ -243,7 +256,7 @@ const result = await signPDFWithPDFBox(pdfWithFormFields, signer, {
 ### Save as PDF/A (Archival)
 
 ```typescript
-import { PDFDocument, StandardFonts } from 'pdfbox-ts';
+import { PDFDocument, StandardFonts } from '@opendockit/pdf-signer';
 
 const doc = await PDFDocument.create();
 doc.setTitle('Archival Report');
@@ -258,7 +271,7 @@ const pdfBytes = await doc.save({ pdfaConformance: 'PDF/A-1b' });
 ### Create Form Fields
 
 ```typescript
-import { PDFDocument, StandardFonts, rgb } from 'pdfbox-ts';
+import { PDFDocument, StandardFonts, rgb } from '@opendockit/pdf-signer';
 
 const doc = await PDFDocument.create();
 const page = doc.addPage();
@@ -283,7 +296,7 @@ const pdfBytes = await doc.save();
 import {
   PDFDocument, PDAnnotationHighlight, PDAnnotationRubberStamp,
   rgb, StampName, ANNOTATION_FLAG_PRINT,
-} from 'pdfbox-ts';
+} from '@opendockit/pdf-signer';
 
 const doc = await PDFDocument.load(pdfBytes);
 const page = doc.getPage(0);
@@ -307,7 +320,7 @@ const annotatedBytes = await doc.save();
 ### Add LTV (Long-Term Validation)
 
 ```typescript
-import { signPDFWithPDFBox, addLtvToPdf } from 'pdfbox-ts';
+import { signPDFWithPDFBox, addLtvToPdf } from '@opendockit/pdf-signer';
 
 // Sign with a timestamp
 const result = await signPDFWithPDFBox(pdfBytes, signer, {
@@ -324,7 +337,7 @@ const ltvResult = await addLtvToPdf(result.signedData, {
 ### Encrypt / Decrypt
 
 ```typescript
-import { PDFDocument } from 'pdfbox-ts';
+import { PDFDocument } from '@opendockit/pdf-signer';
 
 const doc = await PDFDocument.load(pdfBytes);
 const encrypted = await doc.save({
@@ -344,7 +357,7 @@ const plainBytes = await decrypted.save();
 ### Page Management
 
 ```typescript
-import { PDFDocument, StandardFonts, degrees } from 'pdfbox-ts';
+import { PDFDocument, StandardFonts, degrees } from '@opendockit/pdf-signer';
 
 const doc = await PDFDocument.load(pdfBytes);
 
@@ -365,7 +378,7 @@ const modified = await doc.save();
 ### Extract Text
 
 ```typescript
-import { extractText, extractTextContent } from 'pdfbox-ts/extraction';
+import { extractText, extractTextContent } from '@opendockit/pdf-signer/extraction';
 
 // Full text as a single string
 const text = await extractTextContent(pdfBytes);
@@ -383,7 +396,7 @@ for (const page of pages) {
 ### Extract Images
 
 ```typescript
-import { extractImages } from 'pdfbox-ts/extraction';
+import { extractImages } from '@opendockit/pdf-signer/extraction';
 
 const images = await extractImages(pdfBytes);
 for (const img of images) {
@@ -438,11 +451,11 @@ See [SDK Guide](docs/SDK_GUIDE.md) for complete API reference.
 
 ## Browser Support
 
-pdfbox-ts uses `pako` (zlib) and `node-forge` (crypto) — both pure JavaScript with zero Node.js dependencies. Works out of the box with any modern bundler:
+@opendockit/pdf-signer uses `pako` (zlib) and `node-forge` (crypto) — both pure JavaScript with zero Node.js dependencies. Works out of the box with any modern bundler:
 
 ```typescript
 // Vite, webpack, Parcel — no polyfills needed
-import { PDFDocument, signPDFWithPDFBox } from 'pdfbox-ts';
+import { PDFDocument, signPDFWithPDFBox } from '@opendockit/pdf-signer';
 ```
 
 ## Parity Fixtures
@@ -463,7 +476,7 @@ All 9 fixtures produce byte-for-byte identical output between TypeScript and Jav
 
 ## Architecture
 
-pdfbox-ts is a ground-up TypeScript port of Apache PDFBox's COS object model, incremental writer, and signing pipeline. It is **not** a wrapper around a WASM binary or a thin layer over pdf-lib.
+@opendockit/pdf-signer is a ground-up TypeScript port of Apache PDFBox's COS object model, incremental writer, and signing pipeline. It is **not** a wrapper around a WASM binary or a thin layer over pdf-lib.
 
 ```
 src/
@@ -484,7 +497,13 @@ src/
     cos/                      # COS object model (COSBase, COSDictionary, etc.)
     parser/                   # PDF parsing (xref, trailer, objects, document loader)
     writer/                   # PDF writing (COSWriter, XRefBuilder, FullSaveWriter)
-  render/                     # Rendering (PDF.js wrapper + NativeRenderer)
+  render/                     # Rendering engine
+    evaluator.ts              # Content stream → OperatorList + PageElement[] (85+ operators)
+    canvas-graphics.ts        # OperatorList → Canvas 2D
+    NativeRenderer.ts         # Orchestrator (page → PNG, element extraction)
+    font-patcher.ts           # Pure-TS font binary patching (TrueType + CFF)
+    font-table-builder.ts     # cmap/name/OS2/post table builders
+    font-registrar.ts         # Canvas font registration (Node.js + browser)
   signer/                     # Signing API (pdfbox-signer.ts, tsa.ts, ltv.ts, verify.ts)
 docs/
   SDK_GUIDE.md                # Full API reference
@@ -496,10 +515,11 @@ docs/
 ```bash
 pnpm install
 pnpm build                                    # TypeScript -> dist/
-pnpm test                                     # 1,380 tests (~2s)
+pnpm test                                     # 1,777 tests (~2s)
 pnpm compare -- --all                         # 9-fixture byte parity (~10s)
 pnpm compare -- --all --skip-java             # TypeScript-only (no JRE)
 pnpm test:corpus                              # 1,105 real-world PDFs (~10min)
+pnpm test:visual                              # Pixel-diff rendering snapshots
 ```
 
 ## Demo / Test Harness

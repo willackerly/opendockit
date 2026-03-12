@@ -1,6 +1,6 @@
 # TODO
 
-**Last synced:** 2026-03-11
+**Last synced:** 2026-03-12
 
 ## Completed
 
@@ -245,7 +245,7 @@ Fonts with no OFL metric-compatible replacement — need server-side extraction 
 
 ### NativeRenderer (PDF Reading) — Active Focus
 
-**Current state:** Pixel RMSE **0.053** against pdftoppm on USG Briefing (30 pages). Down from 0.14 — **62% reduction**. Structural: **97% text accuracy, 4.4pt avg position delta** via Canvas Tree Recorder trace pipeline.
+**Current state:** Pixel RMSE **0.042** against pdftoppm on USG Briefing (30 pages). Down from 0.14 — **70% reduction**. Structural: **97% text accuracy, 4.4pt avg position delta** via Canvas Tree Recorder trace pipeline. Remaining RMSE dominated by cross-engine inherent differences (JPEG decoder, text anti-aliasing FreeType vs Cairo).
 
 **Done (2026-03-08):**
 - [x] Fix curveTo2 (v operator) — correct bezierCurveTo with current point tracking
@@ -304,8 +304,17 @@ Instrument canvas-graphics.ts to emit TraceEvent[] (same format as PPTX TracingB
 - [x] Actual glyph widths from PDF font metrics (was 0.6×fontSize fallback)
 - [x] Font ascent from FontDescriptor /Ascent (handles Type0/composite fonts)
 
+**Done (2026-03-12):**
+- [x] Pure-TS font patcher — cmap rebuild, OS/2 synthesis, CFF→OTF wrapping; replaces python3/fonttools (2026-03-12)
+- [x] FontDescriptor-based deterministic font weight/style — reads `/FontWeight`, `/Flags`, `/ItalicAngle` (2026-03-12)
+- [x] CSS font weight from family name suffixes — "Barlow Light" → weight 300 (2026-03-12)
+- [x] Font fallback alerting — loud console.warn for every substitution/fallback (2026-03-12)
+- [x] ExtGState SMask transparency groups — offscreen compositing, Luminosity + Alpha subtypes (2026-03-12)
+- [x] Image interpolation control — respects PDF `/Interpolate` flag, sets `imageSmoothingEnabled` (2026-03-12)
+- [x] Inline JPEG rendering — inline images with DCTDecode were silently dropped (2026-03-12)
+- [x] Cross-format element coordinate normalization — Y-flip, color scaling, font family normalization (2026-03-12)
+
 **Remaining pixel-level issues (lower priority):**
-- [ ] ExtGState SMask transparency groups (page 29 — Hard, requires offscreen compositing)
 - [x] Negative fontSize — `renderGlyph()` skips Y-flip for negative fontSize (2026-03-11)
 - [x] CS/cs color space tracking — evaluator tracks fill/stroke color space from CS/cs operators (2026-03-11)
 - [ ] Separation/DeviceN tint transform evaluation (Hard)

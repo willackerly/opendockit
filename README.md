@@ -7,11 +7,13 @@ Renders PPTX presentations (and eventually DOCX/XLSX) directly in the browser us
 ## Highlights
 
 - **Full PPTX rendering** — 187 preset geometries, tables, SmartArt, connectors, text auto-fit, gradients, effects
+- **Native PDF rendering** — 85+ content stream operators, embedded font patching (pure-TS, no python), RMSE 0.042 vs pdftoppm
+- **PDF signing** — byte-for-byte parity with Apache PDFBox, visual signatures, multi-user, RFC 3161 timestamps, LTV
 - **Cross-format element tracing** — per-element PPTX↔PDF comparison with property-level diffs (font, position, color, size)
 - **PDF export** — PPTX→PDF with custom TrueType font embedding, font subsetting, per-glyph advance widths
 - **Interactive editing** — move, resize, text edit, delete elements with surgical XML patching for lossless save
 - **42 bundled font families** — 100% offline rendering, no CDN required (~5MB WOFF2)
-- **Visual regression pipeline** — 54-slide PPTX + 67-slide corpus baselines with per-slide RMSE guards
+- **4,534 tests** — visual regression pipeline, 30-page RMSE comparison harness, 1000+ PDF corpus validation
 
 ## Status
 
@@ -34,7 +36,8 @@ pnpm test
 | `@opendockit/elements`     | Unified element model (PageModel/PageElement), spatial utilities              | Complete |
 | `@opendockit/render`       | Shared render utilities: font metrics, color resolution, matrix math          | Complete |
 | `@opendockit/pdf`          | PDF rendering (PDFBackend), PDF export pipeline, batch PPTX→PDF conversion    | Alpha    |
-| `@opendockit/pdf-signer`   | PDF signing primitives (COS objects, xref generation, signature dict)         | Complete |
+| `@opendockit/pdf-signer`   | PDF engine: signing, native rendering, element extraction, font patching      | Complete |
+| `@opendockit/fonts`        | Offline font companion (42 OFL families, WOFF2 + TTF)                         | Complete |
 | `@opendockit/docx`         | DOCX renderer (WordprocessingML parser + block layout)                         | Alpha    |
 | `@opendockit/xlsx`         | XLSX renderer (future)                                                        | Planned  |
 
@@ -96,12 +99,14 @@ TracingBackend → traceToElements() → matchElements() → generateDiffReport(
 
 ```
 packages/
-├── core/         — OPC, DrawingML, themes, geometry
+├── core/         — OPC, DrawingML, themes, geometry, FontResolver
 ├── pptx/         — PresentationML parser, SlideKit API
 ├── elements/     — Unified element model (PageModel/PageElement)
 ├── render/       — Font metrics, color resolution, matrix math
 ├── pdf/          — PDF export, PDFBackend, batch conversion
-├── pdf-signer/   — PDF signing primitives
+├── pdf-signer/   — PDF engine: signing, native rendering, element extraction
+├── fonts/        — Offline font companion (42 OFL families, WOFF2 + TTF)
+├── docx/         — DOCX renderer (WordprocessingML parser + block layout)
 └── wasm-modules/ — On-demand WASM accelerators (future)
 ```
 
@@ -122,6 +127,7 @@ See `docs/architecture/` for full details.
 | `AGENTS.md` | Agent norms, workstreams, doc maintenance |
 | `TODO.md` | Roadmap and task tracking |
 | `KNOWN_ISSUES.md` | Current blockers and gotchas |
+| `docs/MIGRATION_GUIDE.md` | pdfbox-ts → @opendockit/pdf-signer migration |
 | `docs/architecture/` | System architecture, RenderBackend, element model |
 | `docs/testing/` | Test coverage, visual regression, font testing |
 | `docs/plans/` | Design decisions and merge plans |
