@@ -764,7 +764,7 @@ describe('text rendering in content stream', () => {
       elements: [makeShapeWithText('Hello World', 'Arial')],
     });
 
-    const builder = renderSlideToPdf(slide, 720, 540, fontCtx);
+    const { builder } = renderSlideToPdf(slide, 720, 540, fontCtx);
     const bytes = builder.toBytes();
     const content = new TextDecoder().decode(bytes);
 
@@ -783,7 +783,7 @@ describe('text rendering in content stream', () => {
       elements: [makeShapeWithText('Test', 'Arial')],
     });
 
-    const builder = renderSlideToPdf(slide, 720, 540, fontCtx);
+    const { builder } = renderSlideToPdf(slide, 720, 540, fontCtx);
     const bytes = builder.toBytes();
     const content = new TextDecoder().decode(bytes);
 
@@ -801,7 +801,7 @@ describe('text rendering in content stream', () => {
       elements: [makeShapeWithText('AB', 'Arial')],
     });
 
-    const builder = renderSlideToPdf(slide, 720, 540, fontCtx);
+    const { builder } = renderSlideToPdf(slide, 720, 540, fontCtx);
     const bytes = builder.toBytes();
     const content = new TextDecoder().decode(bytes);
 
@@ -829,7 +829,7 @@ describe('text rendering in content stream', () => {
       ],
     });
 
-    const builder = renderSlideToPdf(slide, 720, 540, fontCtx);
+    const { builder } = renderSlideToPdf(slide, 720, 540, fontCtx);
     const bytes = builder.toBytes();
     const content = new TextDecoder().decode(bytes);
 
@@ -842,7 +842,7 @@ describe('text rendering in content stream', () => {
       elements: [makeShapeWithText('No font ctx', 'Arial')],
     });
 
-    const builder = renderSlideToPdf(slide, 720, 540);
+    const { builder } = renderSlideToPdf(slide, 720, 540);
     const bytes = builder.toBytes();
     const content = new TextDecoder().decode(bytes);
 
@@ -897,7 +897,7 @@ describe('text rendering in content stream', () => {
       ],
     });
 
-    const builder = renderSlideToPdf(slide, 720, 540, fontCtx);
+    const { builder } = renderSlideToPdf(slide, 720, 540, fontCtx);
     const bytes = builder.toBytes();
     const content = new TextDecoder().decode(bytes);
 

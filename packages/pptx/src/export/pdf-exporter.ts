@@ -37,6 +37,7 @@ import { PDFDocument } from '@opendockit/pdf-signer';
 import { emuToPt } from '@opendockit/core';
 import type { PresentationIR, EnrichedSlideData } from '../model/index.js';
 import { renderSlideToPdf, buildFontLookup } from './pdf-slide-renderer.js';
+import type { ShadingRequest } from './pdf-slide-renderer.js';
 import { collectFontsWithCodepoints } from './pdf-font-collector.js';
 import { embedFontsForPdf, wireFontsToPage } from './pdf-font-embedder.js';
 import { collectImagesFromPresentation, detectImageMimeType } from './pdf-image-collector.js';
@@ -156,13 +157,18 @@ export async function exportPresentationToPdf(
     wireImagesToPage(pageDict, embeddedImages);
 
     // Render slide content to PDF operators (with font context + image names)
-    const builder = renderSlideToPdf(
+    const { builder, shadingRequests } = renderSlideToPdf(
       slideData,
       pageWidthPt,
       pageHeightPt,
       fontCtx,
       imageResourceMap
     );
+
+    // Create shading objects and wire them to the page
+    if (shadingRequests.length > 0) {
+      wireShadingsToPage(pageDict, shadingRequests, pdfDoc);
+    }
 
     // Get the content stream bytes and inject into the page
     const contentBytes = builder.toBytes();
@@ -353,7 +359,10 @@ function createXObjectStream(
 interface CosConstructors {
   Name: new (name: string) => unknown;
   Integer: new (value: number) => unknown;
+  Float: new (value: number) => unknown;
   Dictionary: new () => unknown;
+  Array: new () => unknown;
+  Boolean: new (value: boolean) => unknown;
 }
 
 let _cosCtors: CosConstructors | undefined;
@@ -382,10 +391,7 @@ function ensureCosConstructors(ctx: PDFDocument['_nativeCtx']): CosConstructors 
   if (!typeEntry) return undefined;
   const NameCtor = (typeEntry as object).constructor as new (name: string) => unknown;
 
-  // Extract COSInteger constructor — we need a different source.
-  // The NativeDocumentContext.createGraphicsState creates ExtGState dicts
-  // with COSFloat values, not COSInteger. Instead, let's look at the
-  // Pages tree /Count entry which is always a COSInteger.
+  // Extract COSInteger constructor from Pages /Count entry
   const pagesCount = (ctx as unknown as { pages: { getItem(k: string): unknown } }).pages?.getItem(
     'Count'
   );
@@ -395,10 +401,62 @@ function ensureCosConstructors(ctx: PDFDocument['_nativeCtx']): CosConstructors 
   // Extract COSDictionary constructor from the font dict itself
   const DictionaryCtor = (fontDict as object).constructor as new () => unknown;
 
+  // Extract COSArray constructor from Pages /Kids entry
+  const kidsArray = (ctx as unknown as { pages: { getItem(k: string): unknown } }).pages?.getItem(
+    'Kids'
+  );
+  const ArrayCtor = kidsArray
+    ? ((kidsArray as object).constructor as new () => unknown)
+    : DictionaryCtor; // fallback (should not happen)
+
+  // Extract COSFloat constructor — create a graphics state which contains float values
+  // We construct it by accessing the prototype chain from IntegerCtor's module
+  // Since COSFloat and COSInteger share similar structure, we use a factory approach:
+  // Create a temporary object and extract the constructor
+  const gsRef = (ctx as unknown as { createGraphicsState(p: { fillOpacity?: number }): { objectNumber: number } }).createGraphicsState({ fillOpacity: 0.5 });
+  const gsObj = ctx.lookup(gsRef.objectNumber) as
+    | { getItem(k: string): unknown }
+    | undefined;
+  let FloatCtor: new (value: number) => unknown = IntegerCtor; // fallback
+  if (gsObj) {
+    // ExtGState dict has /ca (fill opacity) as COSFloat
+    const caEntry = gsObj.getItem('ca');
+    if (caEntry) {
+      FloatCtor = (caEntry as object).constructor as new (value: number) => unknown;
+    }
+  }
+
+  // COSBoolean shim — matches the COSBase interface expected by the PDF writer.
+  // The writer calls obj.accept(visitor) -> visitor.visitFromBoolean(this) -> this.toPDFString().
+  const BooleanCtor = class PdfBoolean {
+    private _value: boolean;
+    constructor(value: boolean) {
+      this._value = value;
+    }
+    getValue() {
+      return this._value;
+    }
+    isDirect() {
+      return true;
+    }
+    setDirect() {
+      /* no-op */
+    }
+    toPDFString() {
+      return this._value ? 'true' : 'false';
+    }
+    accept(visitor: { visitFromBoolean(b: unknown): void }) {
+      visitor.visitFromBoolean(this);
+    }
+  } as unknown as new (value: boolean) => unknown;
+
   _cosCtors = {
     Name: NameCtor,
     Integer: IntegerCtor,
+    Float: FloatCtor,
     Dictionary: DictionaryCtor,
+    Array: ArrayCtor,
+    Boolean: BooleanCtor,
   };
 
   return _cosCtors;
@@ -450,6 +508,219 @@ function wireImagesToPage(pageDict: unknown, embeddedImages: EmbeddedImageResult
       img.xObjectRef
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Shading object creation and wiring
+// ---------------------------------------------------------------------------
+
+/**
+ * Create PDF shading dictionary objects from shading requests and wire them
+ * into a page's /Resources /Shading dictionary.
+ *
+ * Each ShadingRequest becomes:
+ * - A Function dictionary (Type 2 exponential for 2 stops, Type 3 stitching for 3+)
+ * - A Shading dictionary (Type 2 axial or Type 3 radial)
+ * - An entry in the page's /Resources /Shading dictionary
+ */
+function wireShadingsToPage(
+  pageDict: unknown,
+  requests: ShadingRequest[],
+  pdfDoc: PDFDocument
+): void {
+  if (requests.length === 0) return;
+
+  const cosCtors = ensureCosConstructors(pdfDoc._nativeCtx);
+  if (!cosCtors) return;
+
+  const ctx = pdfDoc._nativeCtx;
+  const pd = pageDict as { getItem(k: string): unknown; setItem(k: string, v: unknown): void };
+  const resources = pd.getItem('Resources') as
+    | { getItem(k: string): unknown; setItem(k: string, v: unknown): void }
+    | undefined;
+  if (!resources) return;
+
+  // Get or create the /Shading sub-dictionary
+  let shadingDict = resources.getItem('Shading');
+  if (!shadingDict || typeof (shadingDict as { setItem: unknown }).setItem !== 'function') {
+    const ResourcesCtor = (resources as object).constructor;
+    shadingDict = new (ResourcesCtor as new () => unknown)();
+    if (typeof (shadingDict as { setDirect: unknown }).setDirect === 'function') {
+      (shadingDict as { setDirect(d: boolean): void }).setDirect(true);
+    }
+    resources.setItem('Shading', shadingDict);
+  }
+
+  for (const req of requests) {
+    const shadingRef = createShadingObject(ctx, cosCtors, req);
+    if (shadingRef) {
+      (shadingDict as { setItem(k: string, v: unknown): void }).setItem(req.name, shadingRef);
+    }
+  }
+}
+
+/**
+ * Create a PDF shading dictionary object from a ShadingRequest.
+ *
+ * For axial (Type 2) shadings:
+ *   << /ShadingType 2 /ColorSpace /DeviceRGB
+ *      /Coords [x0 y0 x1 y1] /Function <functionRef> /Extend [true true] >>
+ *
+ * For radial (Type 3) shadings:
+ *   << /ShadingType 3 /ColorSpace /DeviceRGB
+ *      /Coords [cx0 cy0 r0 cx1 cy1 r1] /Function <functionRef> /Extend [true true] >>
+ */
+function createShadingObject(
+  ctx: PDFDocument['_nativeCtx'],
+  cosCtors: CosConstructors,
+  req: ShadingRequest
+): unknown {
+  // Create the function object for color interpolation
+  const functionRef = createGradientFunction(ctx, cosCtors, req.stops);
+  if (!functionRef) return undefined;
+
+  // Create the shading dictionary
+  const shadingDict = new cosCtors.Dictionary() as unknown as {
+    setItem(k: string, v: unknown): void;
+  };
+  shadingDict.setItem('ShadingType', new cosCtors.Integer(req.type));
+  shadingDict.setItem('ColorSpace', new cosCtors.Name('DeviceRGB'));
+
+  // Coords array
+  const coordsArray = new cosCtors.Array() as unknown as { add(v: unknown): void };
+  for (const c of req.coords) {
+    coordsArray.add(new cosCtors.Float(c));
+  }
+  shadingDict.setItem('Coords', coordsArray as unknown);
+
+  // Function reference
+  shadingDict.setItem('Function', functionRef);
+
+  // Extend array: [true true] to extend gradient past endpoints
+  const extendArray = new cosCtors.Array() as unknown as { add(v: unknown): void };
+  extendArray.add(new cosCtors.Boolean(true));
+  extendArray.add(new cosCtors.Boolean(true));
+  shadingDict.setItem('Extend', extendArray as unknown);
+
+  // Register as indirect object
+  return (ctx as unknown as { register(obj: unknown): unknown }).register(
+    shadingDict as unknown
+  );
+}
+
+/**
+ * Create a PDF function object for gradient color interpolation.
+ *
+ * - 2 stops: Type 2 (exponential interpolation) function
+ * - 3+ stops: Type 3 (stitching) function that chains Type 2 sub-functions
+ */
+function createGradientFunction(
+  ctx: PDFDocument['_nativeCtx'],
+  cosCtors: CosConstructors,
+  stops: ShadingRequest['stops']
+): unknown {
+  if (stops.length < 2) return undefined;
+
+  if (stops.length === 2) {
+    return createType2Function(ctx, cosCtors, stops[0], stops[1]);
+  }
+
+  // Stitching function (Type 3): chains multiple Type 2 sub-functions
+  return createStitchingFunction(ctx, cosCtors, stops);
+}
+
+/**
+ * Create a Type 2 (exponential interpolation) function.
+ *
+ * << /FunctionType 2 /Domain [0 1] /C0 [r0 g0 b0] /C1 [r1 g1 b1] /N 1 >>
+ */
+function createType2Function(
+  ctx: PDFDocument['_nativeCtx'],
+  cosCtors: CosConstructors,
+  stop0: ShadingRequest['stops'][0],
+  stop1: ShadingRequest['stops'][0]
+): unknown {
+  const funcDict = new cosCtors.Dictionary() as unknown as {
+    setItem(k: string, v: unknown): void;
+  };
+  funcDict.setItem('FunctionType', new cosCtors.Integer(2));
+
+  // Domain [0 1]
+  const domain = new cosCtors.Array() as unknown as { add(v: unknown): void };
+  domain.add(new cosCtors.Float(0));
+  domain.add(new cosCtors.Float(1));
+  funcDict.setItem('Domain', domain as unknown);
+
+  // C0 [r g b] — color at domain 0
+  const c0 = new cosCtors.Array() as unknown as { add(v: unknown): void };
+  c0.add(new cosCtors.Float(stop0.r));
+  c0.add(new cosCtors.Float(stop0.g));
+  c0.add(new cosCtors.Float(stop0.b));
+  funcDict.setItem('C0', c0 as unknown);
+
+  // C1 [r g b] — color at domain 1
+  const c1 = new cosCtors.Array() as unknown as { add(v: unknown): void };
+  c1.add(new cosCtors.Float(stop1.r));
+  c1.add(new cosCtors.Float(stop1.g));
+  c1.add(new cosCtors.Float(stop1.b));
+  funcDict.setItem('C1', c1 as unknown);
+
+  // N = 1 (linear interpolation)
+  funcDict.setItem('N', new cosCtors.Integer(1));
+
+  return (ctx as unknown as { register(obj: unknown): unknown }).register(
+    funcDict as unknown
+  );
+}
+
+/**
+ * Create a Type 3 (stitching) function for multi-stop gradients.
+ *
+ * << /FunctionType 3 /Domain [0 1]
+ *    /Functions [<f0> <f1> ...]
+ *    /Bounds [pos1 pos2 ...]
+ *    /Encode [0 1 0 1 ...] >>
+ */
+function createStitchingFunction(
+  ctx: PDFDocument['_nativeCtx'],
+  cosCtors: CosConstructors,
+  stops: ShadingRequest['stops']
+): unknown {
+  const funcDict = new cosCtors.Dictionary() as unknown as {
+    setItem(k: string, v: unknown): void;
+  };
+  funcDict.setItem('FunctionType', new cosCtors.Integer(3));
+
+  // Domain [0 1]
+  const domain = new cosCtors.Array() as unknown as { add(v: unknown): void };
+  domain.add(new cosCtors.Float(0));
+  domain.add(new cosCtors.Float(1));
+  funcDict.setItem('Domain', domain as unknown);
+
+  // Create sub-functions for each pair of adjacent stops
+  const functions = new cosCtors.Array() as unknown as { add(v: unknown): void };
+  const bounds = new cosCtors.Array() as unknown as { add(v: unknown): void };
+  const encode = new cosCtors.Array() as unknown as { add(v: unknown): void };
+
+  for (let i = 0; i < stops.length - 1; i++) {
+    const subFunc = createType2Function(ctx, cosCtors, stops[i], stops[i + 1]);
+    functions.add(subFunc as unknown);
+    encode.add(new cosCtors.Float(0));
+    encode.add(new cosCtors.Float(1));
+
+    // Bounds: positions of intermediate stops (not first or last)
+    if (i < stops.length - 2) {
+      bounds.add(new cosCtors.Float(stops[i + 1].position));
+    }
+  }
+
+  funcDict.setItem('Functions', functions as unknown);
+  funcDict.setItem('Bounds', bounds as unknown);
+  funcDict.setItem('Encode', encode as unknown);
+
+  return (ctx as unknown as { register(obj: unknown): unknown }).register(
+    funcDict as unknown
+  );
 }
 
 // ---------------------------------------------------------------------------
