@@ -33,7 +33,7 @@
  * - Image resources are declared in each page's /Resources /XObject dictionary
  */
 
-import { PDFDocument } from '@opendockit/pdf-signer';
+import { PDFDocument, embedFileAttachment } from '@opendockit/pdf-signer';
 import { emuToPt } from '@opendockit/core';
 import type { PresentationIR, EnrichedSlideData } from '../model/index.js';
 import { renderSlideToPdf, buildFontLookup } from './pdf-slide-renderer.js';
@@ -57,6 +57,21 @@ export interface PdfExportOptions {
    * Required for embedding images; if not provided, images render as placeholders.
    */
   getImageBytes?: (partUri: string) => Uint8Array | undefined;
+  /**
+   * Raw bytes of the original source document (e.g. PPTX) to embed as a
+   * PDF/A-3 file attachment. Enables lossless round-trip: the exported PDF
+   * carries the original source so it can be extracted and re-edited later.
+   *
+   * When provided, the bytes are embedded with /AFRelationship /Source and
+   * the filename defaults to "source.pptx" (MIME: application/vnd.openxmlformats-
+   * officedocument.presentationml.presentation).
+   */
+  embedOriginal?: Uint8Array;
+  /**
+   * Filename for the embedded original (default: "source.pptx").
+   * Only used when `embedOriginal` is provided.
+   */
+  embedOriginalFilename?: string;
 }
 
 /** Result of a PDF export operation. */
@@ -177,7 +192,15 @@ export async function exportPresentationToPdf(
     }
   }
 
-  // 8. Save and return the PDF bytes
+  // 8. Embed original source document if provided (PDF/A-3 attachment)
+  if (options?.embedOriginal) {
+    const filename = options.embedOriginalFilename ?? 'source.pptx';
+    const mimeType =
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    embedFileAttachment(pdfDoc, filename, options.embedOriginal, mimeType);
+  }
+
+  // 9. Save and return the PDF bytes
   const bytes = await pdfDoc.save();
 
   return {

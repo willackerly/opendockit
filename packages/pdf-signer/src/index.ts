@@ -246,6 +246,9 @@ export type {
   DocumentParseResult,
 } from './document/index.js';
 
+// --- Utility ---
+export { embedFileAttachment } from './util/index.js';
+
 // --- Element Model ---
 export type {
   PageModel,
