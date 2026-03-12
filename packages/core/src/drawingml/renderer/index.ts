@@ -14,6 +14,9 @@ export { emuToScaledPx } from './render-context.js';
 export type { RenderBackend } from './render-backend.js';
 export { CanvasBackend } from './canvas-backend.js';
 
+// Color utility (canonical source: ir/common.ts — re-exported for convenience)
+export { colorToRgba } from '../../ir/index.js';
+
 // Fill renderer
 export { applyFill } from './fill-renderer.js';
 

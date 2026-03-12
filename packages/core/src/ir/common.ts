@@ -35,6 +35,15 @@ export interface ResolvedColor extends RgbaColor {
 }
 
 // ---------------------------------------------------------------------------
+// Color Utilities
+// ---------------------------------------------------------------------------
+
+/** Format an {@link RgbaColor} as a CSS `rgba()` string for Canvas2D / CSS. */
+export function colorToRgba(c: RgbaColor): string {
+  return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
+}
+
+// ---------------------------------------------------------------------------
 // Coordinates & Dimensions
 // ---------------------------------------------------------------------------
 

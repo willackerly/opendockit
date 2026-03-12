@@ -27,10 +27,10 @@ import type {
   CharacterPropertiesIR,
   FillIR,
   SpacingIR,
-  ResolvedColor,
   RgbaColor,
   TabStopIR,
 } from '../../ir/index.js';
+import { colorToRgba } from '../../ir/index.js';
 import type { RenderContext } from './render-context.js';
 import { emuToScaledPx } from './render-context.js';
 import { hundredthsPtToPt } from '../../units/index.js';
@@ -129,11 +129,6 @@ function resolveFieldText(run: RunIR, rctx: RenderContext): string {
     return String(rctx.slideNumber);
   }
   return run.text;
-}
-
-/** Format a ResolvedColor as a CSS rgba() string. */
-function colorToRgba(c: ResolvedColor): string {
-  return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
 }
 
 /**
