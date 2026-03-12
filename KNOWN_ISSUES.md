@@ -18,7 +18,7 @@
 
 | Priority | Issue | Details | Effort |
 |----------|-------|---------|--------|
-| **Next** | Canvas Tree Recorder Phase 3 | Cross-format PPTX↔PDF comparison using trace pipeline | Medium |
+| **Next** | Canvas Tree Recorder Phase 3 | Cross-format PPTX↔PDF comparison using trace pipeline. **Ground truth PDFs MUST be exported from PowerPoint — NEVER use our `exportPDF()`.** | Medium |
 | **P1** | ExtGState SMask | Transparency groups on page 29 — `handleExtGState()` ignores `/SMask` key, requires offscreen compositing | Hard |
 | ~~**P2**~~ | ~~Font substitution~~ | **DONE** — Embedded TrueType fonts registered via fonttools cmap rebuild. Correct typefaces render (Barlow, RobotoSlab). RMSE 0.055. | ~~Medium~~ |
 | **P3** | Separation/DeviceN | Treated as grayscale instead of evaluating tint transform function | Hard |

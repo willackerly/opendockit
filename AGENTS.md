@@ -189,6 +189,18 @@ const report = generateDiffReport(elementsA, elementsB);
 // report.summary: { matchedCount, avgPositionDelta, fontMismatches, colorMismatches }
 ```
 
+### CRITICAL: Cross-Format PDF Ground Truth Rule
+
+**When comparing PPTX rendering vs PDF rendering:**
+
+1. **ALWAYS use PDFs exported directly from Microsoft PowerPoint** as ground truth
+2. **NEVER use `exportPDF()` / `exportPresentationToPdf()`** to generate comparison PDFs
+3. Our PDF exporter has its own font mapping and rendering bugs — comparing against it tests our code against itself (garbage-in-garbage-out)
+4. Test fixtures must be **matched pairs**: `foo.pptx` + `foo.pdf` (exported from PowerPoint)
+5. Canonical fixture: USG Briefing pair at `/Users/will/dev/USG Briefing/`
+
+**If you see a cross-format test that calls `exportPresentationToPdf()` as the PDF source, it is WRONG. Delete it and rebuild using a PowerPoint-exported PDF.**
+
 ### Next: Canvas Tree Recorder (planned — see `docs/plans/CANVAS_TREE_PLAN.md`)
 
 Will instrument PDF's `canvas-graphics.ts` to emit the same `TraceEvent[]` format as PPTX's TracingBackend, enabling the full comparison pipeline for PDF rendering. Target: text accuracy from 8.2% → >90%.

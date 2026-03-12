@@ -77,7 +77,7 @@
     "jszip": "^3.10.0"
   },
   "peerDependencies": {
-    "@opendockit/fonts": "^0.1.0"
+    "@opendockit/fonts": "workspace:*"
   },
   "peerDependenciesMeta": {
     "@opendockit/fonts": { "optional": true }

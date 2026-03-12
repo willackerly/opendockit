@@ -29,7 +29,7 @@ export interface RenderResult {
 // ---------------------------------------------------------------------------
 
 export interface RenderDiagnostic {
-  type: 'warning' | 'error';
+  type: 'info' | 'warning' | 'error';
   category: 'font' | 'image' | 'shading' | 'operator' | 'color' | 'pattern';
   message: string;
   details?: Record<string, unknown>;
@@ -38,6 +38,10 @@ export interface RenderDiagnostic {
 /** Mutable collector threaded through the rendering pipeline. */
 export class RenderDiagnosticsCollector {
   readonly items: RenderDiagnostic[] = [];
+
+  info(category: RenderDiagnostic['category'], message: string, details?: Record<string, unknown>): void {
+    this.items.push({ type: 'info', category, message, details });
+  }
 
   warn(category: RenderDiagnostic['category'], message: string, details?: Record<string, unknown>): void {
     this.items.push({ type: 'warning', category, message, details });

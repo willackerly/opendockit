@@ -71,6 +71,8 @@ TracingBackend → traceToElements() → matchElements() → generateDiffReport(
   (Canvas2D)                       (NativeRenderer)
 ```
 
+> **Ground truth rule:** Cross-format comparison PDFs **must** be exported from Microsoft PowerPoint — never from our own `exportPDF()`. Our PDF exporter has its own font mapping and rendering bugs; comparing against it tests our code against itself. Test fixtures are matched pairs: `foo.pptx` + `foo.pdf` (from PowerPoint).
+
 ```
                     @opendockit/core
                     ├── OPC (ZIP + rels)

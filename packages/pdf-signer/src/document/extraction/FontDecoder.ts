@@ -91,19 +91,30 @@ export function buildFontDecoder(
     }
   }
 
-  // Build combined charCode→unicode map for font cmap rebuilding.
-  // Merges toUnicodeMap (highest priority) with encodingMap fallback.
+  // Build charCode→unicode map for font cmap rebuilding.
+  //
+  // Priority: ToUnicode CMap is the authoritative source. Only fall back to
+  // encoding when ToUnicode is absent.
+  //
+  // Why not merge both: Subsetted fonts (AAAAAP+Name prefix) use arbitrary
+  // character codes. Their ToUnicode CMap correctly maps those codes to Unicode.
+  // The encoding map (e.g. WinAnsiEncoding = 208 entries) maps codes based on
+  // standard encoding assumptions, which are WRONG for subsetted fonts.
+  // Including encoding entries pollutes the cmap rebuild with mappings for
+  // non-existent glyphs, causing the font renderer to fall back to system fonts.
+  //
+  // When no ToUnicode exists: the font likely isn't subsetted, and encoding
+  // provides the correct code→Unicode mapping for cmap rebuilding.
   const charCodeToUnicode = new Map<number, string>();
   if (toUnicodeMap) {
+    // Use ToUnicode exclusively — it's authoritative for this font's glyph mapping
     for (const [code, uni] of toUnicodeMap) {
       charCodeToUnicode.set(code, uni);
     }
-  }
-  if (encodingMap) {
+  } else if (encodingMap) {
+    // No ToUnicode — fall back to encoding (correct for non-subsetted fonts)
     for (const [code, uni] of encodingMap) {
-      if (!charCodeToUnicode.has(code)) {
-        charCodeToUnicode.set(code, uni);
-      }
+      charCodeToUnicode.set(code, uni);
     }
   }
 

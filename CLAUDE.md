@@ -12,6 +12,20 @@ Progressive-fidelity, 100% client-side OOXML document renderer. Monorepo with sh
 2. **Client-Side Only** — Zero server dependencies. All parsing, rendering, editing, and export runs in the browser or Node.js. No server-side rendering, no API calls for core functionality.
 3. **Progressive Fidelity** — Render something useful immediately, improve quality as resources load. Metrics-only text layout → font binary swap → WASM-accelerated effects. Never block on optional resources.
 
+## Cross-Format PDF Comparison: Ground Truth Rule
+
+**CRITICAL — READ THIS BEFORE WRITING ANY CROSS-FORMAT TESTS.**
+
+When comparing PPTX rendering vs PDF rendering for quality/fidelity:
+
+1. **ALWAYS use PDFs exported directly from Microsoft PowerPoint** as the ground truth
+2. **NEVER use our `exportPDF()` / `exportPresentationToPdf()`** to generate comparison PDFs
+3. Our PDF exporter maps fonts to standard PDF fonts (Helvetica, etc.) and has its own rendering bugs — comparing against it tests our code against itself
+4. Test fixtures must be **matched pairs**: `foo.pptx` + `foo.pdf` (exported from PowerPoint)
+5. The USG Briefing pair (`USG Briefing Mar 7 - UNCLAS.pptx` + `.pdf`) at `/Users/will/dev/USG Briefing/` is the canonical fixture
+
+**Why:** The goal is to match PowerPoint's visual output. Comparing against our own PDF export converges on our own bugs rather than PowerPoint's ground truth. This is a garbage-in-garbage-out trap.
+
 ## Cold Start (New Agent?)
 
 **Read in order:**

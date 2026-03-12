@@ -359,21 +359,30 @@ export class NativeRenderer {
         continue;
       }
 
-      // Only register TrueType fonts — CFF (raw CFF, not OTF-wrapped) and Type1 (PFB)
-      // are not directly supported by node-canvas registerFont
-      if (embeddedFont.fontType !== 'TrueType') {
-        args[3] = undefined;
-        continue;
-      }
-
       try {
         const family = await this.fontRegistrar.register(
           embeddedFont.fontName,
           embeddedFont.rawBytes,
-          { fontType: embeddedFont.fontType, charCodeToUnicode: embeddedFont.charCodeToUnicode },
+          {
+            fontType: embeddedFont.fontType,
+            charCodeToUnicode: embeddedFont.charCodeToUnicode,
+            metrics: embeddedFont.metrics ? {
+              ascender: embeddedFont.metrics.ascender,
+              descender: embeddedFont.metrics.descender,
+              unitsPerEm: embeddedFont.metrics.unitsPerEm,
+            } : undefined,
+          },
         );
         // Replace ExtractedFont object with the registered family name string
         args[3] = family;
+        const css = args[2] as { family: string; weight: string; style: string };
+        diagnostics.info('font', `Registered embedded font "${embeddedFont.fontName}" → "${family}" (css="${css.family}", ${embeddedFont.rawBytes.length}B, ${embeddedFont.charCodeToUnicode?.size ?? 0} cmap entries)`, {
+          pdfFontName: embeddedFont.fontName,
+          registeredFamily: family,
+          cssFallback: css.family,
+          byteLength: embeddedFont.rawBytes.length,
+          cmapEntries: embeddedFont.charCodeToUnicode?.size ?? 0,
+        });
       } catch (err) {
         diagnostics.warn('font', `Failed to register embedded font "${embeddedFont.fontName}": ${err instanceof Error ? err.message : String(err)}`, {
           error: String(err),
