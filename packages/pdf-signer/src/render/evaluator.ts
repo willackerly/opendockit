@@ -85,6 +85,15 @@ export interface NativeImage {
   interpolate?: boolean;
 }
 
+/** Soft mask data from ExtGState /SMask — for transparency group masking. */
+export interface SoftMaskData {
+  subtype: 'Luminosity' | 'Alpha';
+  maskOpList: OperatorList;
+  matrix: number[];
+  bbox: number[];
+  backdropColor?: number[];
+}
+
 /** A gradient stop for shading patterns. */
 export interface ShadingStop {
   offset: number; // 0..1
@@ -899,13 +908,94 @@ class EvalContext {
     const CA = gsDict.getItem('CA');
     const ca = gsDict.getItem('ca');
     const bm = gsDict.getCOSName('BM');
-    if ((CA && isNumeric(CA)) || (ca && isNumeric(ca)) || bm) {
-      const gstate = new Map<string, any>();
-      if (CA && isNumeric(CA)) gstate.set('strokeAlpha', numVal(CA));
-      if (ca && isNumeric(ca)) gstate.set('fillAlpha', numVal(ca));
-      if (bm) gstate.set('globalCompositeOperation', blendModeToCSS(bm.getName()));
+
+    const gstate = new Map<string, any>();
+    if (CA && isNumeric(CA)) gstate.set('strokeAlpha', numVal(CA));
+    if (ca && isNumeric(ca)) gstate.set('fillAlpha', numVal(ca));
+    if (bm) gstate.set('globalCompositeOperation', blendModeToCSS(bm.getName()));
+
+    // SMask (soft mask / transparency group)
+    const smask = gsDict.getItem('SMask');
+    if (smask instanceof COSName && smask.getName() === 'None') {
+      gstate.set('softMask', null); // Clear soft mask
+    } else if (smask instanceof COSDictionary || (smask instanceof COSObjectReference && this.resolve)) {
+      const smaskDict = smask instanceof COSObjectReference
+        ? this.resolve(smask) as COSDictionary | undefined
+        : smask;
+      if (smaskDict instanceof COSDictionary) {
+        const softMask = this.parseSoftMask(smaskDict);
+        if (softMask) gstate.set('softMask', softMask);
+      }
+    }
+
+    if (gstate.size > 0) {
       this.opList.addOpArgs(OPS.setGState, [gstate]);
     }
+  }
+
+  /**
+   * Parse an SMask dictionary into a SoftMaskData structure.
+   * Evaluates the mask's form XObject into a separate OperatorList.
+   */
+  private parseSoftMask(smaskDict: COSDictionary): SoftMaskData | null {
+    // /S = /Luminosity or /Alpha
+    const subtype = smaskDict.getCOSName('S')?.getName();
+    if (subtype !== 'Luminosity' && subtype !== 'Alpha') return null;
+
+    // /G = transparency group form XObject
+    let gItem = smaskDict.getItem('G');
+    if (gItem instanceof COSObjectReference) gItem = this.resolve(gItem);
+    if (!(gItem instanceof COSStream)) return null;
+
+    const gDict = gItem.getDictionary?.() ?? (gItem as unknown as COSDictionary);
+
+    // Get form matrix and bbox
+    let matrix = [1, 0, 0, 1, 0, 0];
+    const matrixArr = gDict.getItem('Matrix');
+    if (matrixArr instanceof COSArray && matrixArr.size() >= 6) {
+      matrix = [];
+      for (let i = 0; i < 6; i++) matrix.push(cosNum(matrixArr, i));
+    }
+
+    let bbox = [0, 0, 1, 1];
+    const bboxArr = gDict.getItem('BBox');
+    if (bboxArr instanceof COSArray && bboxArr.size() >= 4) {
+      bbox = [];
+      for (let i = 0; i < 4; i++) bbox.push(cosNum(bboxArr, i));
+    }
+
+    // Evaluate the form's content stream into a separate OperatorList
+    const maskOpList = new OperatorList();
+    const data = getDecompressedStreamData(gItem);
+    if (data && data.length > 0) {
+      let formResources = resolveItem(gDict, 'Resources', this.resolve) as COSDictionary | undefined;
+      if (!(formResources instanceof COSDictionary)) formResources = this.resources;
+
+      const tokens = tokenizeContentStream(data);
+      const operations = parseOperations(tokens);
+
+      const formCtx = new EvalContext(formResources, this.resolve, maskOpList);
+      formCtx.fontCache = new Map(this.fontCache);
+      formCtx.recursionDepth = this.recursionDepth + 1;
+      formCtx.ctm = multiplyMatrices(matrix, this.ctm);
+      formCtx.processOperations(operations);
+    }
+
+    // /BC = backdrop color (optional)
+    let backdropColor: number[] | undefined;
+    const bcArr = smaskDict.getItem('BC');
+    if (bcArr instanceof COSArray && bcArr.size() > 0) {
+      backdropColor = [];
+      for (let i = 0; i < bcArr.size(); i++) backdropColor.push(cosNum(bcArr, i));
+    }
+
+    return {
+      subtype: subtype as 'Luminosity' | 'Alpha',
+      maskOpList,
+      matrix,
+      bbox,
+      backdropColor,
+    };
   }
 
   // ---- Font ----

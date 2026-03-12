@@ -20,6 +20,7 @@ import type {
   NativeImage,
   NativeShading,
   NativeTilingPattern,
+  SoftMaskData,
 } from './evaluator.js';
 import type { RenderDiagnosticsCollector } from './types.js';
 import type { CanvasTreeRecorder } from './canvas-tree-recorder.js';
@@ -58,6 +59,22 @@ interface GraphicsState {
   fontAscentRatio: number;
   /** True when using a registered embedded PDF font (skip remeasure). */
   fontIsRegistered: boolean;
+  /** Active soft mask (from ExtGState /SMask). */
+  softMask: ActiveSoftMask | null;
+}
+
+/** An active soft mask — rendered mask bitmap + offscreen group canvas. */
+interface ActiveSoftMask {
+  /** The mask bitmap (grayscale alpha values, one byte per pixel). */
+  maskData: Uint8Array;
+  /** Mask bitmap width (matches main canvas). */
+  width: number;
+  /** Mask bitmap height (matches main canvas). */
+  height: number;
+  /** The original (main) canvas context that was swapped out. */
+  savedCtx: CanvasRenderingContext2D;
+  /** The offscreen canvas that subsequent drawing goes to. */
+  groupCanvas: OffscreenCanvas | HTMLCanvasElement;
 }
 
 function defaultState(): GraphicsState {
@@ -85,11 +102,13 @@ function defaultState(): GraphicsState {
     textRenderingMode: 0,
     fontAscentRatio: 0.8,
     fontIsRegistered: false,
+    softMask: null,
   };
 }
 
 function cloneState(s: GraphicsState): GraphicsState {
   return { ...s, dashArray: [...s.dashArray] };
+  // Note: softMask is shared by reference — it's managed by save/restore explicitly
 }
 
 // ---------------------------------------------------------------------------
@@ -422,6 +441,12 @@ export class NativeCanvasGraphics {
   }
 
   private restore(): void {
+    // If there's an active soft mask on the CURRENT state, composite before restoring
+    const currentMask = this.state.softMask;
+    if (currentMask) {
+      this.compositeSoftMask(currentMask);
+    }
+
     const prev = this.stateStack.pop();
     if (prev) this.state = prev;
     this.ctx.restore();
@@ -472,6 +497,14 @@ export class NativeCanvasGraphics {
     if (stateMap.has('globalCompositeOperation')) {
       this.state.globalCompositeOperation = stateMap.get('globalCompositeOperation');
       this.ctx.globalCompositeOperation = this.state.globalCompositeOperation;
+    }
+    if (stateMap.has('softMask')) {
+      const maskData: SoftMaskData | null = stateMap.get('softMask');
+      if (maskData === null) {
+        // /SMask /None — clear active soft mask (compositing happens on restore)
+      } else {
+        this.activateSoftMask(maskData);
+      }
     }
   }
 
@@ -1093,6 +1126,128 @@ export class NativeCanvasGraphics {
       pixels[i * 4 + 3] = Math.round((pixels[i * 4 + 3] * smaskAlpha) / 255);
     }
     tmpCtx.putImageData(imgData, 0, 0);
+  }
+
+  // ================================================================
+  // Soft Mask (ExtGState SMask — transparency groups)
+  // ================================================================
+
+  /**
+   * Activate a soft mask: render the mask form to get alpha values,
+   * then redirect subsequent drawing to an offscreen canvas.
+   */
+  private activateSoftMask(maskData: SoftMaskData): void {
+    const mainCanvas = this.ctx.canvas;
+    const w = mainCanvas.width;
+    const h = mainCanvas.height;
+
+    // 1. Render the mask form XObject to an offscreen canvas
+    const maskCanvas = createOffscreenCanvas(w, h);
+    if (!maskCanvas) return;
+
+    const maskCtx = (maskCanvas as any).getContext('2d') as CanvasRenderingContext2D;
+    if (!maskCtx) return;
+
+    // Set up the same viewport transform as the main canvas
+    // (copy the current transform from the main canvas)
+    const mainTransform = this.ctx.getTransform();
+    maskCtx.setTransform(mainTransform);
+
+    // If the mask subtype is Luminosity and has a backdrop color, fill it first
+    if (maskData.subtype === 'Luminosity' && maskData.backdropColor) {
+      maskCtx.save();
+      maskCtx.setTransform(1, 0, 0, 1, 0, 0);
+      const bc = maskData.backdropColor;
+      if (bc.length >= 3) {
+        maskCtx.fillStyle = `rgb(${Math.round(bc[0] * 255)},${Math.round(bc[1] * 255)},${Math.round(bc[2] * 255)})`;
+      } else if (bc.length === 1) {
+        const g = Math.round(bc[0] * 255);
+        maskCtx.fillStyle = `rgb(${g},${g},${g})`;
+      }
+      maskCtx.fillRect(0, 0, w, h);
+      maskCtx.restore();
+    }
+
+    // Execute the mask's OperatorList on the mask canvas
+    const maskGraphics = new NativeCanvasGraphics(maskCtx, this.diagnostics);
+    maskGraphics.execute(maskData.maskOpList);
+
+    // 2. Extract the mask as grayscale alpha values
+    maskCtx.setTransform(1, 0, 0, 1, 0, 0);
+    const maskImageData = maskCtx.getImageData(0, 0, w, h);
+    const maskPixels = maskImageData.data;
+    const alphaMap = new Uint8Array(w * h);
+
+    if (maskData.subtype === 'Luminosity') {
+      // Luminosity: alpha = 0.2126R + 0.7152G + 0.0722B (ITU-R BT.709)
+      for (let i = 0; i < w * h; i++) {
+        const r = maskPixels[i * 4];
+        const g = maskPixels[i * 4 + 1];
+        const b = maskPixels[i * 4 + 2];
+        const a = maskPixels[i * 4 + 3];
+        // Premultiply by alpha
+        const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) * (a / 255);
+        alphaMap[i] = Math.round(lum);
+      }
+    } else {
+      // Alpha: use the alpha channel directly
+      for (let i = 0; i < w * h; i++) {
+        alphaMap[i] = maskPixels[i * 4 + 3];
+      }
+    }
+
+    // 3. Create a group canvas for subsequent drawing
+    const groupCanvas = createOffscreenCanvas(w, h);
+    if (!groupCanvas) return;
+
+    const groupCtx = (groupCanvas as any).getContext('2d') as CanvasRenderingContext2D;
+    if (!groupCtx) return;
+
+    // Copy the current transform to the group canvas
+    groupCtx.setTransform(mainTransform);
+
+    // Store the active soft mask and swap ctx
+    this.state.softMask = {
+      maskData: alphaMap,
+      width: w,
+      height: h,
+      savedCtx: this.ctx,
+      groupCanvas,
+    };
+
+    this.ctx = groupCtx;
+  }
+
+  /**
+   * Composite the soft mask group back onto the main canvas.
+   * Called from restore() when the current state has an active softMask.
+   */
+  private compositeSoftMask(mask: ActiveSoftMask): void {
+    const { maskData, width, height, savedCtx, groupCanvas } = mask;
+
+    // Get the group canvas pixels
+    const groupCtx = (groupCanvas as any).getContext('2d') as CanvasRenderingContext2D;
+    groupCtx.setTransform(1, 0, 0, 1, 0, 0);
+    const groupImageData = groupCtx.getImageData(0, 0, width, height);
+    const pixels = groupImageData.data;
+
+    // Apply mask: multiply each pixel's alpha by the mask value
+    for (let i = 0; i < width * height; i++) {
+      const maskAlpha = maskData[i];
+      pixels[i * 4 + 3] = (pixels[i * 4 + 3] * maskAlpha) >> 8;
+    }
+
+    groupCtx.putImageData(groupImageData, 0, 0);
+
+    // Draw the masked group onto the main canvas
+    savedCtx.save();
+    savedCtx.setTransform(1, 0, 0, 1, 0, 0);
+    savedCtx.drawImage(groupCanvas as any, 0, 0);
+    savedCtx.restore();
+
+    // Restore ctx to main canvas
+    this.ctx = savedCtx;
+    this.state.softMask = null;
   }
 
   // ================================================================
