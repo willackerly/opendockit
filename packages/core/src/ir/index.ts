@@ -7,7 +7,7 @@
 
 // Common types
 export type { RgbaColor, ResolvedColor, BoundingBox, Point, Size } from './common.js';
-export { colorToRgba } from './common.js';
+// colorToRgba is now canonical in ../color/index.js
 
 // DrawingML IR types
 export type {
